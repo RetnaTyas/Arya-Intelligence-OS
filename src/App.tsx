@@ -549,7 +549,7 @@ export default function App() {
                 <div className="flex items-center gap-2 text-xs font-medium text-slate-400">
                   <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
                   <span className="text-slate-300 font-mono text-[11px]">
-                    10 Lab Eksperimen Interaktif (Cakupan Umur 1 - 12 Tahun)
+                    33 Lab Simulasi & Proyek (Cakupan Lengkap 4 Domain & Rentang Usia 1-12 Thn)
                   </span>
                 </div>
               )}
@@ -563,26 +563,13 @@ export default function App() {
                 selectedNodeId={selectedNodeId}
                 onSelectNode={(id) => setSelectedNodeId(id)}
                 onLaunchSimulation={(simId) => {
-                  if (
-                    simId === 'object_permanence' ||
-                    simId === 'piaget_conservation' ||
-                    simId === 'pattern_sequence' ||
-                    simId === 'causal_logic' ||
-                    simId === 'bar_model' ||
-                    simId === 'calculus_rate' ||
-                    simId === 'buoyancy' ||
-                    simId === 'energy_conservation' ||
-                    simId === 'computational_algorithm' ||
-                    simId === 'submarine_project'
-                  ) {
-                    setActiveLabId(simId as LabId);
-                  } else if (simId === 'sim-buoyancy-tank') {
-                    setActiveLabId('buoyancy');
-                  } else if (simId === 'sim-bar-model-balance') {
-                    setActiveLabId('bar_model');
-                  } else if (simId === 'sim-submarine-ballast') {
-                    setActiveLabId('submarine_project');
-                  }
+                  const legacyMap: Record<string, LabId> = {
+                    'sim-buoyancy-tank': 'buoyancy',
+                    'sim-bar-model-balance': 'bar_model',
+                    'sim-submarine-ballast': 'submarine_project',
+                  };
+                  const resolvedLabId = legacyMap[simId] || (simId as LabId);
+                  setActiveLabId(resolvedLabId);
                   setChildTab('labs');
                 }}
                 onTriggerFeynman={(node) => {
@@ -599,6 +586,10 @@ export default function App() {
                 onMasteryEvidence={handleGenericLabMasteryEvidence}
                 onStealthResolved={handleStealthRemediationResolved}
                 onFeynmanDiagnosed={handleFeynmanDiagnosed}
+                onNavigateToGraph={(nodeId) => {
+                  setSelectedNodeId(nodeId);
+                  setChildTab('graph');
+                }}
               />
             )}
 

@@ -51,6 +51,14 @@ export interface LearnerNodeState {
   stealthInsertionTargetProject?: string;
   evidenceCount?: number;
   lastInteracted?: string;
+  // Section 6.5.6 & 6.5.7: Epistemic Object Schema Preparedness
+  epistemicProfile?: {
+    modalGate: 'wujub' | 'istihalah' | 'jawaz';
+    epistemicStatus: 'known' | 'supported' | 'hypothesized' | 'unknown' | 'underdetermined' | 'contradicted' | 'revised';
+    beliefStatus: 'preferred' | 'plausible' | 'weak' | 'suspended';
+    discriminatingEvidenceUnknown?: boolean;
+    entailmentScope?: string;
+  };
 }
 
 export interface EvidenceEntry {
@@ -81,6 +89,14 @@ export interface EvidenceEntry {
     misconceptionDetected?: string;
   };
   notes?: string;
+  // Section 6.5.7: Epistemic warrant tracking
+  epistemicVerification?: {
+    warrantModel: 'chain' | 'convergence';
+    modalCoherence: 'valid' | 'self_contradictory';
+    layer0Tested?: boolean;
+    layer1Tested?: boolean;
+    layer2Perturbed?: boolean;
+  };
 }
 
 export interface CognitiveDomainTelemetry {

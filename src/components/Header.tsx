@@ -81,8 +81,8 @@ export const Header: React.FC<HeaderProps> = ({
             }`}
           >
             <Cpu className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Deterministic Core & Kalibrasi</span>
-            <span className="md:hidden">Core</span>
+            <span className="hidden md:inline">Engine & Uji Tahap 2</span>
+            <span className="md:hidden">Tahap 2</span>
           </button>
         </div>
 

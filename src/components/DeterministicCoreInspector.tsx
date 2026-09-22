@@ -14,6 +14,8 @@ import {
   Sliders,
   Sparkles,
   HelpCircle,
+  Brain,
+  ListFilter,
 } from 'lucide-react';
 import { KnowledgeNode, LearnerNodeState } from '../types';
 import {
@@ -24,6 +26,8 @@ import {
   PREREQUISITE_MASTERY_THRESHOLDS,
   RecommendedExperience,
 } from '../engine/deterministicCore';
+import { CentralHypothesisTestHarness } from './CentralHypothesisTestHarness';
+import { NARROW_DOMAIN_MATH_NODES } from '../data/narrowMathDomain';
 
 interface DeterministicCoreInspectorProps {
   nodes: KnowledgeNode[];
@@ -40,7 +44,7 @@ export const DeterministicCoreInspector: React.FC<DeterministicCoreInspectorProp
 }) => {
   const [selectedNodeId, setSelectedNodeId] = useState<string>('node-symbolic-algebra');
   const [simulatedDaysElapsed, setSimulatedDaysElapsed] = useState<number>(28);
-  const [activeEngineTab, setActiveEngineTab] = useState<'queue' | 'prereq' | 'decay' | 'debt'>('queue');
+  const [activeEngineTab, setActiveEngineTab] = useState<'queue' | 'prereq' | 'decay' | 'debt' | 'benchmark' | 'narrow_domain'>('benchmark');
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId) || nodes[0];
   const selectedState = learnerNodes[selectedNode.id];
@@ -87,6 +91,30 @@ export const DeterministicCoreInspector: React.FC<DeterministicCoreInspectorProp
           {/* Sub-Tab Navigation */}
           <div className="flex flex-wrap gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800 self-start md:self-auto">
             <button
+              id="engine-tab-benchmark"
+              onClick={() => setActiveEngineTab('benchmark')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1.5 ${
+                activeEngineTab === 'benchmark'
+                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold shadow'
+                  : 'text-purple-300 hover:text-white'
+              }`}
+            >
+              <Brain className="w-3.5 h-3.5" />
+              <span>Tahap 2: Uji Hipotesis & Perturbasi</span>
+            </button>
+            <button
+              id="engine-tab-narrow-domain"
+              onClick={() => setActiveEngineTab('narrow_domain')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1.5 ${
+                activeEngineTab === 'narrow_domain'
+                  ? 'bg-cyan-600 text-white font-bold shadow'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <ListFilter className="w-3.5 h-3.5" />
+              <span>Tahap 1: Koridor Domain Sempit</span>
+            </button>
+            <button
               onClick={() => setActiveEngineTab('queue')}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
                 activeEngineTab === 'queue'
@@ -129,6 +157,52 @@ export const DeterministicCoreInspector: React.FC<DeterministicCoreInspectorProp
           </div>
         </div>
       </div>
+
+      {/* Tab Tahap 2: Central Hypothesis Test Harness & Perturbation Layer 0-2 */}
+      {activeEngineTab === 'benchmark' && <CentralHypothesisTestHarness />}
+
+      {/* Tab Tahap 1: Koridor Domain Sempit (Pecahan s/d Persamaan) */}
+      {activeEngineTab === 'narrow_domain' && (
+        <div className="space-y-4 animate-fade-in">
+          <div className="bg-[#0b1022] p-4 rounded-xl border border-cyan-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div>
+              <strong className="text-cyan-300 font-bold block">
+                Tahap 1 Peta Jalan: Domain Sempit Terfokus (Single-Learner Corridor)
+              </strong>
+              <p className="text-slate-400 mt-0.5 text-[11px]">
+                Koridor vertikal pecahan ➔ rasio ➔ persamaan aljabar linear. Prinsip: data model solid untuk 1 pengguna pertama sebelum ekspansi ke multi-domain.
+              </p>
+            </div>
+            <span className="px-2.5 py-1 rounded bg-cyan-950/70 text-cyan-300 font-mono text-[11px] border border-cyan-800/40 shrink-0">
+              7 Node Vertikal Kunci
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            {NARROW_DOMAIN_MATH_NODES.map((n, idx) => (
+              <div key={n.id} className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-indigo-400 font-mono text-[10px] font-bold">
+                    Langkah #{idx + 1}
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                    Centrality: {n.centrality}
+                  </span>
+                </div>
+                <h4 className="text-xs font-bold text-white">{n.name}</h4>
+                <p className="text-[11px] text-slate-400 leading-relaxed">{n.description}</p>
+                <div className="p-2.5 bg-slate-900/80 rounded-lg border border-slate-800 space-y-1 text-[11px]">
+                  <strong className="text-amber-300 block text-[10.5px]">Miskonsepsi Kunci:</strong>
+                  <span className="text-slate-300 italic block">{n.commonMisconceptions[0]?.misconception}</span>
+                  <span className="text-emerald-400 text-[10.5px] block mt-1">
+                    <strong>Counterexample:</strong> {n.commonMisconceptions[0]?.counterExample}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Tab 1: Deterministic Next Best Learning Experience Queue */}
       {activeEngineTab === 'queue' && (

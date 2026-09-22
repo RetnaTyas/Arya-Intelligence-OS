@@ -8,7 +8,7 @@ import { applyMasteryGating } from './deterministicCore';
 /**
  * MULTI-MODAL EVIDENCE TRIANGULATION & FEYNMAN NOISE SHIELD
  *
- * Mengatasi Risiko #1 (Section 11 DOKUMEN_FONDASI_ARSITEKTUR.md):
+ * Mengatasi Risiko #1 (Section 11 intelligence-os-foundation.md):
  * "Feynman Sensor adalah single point of failure. Mendiagnosis pemahaman dari dialog
  * adalah masalah riset terbuka. Jika diagnosisnya noise, adaptive engine akan salah
  * memilih intervensi."

@@ -27,6 +27,10 @@ import { ToddlerLogicLabs } from './toddler/ToddlerLogicLabs';
 import { ToddlerMathLabs } from './toddler/ToddlerMathLabs';
 import { ToddlerPhysicsLabs } from './toddler/ToddlerPhysicsLabs';
 import { ToddlerComputingLabs } from './toddler/ToddlerComputingLabs';
+import { QualitativeBalanceLab } from './QualitativeBalanceLab';
+import { NumberLineLab } from './NumberLineLab';
+import { DensityMassLab } from './DensityMassLab';
+import { BinarySearchComplexityLab } from './BinarySearchComplexityLab';
 
 import { FeynmanDiagnosisResult } from '../../types';
 
@@ -56,15 +60,19 @@ export type LabId =
   | 'binary_switch'
   | 'path_maze'
   // Umur 4-12
+  | 'qualitative_balance'
+  | 'number_line'
   | 'piaget_conservation'
   | 'pattern_sequence'
   | 'causal_logic'
   | 'bar_model'
-  | 'calculus_rate'
-  | 'buoyancy'
-  | 'energy_conservation'
+  | 'density_mass'
   | 'computational_algorithm'
-  | 'submarine_project';
+  | 'buoyancy'
+  | 'submarine_project'
+  | 'energy_conservation'
+  | 'calculus_rate'
+  | 'binary_search_complexity';
 
 export type DomainFilter = 'Semua' | 'Logika & Kausal' | 'Matematika' | 'Fisika' | 'Komputasi';
 export type AgeFilter = 'Semua' | '1-3' | '4-6' | '7-9' | '10-12';
@@ -75,6 +83,7 @@ interface LabHubProps {
   onMasteryEvidence: (conceptName: string, details: string) => void;
   onStealthResolved: () => void;
   onFeynmanDiagnosed?: (result: FeynmanDiagnosisResult, explanation: string) => void;
+  onNavigateToGraph?: (nodeId: string) => void;
 }
 
 export const LabHub: React.FC<LabHubProps> = ({
@@ -83,6 +92,7 @@ export const LabHub: React.FC<LabHubProps> = ({
   onMasteryEvidence,
   onStealthResolved,
   onFeynmanDiagnosed,
+  onNavigateToGraph,
 }) => {
   const [selectedDomain, setSelectedDomain] = useState<DomainFilter>('Semua');
   const [selectedAge, setSelectedAge] = useState<AgeFilter>('Semua');
@@ -341,6 +351,30 @@ export const LabHub: React.FC<LabHubProps> = ({
     // Umur 4 - 6 Tahun: Pra-Operasional & Intuisi Kuantitas
     // ----------------------------------------------------
     {
+      id: 'qualitative_balance' as LabId,
+      name: 'Neraca Timbangan Kualitatif',
+      nodeRef: 'node-qualitative-balance',
+      domain: 'Logika & Kausal' as const,
+      ageBracket: '4-6' as const,
+      ageLabel: '4 - 6 Thn (Pra-Operasional)',
+      icon: Scale,
+      color: 'from-purple-600 to-indigo-600',
+      badgeBg: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+      description: 'Menemukan hakikat kesetaraan fisik (=) dan membongkar miskonsepsi "benda besar pasti lebih berat".',
+    },
+    {
+      id: 'number_line' as LabId,
+      name: 'Garis Bilangan Spasial & Kardinalitas',
+      nodeRef: 'node-number-line-counting',
+      domain: 'Matematika' as const,
+      ageBracket: '4-6' as const,
+      ageLabel: '4 - 6 Thn (Pra-Operasional)',
+      icon: TrendingUp,
+      color: 'from-indigo-600 to-cyan-600',
+      badgeBg: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+      description: 'Lompatan katak di atas garis bilangan 0-10: menghubungkan jarak spasial, kuantitas diskret, dan simbol bilangan.',
+    },
+    {
       id: 'piaget_conservation' as LabId,
       name: 'Konservasi Volume & Bentuk Piaget',
       nodeRef: 'node-piaget-conservation',
@@ -382,7 +416,7 @@ export const LabHub: React.FC<LabHubProps> = ({
     {
       id: 'bar_model' as LabId,
       name: 'Bar Model & Aljabar Simbolik',
-      nodeRef: 'node-symbolic-algebra',
+      nodeRef: 'node-bar-model',
       domain: 'Matematika' as const,
       ageBracket: '7-9' as const,
       ageLabel: '7 - 9 Thn (Konkret)',
@@ -390,6 +424,18 @@ export const LabHub: React.FC<LabHubProps> = ({
       color: 'from-indigo-600 to-blue-600',
       badgeBg: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
       description: 'Mereduksi persamaan neraca simetris dua sisi tanpa menghafal aturan "pindah ruas ganti tanda".',
+    },
+    {
+      id: 'density_mass' as LabId,
+      name: 'Kerapatan Massa & Volume (Inquiry Lab)',
+      nodeRef: 'node-density-mass',
+      domain: 'Fisika' as const,
+      ageBracket: '7-9' as const,
+      ageLabel: '7 - 9 Thn (Konkret)',
+      icon: FlaskConical,
+      color: 'from-cyan-600 to-teal-600',
+      badgeBg: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
+      description: 'Membongkar mitos "benda besar pasti berat" melalui timbangan digital, gelas ukur volume, dan uji tangki air.',
     },
     {
       id: 'computational_algorithm' as LabId,
@@ -454,6 +500,18 @@ export const LabHub: React.FC<LabHubProps> = ({
       color: 'from-indigo-600 to-purple-600',
       badgeBg: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
       description: 'Menganalisis kecepatan sesaat roket saat interval waktu h menyusut mendekati nol tanpa paradoks 0/0.',
+    },
+    {
+      id: 'binary_search_complexity' as LabId,
+      name: 'Pencarian Biner & Kompleksitas Algoritma',
+      nodeRef: 'node-binary-search-complexity',
+      domain: 'Komputasi' as const,
+      ageBracket: '10-12' as const,
+      ageLabel: '10 - 12 Thn (Formal)',
+      icon: Cpu,
+      color: 'from-emerald-600 to-cyan-600',
+      badgeBg: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+      description: 'Membelah ruang pencarian memori transmisi Mars Rover: O(log N) biner vs O(N) linier satu-per-satu.',
     },
   ];
 
@@ -568,6 +626,47 @@ export const LabHub: React.FC<LabHubProps> = ({
         </div>
       </div>
 
+      {/* Active Lab Header & Navigation Link to Knowledge Graph */}
+      {(() => {
+        const activeItem = labCatalogue.find((item) => item.id === activeLabId);
+        if (!activeItem) return null;
+        const Icon = activeItem.icon;
+        return (
+          <div className="bg-[#0e1324] p-3.5 rounded-xl border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
+            <div className="flex items-center gap-3">
+              <div className={`w-8 h-8 rounded-lg bg-gradient-to-tr ${activeItem.color} flex items-center justify-center text-white shadow`}>
+                <Icon className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-white">{activeItem.name}</span>
+                  <span className={`text-[10px] font-medium px-2 py-0.2 rounded ${activeItem.badgeBg}`}>
+                    {activeItem.domain}
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400">
+                    {activeItem.ageLabel}
+                  </span>
+                </div>
+                <span className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">
+                  Simpul Terkait di Peta Ilmu: <strong className="text-slate-300 font-mono">{activeItem.nodeRef}</strong>
+                </span>
+              </div>
+            </div>
+
+            {onNavigateToGraph && activeItem.nodeRef && (
+              <button
+                onClick={() => onNavigateToGraph(activeItem.nodeRef)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-950/80 hover:bg-cyan-900 text-cyan-300 text-xs border border-cyan-500/40 transition shadow self-start sm:self-auto font-medium"
+                title="Buka simpul ini di Peta Ilmu (Knowledge Graph)"
+              >
+                <Compass className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Lihat di Peta Ilmu ➔</span>
+              </button>
+            )}
+          </div>
+        );
+      })()}
+
       {/* Render Currently Active Lab View */}
       <div className="animate-fade-in">
         {/* Ages 1 - 3 */}
@@ -623,6 +722,18 @@ export const LabHub: React.FC<LabHubProps> = ({
         )}
 
         {/* Ages 4 - 6 */}
+        {activeLabId === 'qualitative_balance' && (
+          <QualitativeBalanceLab
+            onMasteryEvidence={(concept, details) => onMasteryEvidence(concept, details)}
+          />
+        )}
+
+        {activeLabId === 'number_line' && (
+          <NumberLineLab
+            onMasteryEvidence={(concept, details) => onMasteryEvidence(concept, details)}
+          />
+        )}
+
         {activeLabId === 'piaget_conservation' && (
           <PiagetConservationLab
             onMasteryEvidence={(details) =>
@@ -653,6 +764,12 @@ export const LabHub: React.FC<LabHubProps> = ({
             onMasteryEvidence={(details) =>
               onMasteryEvidence('Aljabar Simbolik & Transformasi Kesetaraan', details)
             }
+          />
+        )}
+
+        {activeLabId === 'density_mass' && (
+          <DensityMassLab
+            onMasteryEvidence={(concept, details) => onMasteryEvidence(concept, details)}
           />
         )}
 
@@ -691,6 +808,12 @@ export const LabHub: React.FC<LabHubProps> = ({
             onMasteryEvidence={(details) =>
               onMasteryEvidence('Kalkulus: Laju Perubahan & Limit', details)
             }
+          />
+        )}
+
+        {activeLabId === 'binary_search_complexity' && (
+          <BinarySearchComplexityLab
+            onMasteryEvidence={(concept, details) => onMasteryEvidence(concept, details)}
           />
         )}
       </div>

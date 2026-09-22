@@ -361,6 +361,88 @@ Pertanyaan "siapa yang menghakimi hakim?" (muncul dari kriteria evaluasi hipotes
 
 **Anchor yang dideklarasikan, bukan kerangka netral.** Konsisten dengan prinsip yang sudah ditetapkan di 6.5.4 (kriteria evaluasi hipotesis bukan netral, harus didokumentasikan sebagai komitmen filosofis eksplisit): memilih wujūb–istiḥālah–jawāz sebagai kerangka Layer 1 **juga** adalah komitmen epistemologis tertentu, berasal dari tradisi kalām rasionalis (via al-Sanūsī), bukan kerangka modal yang netral secara universal. Dokumen ini mengadopsinya secara sadar sebagai anchor Layer 1 yang dideklarasikan — bukan diklaim sebagai satu-satunya cara sah untuk membangun lapisan modal.
 
+### 6.5.7 Universal Warrant Pipeline
+
+> **Catatan penting soal sumber.** Bagian ini memakai istilah kalām/uṣūl (wujūb, istiḥālah, jawāz, thubūt, dalālah) sebagai **ilustrasi struktural** untuk merancang arsitektur epistemik Intelligence OS — bukan sebagai eksposisi doktrinal. Detail spesifik seperti qaṭʿī al-thubūt, maʿlūm min al-dīn bi al-ḍarūrah, atau mekanisme penetapan status ʿaqīdah adalah wilayah sejarah dan terminologi kalām/uṣūl yang berbeda antar-ulama dan mazhab, dan **belum ditelusuri langsung dari teks primer** (mis. *Umm al-Barāhīn* dan syarahnya) dalam dokumen ini. Yang diambil di sini murni pola strukturalnya: bahwa sebuah proposisi memperoleh status lewat rantai warrant yang bisa dibedah, bukan lewat satu klaim otoritas tunggal. Kesetaraan struktural ini **tidak menyiratkan** kesetaraan metode antara kalām dan sains — lihat catatan konvergensi vs rantai di bawah.
+
+**Masalah yang diselesaikan.** 6.5.2 (epistemic state), 6.5.4 (evaluation contract), dan 6.5.6 (tiga layer status) masing-masing benar sebagai konsep, tapi kalau langsung dikodekan sebagai tiga subsystem terpisah, mereka akan overlap secara operasional. Ketiganya sebenarnya adalah **fungsi berbeda dalam satu siklus**, bukan tiga sistem paralel.
+
+**Struktur dasar (sebagai graph, bukan pipeline linear — lihat koreksi di bawah):**
+
+```
+                    PROPOSITION P
+                         │
+          ┌──────────────┴──────────────┐
+          ▼                             ▼
+    DALĪL ʿAQLĪ                   DALĪL NAQLĪ
+    (a priori)                    (evidential)
+          │                             │
+          ▼                             ▼
+   Modal coherence                   THUBŪT
+Wujūb/Istiḥālah/Jawāz          (validitas sumber)
+          │                             │
+          │                             ▼
+          │                        DALĀLAH
+          │                    (interpretasi makna)
+          │                             │
+          └──────────────┬──────────────┘
+                          ▼
+                    ENTAILMENT
+                          │
+                          ▼
+                       SCOPE
+                          │
+                          ▼
+              EPISTEMIC / NORMATIVE STATUS
+                          │
+                          ▼
+                  BELIEF / ACTION
+                          │
+                          ▼
+                      REVISION
+```
+
+**Empat jenis benda berbeda, bukan tiga layer yang bertabrakan:**
+
+| Komponen | Isi | Peran |
+|---|---|---|
+| **A. Epistemic Object** (6.5.2) | Claim + jalur warrant (ʿaqlī: premise/inference/modal result; naqlī: source/thubūt/dalālah/interpretation) + entailment + scope + status + belief + revision history | Apa yang disimpan |
+| **B. Modal Gate** (6.5.6 Layer 1) | Wujūb / Istiḥālah / Jawāz | Gerbang koherensi logis a priori — biner, bukan gradasi |
+| **C. Evaluation Contract** (6.5.4) | Kriteria dideklarasikan (minimality, falsifiability, dst.) + aturan resolusi konflik | Aturan main yang dideklarasikan **sebelum** evaluasi, bukan hasil evaluasi |
+| **D. Epistemic + Belief State** (6.5.6 Layer 2–3) | Supported/Underdetermined/Contradicted... + preferred/plausible/suspended... | Hasil evaluasi dan cara agen memegangnya |
+
+**Prinsip inti (direvisi dari draf awal — lihat koreksi #2 di bawah):**
+
+> Status epistemik suatu proposisi tidak boleh diwariskan otomatis dari sumbernya **ketika status itu dipertaruhkan (contested, high-stakes, atau menghadapi evidence baru)**. Pada kondisi itu, status harus ditelusuri lewat jalur warrant: sumber → thubūt/validitas → dalālah/interpretasi → entailment → scope → evaluasi → penempatan dalam sistem pengetahuan.
+
+**Non-collapse pada evidence yang tidak diskriminatif:**
+
+```
+Evidence
+   ↓
+Discriminative?
+ NO → preserve multiple live hypotheses
+ YES → update/revise
+   ↓
+New epistemic state
+```
+
+Kalau H₁ dan H₂ sama-sama *jawāz* dan sama-sama *supported* tanpa evidence yang membedakan, Layer 2 tidak berhak collapse jadi satu jawaban. Layer 3 boleh menyatakan preferensi sementara ("preferred: H₁"), tapi H₂ tetap tercatat *live* dengan `discriminating_evidence: unknown` — bukan dihapus.
+
+**Koreksi #1 — pipeline ini harus jadi graph dengan feedback edges, bukan rantai satu arah.** Diagram di atas terlihat sekuensial, tapi warrant di dunia nyata (kalām, uṣūl, maupun sains) tidak mengalir satu arah:
+- *Dalālah* (makna teks) sering bergantung pada *scope* yang belum ditetapkan — perlu tahu konteks penerapan untuk yakin apa yang dimaksud. Ini panah balik dari Scope ke Dalālah.
+- *Entailment* bersifat **defeasible** (non-monoton): P bisa ter-entail dari M hari ini, lalu evidence baru mendefeat entailment itu tanpa thubūt berubah sama sekali. Revisi bisa masuk di titik mana pun dalam graph, bukan cuma di simpul "Revision" paling bawah.
+
+Implikasi implementasi: representasi datanya harus berupa graph dengan edge yang bisa direvisi dari titik mana pun, bukan linked-list satu arah yang memaksa "mulai ulang dari atas" setiap ada update.
+
+**Koreksi #2 — prinsip "jangan warisi status otomatis" terlalu kuat kalau dipaksa selalu berlaku.** Jika setiap proposisi wajib menelusuri seluruh jalur warrant sebelum mendapat status, sistem lumpuh — termasuk untuk fakta remeh sehari-hari. Tidak ada agen kognitif yang benar-benar mengaudit ulang seluruh warrant untuk tiap proposisi yang dipegangnya; itu infinite regress yang sama dengan masalah "siapa menghakimi hakim", cuma dipindah ke level operasional. Solusinya: **default entitlement dengan tingkat kesiagaan berbeda**. Proposisi biasa mendapat status provisional dari keandalan sumber (testimony default) tanpa audit penuh. Jalur warrant lengkap baru **dipaksa terbuka** ketika: (a) proposisi itu dipertanyakan/dikontes, (b) statusnya mau dinaikkan ke kategori bertaruhan tinggi (mis. *doctrinal status* — lihat di bawah), atau (c) muncul evidence baru yang berpotensi mendefeat-nya.
+
+**Koreksi #3 — model rantai (naqlī) dan model konvergensi (sains) tidak paralel, dan bedanya penting.** Warrant naqlī (thubūt/isnād) pada dasarnya **model rantai**: kekuatannya menurun kalau ada satu mata rantai transmisi lemah, bertumpu pada integritas jalur tunggal atau sedikit jalur independen. Replikasi ilmiah sebaliknya **model konvergensi**: warrant menguat ketika banyak jalur independen (lab berbeda, metode berbeda) mencapai kesimpulan sama, dan satu jalur gagal tidak merusak keseluruhan selama jalur lain berdiri. Kalau provenance di Intelligence OS hanya dirancang mengikuti model rantai, ia salah memodelkan sains — kekuatan bukti ilmiah datang dari independensi dan jumlah jalur, bukan dari satu jalur tak terputus. Skema provenance harus mendukung **kedua tipe warrant** secara eksplisit berbeda, bukan satu skema generik untuk semuanya.
+
+**Generalisasi *doctrinal status*.** Untuk Intelligence OS, "penempatan dalam struktur ʿaqīdah" digeneralisasi menjadi **status normatif/struktural sebuah proposisi dalam suatu knowledge system** — dalam agama bisa jadi ʿaqīdah, dalam sains bisa jadi accepted theory / established result / working hypothesis / unresolved question. Kesamaan strukturalnya: naik ke status ini butuh warrant yang lebih ketat dan konsekuensi penolakan yang lebih besar, apa pun domainnya.
+
+**Entailment sebagai titik rawan.** Rantai `Source contains S → S authentic → S means M → M entails P` bisa gagal di titik mana pun tanpa titik sebelumnya gagal: S bisa otentik tapi interpretasi M-nya salah; M bisa benar tapi tidak cukup meng-entail P; P bisa ter-entail tapi hanya dalam scope C, bukan universal. **Scope expansion error** — memperluas P(C) menjadi P(universal) tanpa warrant tambahan — adalah pola kegagalan yang sama persis dengan sumber yang bilang "X pada kondisi A" lalu model AI menghasilkan "X selalu demikian". Ini bukan sekadar hallucination biasa; ini pelanggaran batas provenance.
+
 ---
 
 ## 7. Self-Healing Learning
@@ -540,6 +622,10 @@ Bagian ini sengaja jujur. Dokumen konsep yang tidak memuat kelemahannya sendiri 
 | 15 | **Kriteria evaluasi hipotesis (6.5.4) adalah anchor tingkat-meta, bukan netral.** Minimality dan falsifiability membawa komitmen filsafat ilmu (Occam, Popper) yang sendiri diperdebatkan. | Sistem bisa terlihat "objektif" padahal menyematkan bias filosofis tertentu; kriteria bisa saling bertentangan tanpa aturan penyelesaian. | Buat decision rule eksplisit untuk konflik antar-kriteria; dokumentasikan komitmen filosofis yang dipilih, jangan sembunyikan sebagai "netral" |
 | 16 | **Kalibrasi epistemic-state butuh N besar, tapi learner model personal punya N kecil dan non-stationary.** | Klaim "label terkalibrasi" (6.5.2) tidak bisa diuji secara statistik bermakna pada satu anak. | Pakai kalibrasi populasi sebagai prior, atau ukur konsistensi diri jangka panjang (6.5.5) — tunda validasi formal sampai salah satu tersedia |
 | 17 | **Kerangka modal Layer 1 (wujūb/istiḥālah/jawāz, 6.5.6) adalah anchor filosofis yang dideklarasikan, bukan kerangka netral.** Berasal dari tradisi kalām rasionalis tertentu. | Kalau tidak dideklarasikan eksplisit, berisiko diperlakukan seolah "satu-satunya cara sah" membangun lapisan modal — pengulangan masalah meta-anchor di risiko #15. | Selalu nyatakan sebagai komitmen yang dipilih sadar; jangan campur gradasi Layer 1 dengan evidence (Layer 2) atau belief (Layer 3) |
+| 18 | **Warrant Pipeline (6.5.7) digambar sebagai rantai linear padahal warrant bersifat non-linear dan defeasible.** Dalālah bisa bergantung balik pada scope; entailment bisa didefeat evidence baru tanpa thubūt berubah. | Implementasi yang memaksa "mulai ulang dari atas" tiap revisi akan salah memodelkan cara warrant sebenarnya berubah. | Representasikan sebagai graph dengan feedback edges, bukan linked-list satu arah |
+| 19 | **Prinsip "status tidak boleh diwariskan otomatis dari sumber" terlalu kuat jika dipaksa berlaku pada semua proposisi.** Memicu infinite regress operasional — audit penuh untuk setiap klaim, termasuk yang remeh. | Sistem lumpuh secara praktis. | Terapkan default entitlement (status provisional dari keandalan sumber) untuk klaim biasa; jalur warrant penuh hanya dipaksa terbuka saat proposisi dikontes, naik ke status bertaruhan tinggi, atau ada evidence baru |
+| 20 | **Model warrant rantai (naqlī/isnād) dan model warrant konvergensi (replikasi ilmiah) tidak paralel — disamakan bisa salah memodelkan sains.** Rantai melemah dari satu titik lemah; konvergensi menguat dari banyak jalur independen. | Skema provenance generik tunggal akan salah merepresentasikan kekuatan bukti ilmiah. | Dukung kedua tipe warrant secara eksplisit berbeda dalam skema data, bukan satu model untuk semua |
+| 21 | **Detail terminologi kalām spesifik (qaṭʿī al-thubūt, maʿlūm min al-dīn bi al-ḍarūrah, mekanisme status ʿaqīdah) belum ditelusuri dari teks primer.** Dokumen ini hanya memakainya sebagai ilustrasi struktural. | Risiko menempelkan istilah klasik seolah itu adalah struktur otoritatif suatu ulama/mazhab tertentu, padahal belum diverifikasi ke sumber. | Sebelum detail spesifik dipakai lebih jauh, bedah langsung dari teks primer (mis. *Umm al-Barāhīn* dan syarahnya) dan pisahkan tegas mana teks asli vs rekonstruksi Intelligence OS |
 
 ---
 
@@ -554,6 +640,8 @@ Bagian ini sengaja jujur. Dokumen konsep yang tidak memuat kelemahannya sendiri 
 **Tahap 2 · Uji hipotesis pusat.** *Apakah diagnosis miskonsepsi oleh AI cocok dengan penilaian manusia yang teliti?* Jika ya, lapisan di atasnya layak dibangun. Jika tidak, perbaiki sensor sebelum menambah fitur.
 
 Perluasan uji di tahap ini (bukan gerbang baru, tapi memperdalam Tahap 2 — lihat risiko #12): tambahkan minimal Layer 0–2 dari skema perturbation (6.5.1) pada domain sempit yang sama. Pertanyaannya bukan lagi hanya "apakah diagnosis AI cocok dengan manusia", tapi *"apakah diagnosis itu bertahan setelah satu semantic perturbation sederhana"* (mis. domain pecahan: bedakan kasus yang terlihat mirip tapi berbeda struktur). Layer 3–5 dan primitive epistemik (6.5.2) ditunda sampai Layer 0–2 terbukti stabil.
+
+> **Catatan lingkup 6.5.7 (Universal Warrant Pipeline).** Seluruh kerangka warrant hierarchy (modal gate, evaluation contract, thubūt/dalālah/entailment/scope, chain vs convergence warrant) adalah perluasan konseptual yang **sengaja ditunda validasinya**, konsisten dengan risiko #12. Ia tidak menjadi syarat sebelum Tahap 1–2 boleh dimulai. Fungsinya di sini adalah memastikan arsitektur data (Epistemic Object di 6.5.2) tidak perlu dirombak total nanti ketika warrant hierarchy mulai diimplementasikan — bukan sebagai gerbang tambahan yang harus diselesaikan lebih dulu.
 
 **Tahap 3 · Evidence + Learner Model.** Log bukti, pembaruan state, next-best-experience.
 
@@ -607,6 +695,10 @@ Perluasan uji di tahap ini (bukan gerbang baru, tapi memperdalam Tahap 2 — lih
 - **Wujūb / Istiḥālah / Jawāz:** Tiga status modal dari ʿilm al-kalām (niscaya / mustahil / mungkin), dipakai sebagai Layer 1 (gerbang koherensi logis a priori) dalam model tiga-layer status hipotesis — dideklarasikan sebagai anchor filosofis, bukan kerangka netral.
 - **Tiga Layer Status (Modal / Epistemik / Belief):** Pemisahan status "mungkinkah secara logis" (Layer 1, dari akal) dari "apa yang diketahui" (Layer 2, dari evidence) dan "seberapa kuat dipegang" (Layer 3, komitmen sementara agen) — mencegah satu output tunggal mencampur tiga kategori berbeda.
 - **Epistemic preservation:** Menahan diri dari memaksa satu hipotesis "menang" ketika evidence belum cukup mendiskriminasi antar-kandidat yang masih sama-sama jawāz.
+- **Universal Warrant Pipeline:** Kerangka penyatuan Epistemic Object (6.5.2), Modal Gate (6.5.6 Layer 1), Evaluation Contract (6.5.4), dan Epistemic/Belief State (6.5.6 Layer 2–3) dalam satu graph warrant (ʿaqlī/naqlī → thubūt → dalālah → entailment → scope → status → belief → revision).
+- **Warrant rantai vs konvergensi:** Dua tipe warrant berbeda — rantai (mis. isnād/thubūt) melemah dari satu titik lemah transmisi; konvergensi (mis. replikasi ilmiah) menguat dari banyak jalur independen. Tidak boleh disamakan dalam satu skema provenance.
+- **Default entitlement:** Prinsip bahwa proposisi biasa mendapat status provisional dari keandalan sumber tanpa audit penuh; jalur warrant lengkap hanya dipaksa terbuka saat proposisi dikontes, naik ke status bertaruhan tinggi, atau menghadapi evidence baru.
+- **Scope expansion error:** Kesalahan memperluas proposisi yang valid dalam kondisi tertentu (P dalam scope C) menjadi klaim universal (P selalu berlaku) tanpa warrant tambahan.
 
 ---
 

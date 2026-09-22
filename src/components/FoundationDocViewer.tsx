@@ -16,7 +16,13 @@ import {
   Cpu,
   Brain,
   Search,
+  Network,
+  Scale,
+  ArrowRight,
 } from 'lucide-react';
+import { FoundationSection65 } from './FoundationSection65';
+import { RISKS_21, GLOSSARY_ALL } from '../data/foundationDocData';
+import { INTELLIGENCE_OS_FOUNDATION_MARKDOWN } from '../data/foundationDocMarkdown';
 
 interface FoundationDocViewerProps {
   isOpen: boolean;
@@ -37,11 +43,12 @@ export const FoundationDocViewer: React.FC<FoundationDocViewerProps> = ({ isOpen
     { id: 'arsitektur', label: '4. Arsitektur Logis' },
     { id: 'graph', label: '5. Knowledge Graph' },
     { id: 'mastery', label: '6. Mastery & Feynman' },
+    { id: 'perturbation', label: '6.5 Perturbation & Warrant' },
     { id: 'selfhealing', label: '7. Self-Healing & Debt' },
     { id: 'loop', label: '8. Empat Loop Sistem' },
     { id: 'telemetri', label: '9. Telemetri Kognitif' },
     { id: 'bisnis', label: '10. Produk & Model Bisnis' },
-    { id: 'risiko', label: '11. 11 Asumsi & Risiko' },
+    { id: 'risiko', label: '11. 21 Asumsi & Risiko' },
     { id: 'roadmap', label: '12. Peta Jalan (Tahap 0-6)' },
     { id: 'log', label: '13. Log Keputusan Desain' },
     { id: 'glosarium', label: '14. Glosarium Lengkap' },
@@ -49,23 +56,17 @@ export const FoundationDocViewer: React.FC<FoundationDocViewerProps> = ({ isOpen
   ];
 
   const handleDownloadMarkdown = () => {
-    const markdownContent = `# Personal Intelligence OS
-## Dokumen Fondasi: Konsep, Prinsip, dan Arsitektur
-Status: Draf v0.1 (konsolidasi) · Sifat: Dokumen hidup · Cakupan: Konsep, arsitektur logis, model bisnis, risiko.
-
-Lokasi Berkas di Proyek: /docs/architecture/DOKUMEN_FONDASI_ARSITEKTUR.md
-`;
     const element = document.createElement('a');
-    const file = new Blob([markdownContent], { type: 'text/markdown' });
+    const file = new Blob([INTELLIGENCE_OS_FOUNDATION_MARKDOWN], { type: 'text/markdown' });
     element.href = URL.createObjectURL(file);
-    element.download = 'DOKUMEN_FONDASI_ARSITEKTUR.md';
+    element.download = 'intelligence-os-foundation.md';
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
   };
 
   const handleCopyLink = () => {
-    navigator.clipboard.writeText('/docs/architecture/DOKUMEN_FONDASI_ARSITEKTUR.md');
+    navigator.clipboard.writeText('/docs/architecture/intelligence-os-foundation.md');
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -93,7 +94,7 @@ Lokasi Berkas di Proyek: /docs/architecture/DOKUMEN_FONDASI_ARSITEKTUR.md
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                Tersimpan di <code className="text-indigo-300 font-mono text-[11px]">/docs/architecture/DOKUMEN_FONDASI_ARSITEKTUR.md</code>
+                Tersimpan di <code className="text-indigo-300 font-mono text-[11px]">/docs/architecture/intelligence-os-foundation.md</code>
               </p>
             </div>
           </div>
@@ -420,8 +421,28 @@ Lokasi Berkas di Proyek: /docs/architecture/DOKUMEN_FONDASI_ARSITEKTUR.md
                   └── misconception:             detected ("berat menentukan tenggelam/mengapung")
                 </div>
               </div>
+
+              {/* Jembatan ke 6.5 */}
+              <div className="p-3.5 bg-gradient-to-r from-purple-950/40 via-indigo-950/40 to-slate-900 border border-purple-500/30 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <strong className="text-purple-200 text-xs block">6.5 Perturbation Testing & Universal Warrant Pipeline</strong>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Membedah pemahaman struktural (Learn ➔ Perturb ➔ Verify), 3 Layer Status (Modal, Epistemik, Belief), serta arsitektur Warrant Pipeline (Dalīl ʿAqlī & Naqlī).
+                  </p>
+                </div>
+                <button
+                  onClick={() => setActiveTab('perturbation')}
+                  className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 transition"
+                >
+                  <span>Buka 6.5</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           )}
+
+          {/* 6.5 Perturbation Testing & Universal Warrant Pipeline */}
+          {activeTab === 'perturbation' && <FoundationSection65 />}
 
           {/* 7. Self-Healing & Debt */}
           {activeTab === 'selfhealing' && (
@@ -556,33 +577,31 @@ Lokasi Berkas di Proyek: /docs/architecture/DOKUMEN_FONDASI_ARSITEKTUR.md
             </div>
           )}
 
-          {/* 11. 11 Asumsi & Risiko */}
+          {/* 11. 21 Asumsi & Risiko */}
           {activeTab === 'risiko' && (
             <div className="space-y-3">
               <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 text-amber-400" />
-                  <span>11. Sebelas Asumsi Terbuka & Mitigasi Risiko</span>
+                  <span>11. Dua Puluh Satu Asumsi Terbuka & Mitigasi Risiko</span>
                 </h3>
+                <span className="text-[10px] font-mono text-amber-300/80 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                  21 Risiko Terdokumentasi
+                </span>
               </div>
 
               <div className="space-y-2 text-xs">
-                {[
-                  { no: 1, title: 'Reliabilitas Feynman Sensor', impact: 'Seluruh learner model bergantung padanya; diagnosis noise ➔ intervensi salah.', mitigation: 'Uji akurasi diagnosis vs penilaian manusia sebelum membangun lapisan lain.' },
-                  { no: 2, title: 'Debt Risk belum operasional', impact: 'Prediksi tampak presisi padahal tebakan.', mitigation: 'Mulai dari Decay × Centrality pada jalur aktif; perlakukan Uncertainty sebagai interval kepercayaan.' },
-                  { no: 3, title: 'Metrik tampak presisi tanpa definisi', impact: 'Risiko Goodhart: anak mengoptimalkan dasbor angka.', mitigation: 'Definisi operasional tiap metrik; tampilkan interval ketidakpastian.' },
-                  { no: 4, title: 'Capability Stage bisa diam-diam berbasis umur', impact: 'Kembali ke ukuran batch lama.', mitigation: 'Kalibrasi terhadap graph dan evidence, bukan populasi sekolah.' },
-                  { no: 5, title: 'Retensi vs tanpa dark pattern', impact: 'Churn tinggi jika tak ada pengait.', mitigation: 'Uji apakah desain intrinsik cukup menahan retensi; jangan menyelundupkan mekanisme eksploitatif.' },
-                  { no: 6, title: 'Belajar mandiri tidak cocok untuk semua anak', impact: 'Melebarkan ketimpangan.', mitigation: 'Peran orang tua/mentor; desain adaptif untuk berbagai tingkat motivasi awal.' },
-                  { no: 7, title: 'Ketimpangan akses', impact: 'Sistem memperkuat kesenjangan sebelum mengoreksinya.', mitigation: 'Strategi akses dan penetapan harga sejak awal.' },
-                  { no: 8, title: 'Kepemilikan dan privasi Learner Model', impact: 'Profil kognitif seumur hidup anak adalah aset sekaligus risiko privasi terbesar.', mitigation: 'Kontrol orang tua, auditabilitas, hak ekspor JSON/hapus mutlak.' },
-                  { no: 9, title: 'Etika stealth insertion', impact: 'Manipulasi terselubung jika tanpa izin.', mitigation: 'Transparansi penuh ke orang tua; keterbukaan bertahap ke anak.' },
-                  { no: 10, title: '"Pressure from below" adalah rantai asumsi', impact: 'Adopsi tidak terjadi jika terhambat sertifikasi.', mitigation: 'Definisikan portofolio penalaran yang dapat diverifikasi pihak luar.' },
-                  { no: 11, title: 'Visi ≠ Bukti', impact: 'Over-investment pada hipotesis.', mitigation: 'Validasi bertahap melalui peta jalan tahap demi tahap.' },
-                ].map((r) => (
-                  <div key={r.no} className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                    <strong className="text-amber-300">#{r.no} {r.title}:</strong>
-                    <div className="text-[11px] text-slate-400 mt-0.5"><strong>Dampak:</strong> {r.impact}</div>
+                {RISKS_21.map((r) => (
+                  <div key={r.no} className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 hover:border-slate-700 transition">
+                    <div className="flex items-center justify-between gap-2">
+                      <strong className="text-amber-300 text-xs">#{r.no} {r.title}:</strong>
+                      {r.no >= 12 && (
+                        <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-purple-950/60 text-purple-300 border border-purple-800/50 shrink-0">
+                          Epistemik & Warrant
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-1"><strong>Dampak:</strong> {r.impact}</div>
                     <div className="text-[11px] text-emerald-300 mt-0.5"><strong>Mitigasi:</strong> {r.mitigation}</div>
                   </div>
                 ))}
@@ -600,17 +619,21 @@ Lokasi Berkas di Proyek: /docs/architecture/DOKUMEN_FONDASI_ARSITEKTUR.md
                 </h3>
               </div>
 
-              <div className="p-3 bg-slate-950 rounded-xl border border-indigo-500/30 text-indigo-200 text-xs">
+              <div className="p-3 bg-slate-950 rounded-xl border border-indigo-500/30 text-indigo-200 text-xs space-y-1">
                 <strong>Prinsip Urutan:</strong> <em>Data model dulu, antarmuka belakangan. Jangan mulai dari Open edX atau UI. MVP pertama boleh sederhana visualnya asalkan fondasinya solid.</em>
               </div>
 
-              <div className="space-y-2 text-xs">
+              <div className="space-y-2.5 text-xs">
                 {[
-                  { stage: 'Tahap 0 · Skema', desc: 'Rumuskan entitas graph, evidence, misconception, learner state.' },
+                  { stage: 'Tahap 0 · Skema', desc: 'Rumuskan entitas graph, evidence, misconception, learner state (bagian 5.3).' },
                   { stage: 'Tahap 1 · Satu domain sempit', desc: 'Contoh: dari pecahan sampai persamaan (±50-100 node). Satu pengguna pertama.' },
-                  { stage: 'Tahap 2 · Uji hipotesis pusat', desc: 'Apakah diagnosis miskonsepsi oleh AI cocok dengan penilaian manusia teliti? Perbaiki sensor sebelum fitur lain.' },
+                  {
+                    stage: 'Tahap 2 · Uji hipotesis pusat & Perluasan Perturbation',
+                    desc: 'Apakah diagnosis miskonsepsi oleh AI cocok dengan penilaian manusia teliti? Perluasan uji: tambahkan minimal Layer 0–2 dari skema perturbation (6.5.1) pada domain yang sama untuk memastikan diagnosis bertahan dari semantic perturbation. (Layer 3–5 dan primitive epistemik 6.5.2 ditunda sampai Layer 0–2 stabil).',
+                    note: 'Catatan lingkup 6.5.7 (Universal Warrant Pipeline): seluruh kerangka warrant hierarchy adalah perluasan konseptual yang sengaja ditunda validasinya (Risiko #12), bukan blocker Tahap 1-2. Fungsinya menjamin schema preparedness pada Epistemic Object.',
+                  },
                   { stage: 'Tahap 3 · Evidence + Learner Model', desc: 'Log bukti, pembaruan state, next-best-experience.' },
-                  { stage: 'Tahap 4 · Repair Loop', desc: 'Decay detection dan stealth insertion, dimulai dari Decay × Centrality.' },
+                  { stage: 'Tahap 4 · Repair Loop', desc: 'Decay detection dan stealth insertion, dimulai dari Decay × Dependency Centrality.' },
                   { stage: 'Tahap 5 · Telemetri', desc: 'Dasbor sederhana dengan metrik yang sudah terdefinisi secara operasional.' },
                   { stage: 'Tahap 6 · Perluasan domain dan model bisnis', desc: 'Baru dilakukan setelah nilai inti dan retensi intrinsik terbukti.' },
                 ].map((s, idx) => (
@@ -618,9 +641,14 @@ Lokasi Berkas di Proyek: /docs/architecture/DOKUMEN_FONDASI_ARSITEKTUR.md
                     <span className="w-5 h-5 rounded-full bg-indigo-600/30 border border-indigo-500/50 flex items-center justify-center font-bold text-indigo-300 text-[10px] shrink-0">
                       {idx}
                     </span>
-                    <div>
+                    <div className="space-y-1">
                       <strong className="text-white block">{s.stage}</strong>
-                      <span className="text-slate-400 text-[11px]">{s.desc}</span>
+                      <span className="text-slate-400 text-[11px] block">{s.desc}</span>
+                      {s.note && (
+                        <div className="p-2 bg-purple-950/30 border border-purple-500/20 rounded text-[10.5px] text-purple-200">
+                          {s.note}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -664,32 +692,22 @@ Lokasi Berkas di Proyek: /docs/architecture/DOKUMEN_FONDASI_ARSITEKTUR.md
           {activeTab === 'glosarium' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <BookOpen className="w-4 h-4 text-cyan-400" />
-                  <span>14. Glosarium Istilah Epistemik & Kognitif</span>
-                </h3>
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <BookOpen className="w-4 h-4 text-cyan-400" />
+                    <span>14. Glosarium Lengkap Istilah Epistemik & Kognitif</span>
+                  </h3>
+                  <span className="text-[10px] text-slate-400">
+                    Mencakup 27 terminologi resmi termasuk 6.5.6 Tiga Layer & 6.5.7 Warrant Pipeline
+                  </span>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 text-xs">
-                {[
-                  { term: 'Intelligence OS', def: 'Sistem operasi personal untuk perkembangan intelektual; lapisan intelektual dari model dua lapis.' },
-                  { term: 'Social Sandbox', def: 'Lingkungan fisik untuk interaksi sosial, negosiasi, kepemimpinan, dan empati.' },
-                  { term: 'Knowledge Graph', def: 'Peta konsep, skill, prerequisite, dan rantai penalaran WHY.' },
-                  { term: 'Learner Model', def: 'Representasi keadaan anak per node: mastery, retensi, transfer, miskonsepsi.' },
-                  { term: 'Evidence Log', def: 'Catatan bukti tindakan, prediksi, eksperimen, dan penjelasan anak.' },
-                  { term: 'Misconception Graph', def: 'Peta cara berpikir keliru yang lazim dan jalur koreksi counterexample.' },
-                  { term: 'Feynman Sensor', def: 'Mekanisme diagnosis pemahaman lewat dialog penjelasan Socratic terpandu.' },
-                  { term: 'Epistemic Debt', def: 'Akumulasi celah fondasi yang menjadi bottleneck di materi tingkat lanjut.' },
-                  { term: 'Critical Epistemic Debt', def: 'Debt pada prerequisite yang berbahaya bagi lintasan aktif.' },
-                  { term: 'Stealth Insertion', def: 'Menyisipkan perbaikan fondasi ke proyek berminat tinggi tanpa label remedial memalukan.' },
-                  { term: 'Cognitive Bottleneck Prediction', def: 'Memperkirakan node yang akan sulit jika decay pada prasyarat berlanjut.' },
-                  { term: 'Capability Stage', def: 'Tahap kemampuan per domain berdasarkan evidence, bebas dari pembatasan batch umur.' },
-                  { term: 'Unbatching Cognition', def: 'Melepaskan lintasan intelektual dari pengelompokan usia biologis.' },
-                  { term: 'Pressure from Below', def: 'Perubahan sistem pendidikan yang didorong adopsi organik keluarga dan anak.' },
-                ].map((g, idx) => (
-                  <div key={idx} className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+                {GLOSSARY_ALL.map((g, idx) => (
+                  <div key={idx} className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 hover:border-slate-700 transition">
                     <strong className="text-teal-300 block text-xs">{g.term}</strong>
-                    <span className="text-slate-400 text-[11px] block mt-0.5">{g.def}</span>
+                    <span className="text-slate-400 text-[11px] block mt-0.5 leading-relaxed">{g.def}</span>
                   </div>
                 ))}
               </div>
@@ -703,10 +721,10 @@ Lokasi Berkas di Proyek: /docs/architecture/DOKUMEN_FONDASI_ARSITEKTUR.md
                 <div>
                   <h3 className="text-sm font-bold text-white flex items-center gap-2">
                     <FileText className="w-4 h-4 text-indigo-400" />
-                    <span>DOKUMEN_FONDASI_ARSITEKTUR.md (Naskah Penuh)</span>
+                    <span>intelligence-os-foundation.md (Naskah Penuh Asli)</span>
                   </h3>
                   <span className="text-[10px] text-slate-400 font-mono">
-                    /docs/architecture/DOKUMEN_FONDASI_ARSITEKTUR.md
+                    /docs/architecture/intelligence-os-foundation.md
                   </span>
                 </div>
                 <button
@@ -718,47 +736,8 @@ Lokasi Berkas di Proyek: /docs/architecture/DOKUMEN_FONDASI_ARSITEKTUR.md
                 </button>
               </div>
 
-              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-slate-300 font-mono text-[11px] leading-relaxed whitespace-pre-wrap max-h-[500px] overflow-y-auto">
-{`# Personal Intelligence OS
-## Dokumen Fondasi: Konsep, Prinsip, dan Arsitektur
-Status: Draf v0.1 (konsolidasi) · Sifat: Dokumen hidup · Cakupan: Konsep, arsitektur logis, model bisnis, risiko.
-
-1. Ringkasan
-Tesis: Pendidikan pasca-COVID hanya mendigitalkan birokrasi abad ke-19...
-Gagasan: Personal Intelligence OS memelihara perkembangan intelektual sebagai lintasan unik...
-Prinsip satu kalimat: "Mass education tidak harus berarti standardized education. Satu mesin yang sama, jutaan jalur berbeda."
-
-2. Masalah yang Dipecahkan
-- Batch processing manusia
-- Kurikulum linear
-- Kelulusan semu (70% lulus, 30% bom waktu)
-- Epistemic Debt
-- Remedial yang memalukan
-- Ukuran statis
-
-3. Prinsip Desain (12 Prinsip Mengikat)
-...
-4. Arsitektur Logis (Knowledge Graph, Learner Model, Adaptive Engine, Evidence Log)
-...
-5. Knowledge Graph & WHY-Chain
-...
-6. Learner Model & Feynman Sensor
-...
-7. Self-Healing Learning & Stealth Insertion
-...
-8. Empat Loop Sistem (Curiosity, Mastery, Repair, Trajectory)
-...
-9. Telemetri Kognitif (Smartwatch untuk Pengetahuan)
-...
-10. Produk & Model Bisnis
-...
-11. 11 Asumsi Terbuka & Mitigasi Risiko
-...
-12. Peta Jalan Pembangunan (Tahap 0 - 6)
-...
-13. Log Keputusan Desain
-...
-14. Glosarium Istilah Epistemik`}
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-slate-300 font-mono text-[11px] leading-relaxed whitespace-pre-wrap max-h-[500px] overflow-y-auto select-text">
+                {INTELLIGENCE_OS_FOUNDATION_MARKDOWN}
               </div>
             </div>
           )}

@@ -8,7 +8,7 @@ import {
 /**
  * DETERMINISTIC CORE ENGINE
  *
- * Sesuai DOKUMEN_FONDASI_ARSITEKTUR.md:
+ * Sesuai intelligence-os-foundation.md:
  * - Prinsip Desain #2: Graph adalah sumber kebenaran struktural. AI bukan "Supreme Curriculum God".
  * - Bagian 4.3: Batasan peran AI adalah tutor, diagnostician, generator, simulator interface.
  *   AI TIDAK MENULIS ULANG GRAPH ATAU MEMUTUSKAN ATURAN DETERMINISTIK.

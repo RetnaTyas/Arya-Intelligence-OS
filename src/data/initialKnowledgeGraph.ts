@@ -726,7 +726,38 @@ export const INITIAL_KNOWLEDGE_GRAPH: KnowledgeNode[] = [
     ],
     centrality: 0.93,
     futureRelevance: 0.96,
-    activeSimulationId: 'piaget_conservation',
+    activeSimulationId: 'qualitative_balance',
+  },
+  {
+    id: 'node-number-line-counting',
+    name: 'Garis Bilangan Spasial & Kardinalitas',
+    domain: 'Matematika',
+    ageBracket: '4-6',
+    developmentalStage: 'Pra-Operasional (4 - 6 Thn)',
+    description: 'Menghubungkan jarak spasial fisik, kuantitas diskret, dan simbol angka melalui interval lompatan teratur.',
+    prerequisites: ['node-one-to-one', 'node-subitizing-quantity'],
+    explanationLevels: {
+      concrete: 'Melompati ubin bernomor di lantai: satu lompatan kaki sama dengan satu petak kuantitas maju.',
+      visual: 'Garis lurus bergradien dengan teratai bernomor 0-10, jejak lompatan katak, dan akumulasi titik kuantitas.',
+      symbolic: 'Posisi(t+1) = Posisi(t) + Langkah, di mana 3 + 4 = 7 memvisualisasikan gabungan dua interval jarak spasial.',
+      formal: 'Struktur monoid aditif pada bilangan cacah terurut (N, +) dengan metrik jarak Euclidean dimensi 1.',
+    },
+    whyChain: [
+      'Kenapa garis bilangan penting? Membongkar miskonsepsi bahwa berhitung hanyalah menyanyikan nama angka tanpa arti jarak dan kuantitas nyata.',
+      'Bagaimana transisi ke penjumlahan? Penjumlahan adalah pergeseran posisi maju (translasi positif) pada sumbu ruang.',
+      'Asumsi apa yang mendasari? Jarak antara setiap bilangan bulat berurutan bernilai invarian dan seragam (skala seragam).',
+    ],
+    masteryEvidenceRequired: ['predict', 'solve', 'transfer'],
+    commonMisconceptions: [
+      {
+        misconception: 'Berhitung adalah menghafal urutan bunyi kata tanpa makna spasial atau kardinalitas objek',
+        counterExample: 'Saat melompat ke angka 5, kita menempuh jarak 5 unit dan melewati 5 kuantitas teratai nyata.',
+        remedyStrategy: 'Gunakan simulator garis bilangan interaktif dengan katak yang melompat sesuai interval jarak.',
+      },
+    ],
+    centrality: 0.93,
+    futureRelevance: 0.98,
+    activeSimulationId: 'number_line',
   },
 
   // ==========================================
@@ -823,7 +854,7 @@ export const INITIAL_KNOWLEDGE_GRAPH: KnowledgeNode[] = [
     ],
     centrality: 0.85,
     futureRelevance: 0.9,
-    activeSimulationId: 'buoyancy',
+    activeSimulationId: 'density_mass',
   },
   {
     id: 'node-algorithms',
@@ -1014,5 +1045,36 @@ export const INITIAL_KNOWLEDGE_GRAPH: KnowledgeNode[] = [
     centrality: 0.98,
     futureRelevance: 1.0,
     activeSimulationId: 'calculus_rate',
+  },
+  {
+    id: 'node-binary-search-complexity',
+    name: 'Pencarian Biner & Kompleksitas Algoritma',
+    domain: 'Komputasi',
+    ageBracket: '10-12',
+    developmentalStage: 'Transisi Formal (10 - 12 Thn)',
+    description: 'Membelah ruang pencarian terurut secara rekursif (Divide & Conquer) untuk mencapai efisiensi O(log N) berbanding O(N).',
+    prerequisites: ['node-algorithms', 'node-pattern-sequencing'],
+    explanationLevels: {
+      concrete: 'Menebak nomor halaman buku tebal dengan selalu membuka tepat di pertengahan buku secara berulang.',
+      visual: 'Pohon keputusan biner (Binary Tree) yang mengeliminasi separuh ruang pencarian pada setiap evaluasi.',
+      symbolic: 'T(N) = T(N/2) + O(1) ⇒ Kompleksitas Asimtotik O(log2 N). Untuk N = 100, langkah maksimal hanya 7.',
+      formal: 'Analisis kompleksitas komputasional kelas P: batasan informasi biner Shannon log2(|S|) pada model perbandingan elemen.',
+    },
+    whyChain: [
+      'Kenapa pencarian biner jauh lebih cepat daripada linier? Karena setiap satu perbandingan membuang 50% data yang tidak relevan secara deterministik.',
+      'Kenapa data harus terurut sebelum binarisasi? Tanpa sifat keterurutan relasi ekuivalen/orde, kita tidak bisa menjamin di separuh mana target berada.',
+      'Asumsi apa yang mendasari? Akses indeks ke elemen array berwaktu konstan O(1).',
+    ],
+    masteryEvidenceRequired: ['solve', 'predict', 'explain', 'transfer'],
+    commonMisconceptions: [
+      {
+        misconception: 'Mencari data dalam jumlah besar selalu membutuhkan waktu yang sebanding lurus dengan banyaknya data',
+        counterExample: 'Dalam 1 juta data terurut, pencarian biner hanya butuh maksimal 20 langkah, bukan 1 juta langkah.',
+        remedyStrategy: 'Uji balapan komputasi linier vs biner pada simulator telemetri array memori Mars Rover.',
+      },
+    ],
+    centrality: 0.94,
+    futureRelevance: 0.99,
+    activeSimulationId: 'binary_search_complexity',
   },
 ];
