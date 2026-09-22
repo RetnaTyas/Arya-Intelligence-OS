@@ -4,7 +4,7 @@ Folder ini berisi dokumen spesifikasi fondasi, prinsip desain, dan arsitektur si
 
 ## Berkas Dokumentasi
 
-- **[DOKUMEN_FONDASI_ARSITEKTUR.md](./DOKUMEN_FONDASI_ARSITEKTUR.md)**  
+- **[intelligence-os-foundation.md](./intelligence-os-foundation.md)**  
   *Dokumen Fondasi: Konsep, Prinsip, dan Arsitektur (Draf v0.1 - konsolidasi)*  
   Mencakup 14 bagian esensial:
   1. Ringkasan & Tesis
@@ -21,3 +21,6 @@ Folder ini berisi dokumen spesifikasi fondasi, prinsip desain, dan arsitektur si
   12. Peta Jalan Pengembangan (Tahap 0 - 6)
   13. Log Keputusan Desain
   14. Glosarium Istilah Epistemik & Kognitif
+
+- **[KNOWN_ISSUES.md](./KNOWN_ISSUES.md)**  
+  *Audit Epistemik & Catatan Kesenjangan Arsitektural*: Dokumentasi resmi temuan audit terhadap validasi Tahap 2, kalibrasi sensor AI, mitigasi epistemic theater, dan pemodelan inferensi LLM.
