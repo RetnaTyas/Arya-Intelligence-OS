@@ -46,11 +46,12 @@ Do not output markdown codeblocks or extra conversational filler, output clean J
       temperature: 0.1,
     });
 
-    const rawText = response?.response || response?.result?.response || '';
-    const parsed = extractJsonFromText(rawText);
+    const rawData = response?.response !== undefined ? response?.response : (response?.result?.response !== undefined ? response?.result?.response : (response?.result !== undefined ? response.result : response));
+    const parsed = extractJsonFromText(rawData);
 
     if (!parsed || typeof parsed.conceptualUnderstanding !== 'number') {
-      throw new Error(`Workers AI (${model}) tidak menghasilkan JSON Feynman yang valid: "${rawText.slice(0, 100)}..."`);
+      const debugPreview = typeof rawData === 'object' ? JSON.stringify(rawData) : String(rawData || '');
+      throw new Error(`Workers AI (${model}) tidak menghasilkan JSON Feynman yang valid: "${debugPreview.slice(0, 100)}..."`);
     }
 
     return new Response(

@@ -250,7 +250,7 @@ export const FeynmanCalibrationSuite: React.FC = () => {
               {calibrationSource === 'error' && (
                 <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1">
                   <AlertCircle className="w-3 h-3 text-rose-400" />
-                  <span>WORKERS AI GAGAL / TIDAK TERHUBUNG</span>
+                  <span>RESPONS WORKERS AI GAGAL DIPROSES</span>
                 </span>
               )}
             </div>

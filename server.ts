@@ -63,20 +63,50 @@ async function runCloudflareWorkersAI(messages: UniversalChatMsg[], temperature 
   }
 
   const result = await response.json();
-  const reply = result?.result?.response || result?.response || '';
-  if (!reply) {
+  const reply = result?.result?.response !== undefined ? result?.result?.response : (result?.response !== undefined ? result?.response : (result?.result !== undefined ? result.result : result));
+  if (reply === undefined || reply === null || reply === '') {
     throw new Error(`Cloudflare Workers AI (${cf.model}) mengembalikan payload kosong: ${JSON.stringify(result)}`);
   }
   return reply;
 }
 
-// Clean and parse JSON response from LLMs (handles markdown wrapping ```json ... ```)
-function extractJsonFromText(rawText: string): any {
-  if (!rawText) return null;
-  const cleaned = rawText.trim();
-  const jsonMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-  const jsonString = jsonMatch ? jsonMatch[1] : cleaned;
-  return JSON.parse(jsonString);
+// Clean and parse JSON response from LLMs (handles object directly, strings, or markdown wrapping ```json ... ```)
+function extractJsonFromText(raw: any): any {
+  if (raw === null || raw === undefined) return null;
+  // If the model already returned a parsed JS object or array
+  if (typeof raw === 'object') {
+    return raw;
+  }
+  // If it's a string, clean markdown and parse
+  const str = String(raw).trim();
+  if (!str) return null;
+  const jsonMatch = str.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  const jsonString = jsonMatch ? jsonMatch[1].trim() : str;
+  try {
+    return JSON.parse(jsonString);
+  } catch (err: any) {
+    // Attempt relaxed parsing or substring bracket slice
+    const firstBracket = jsonString.indexOf('{');
+    const firstSquare = jsonString.indexOf('[');
+    let startIdx = -1;
+    let endIdx = -1;
+    if (firstBracket !== -1 && (firstSquare === -1 || firstBracket < firstSquare)) {
+      startIdx = firstBracket;
+      endIdx = jsonString.lastIndexOf('}');
+    } else if (firstSquare !== -1) {
+      startIdx = firstSquare;
+      endIdx = jsonString.lastIndexOf(']');
+    }
+
+    if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+      try {
+        return JSON.parse(jsonString.slice(startIdx, endIdx + 1));
+      } catch {
+        // failed
+      }
+    }
+    throw new Error(`Gagal mem-parse JSON dari Workers AI: "${str.slice(0, 150)}..."`);
+  }
 }
 
 // Health check endpoint

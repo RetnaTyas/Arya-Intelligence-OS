@@ -61,11 +61,12 @@ Output strictly a JSON array of objects with the exact structure:
       temperature: 0.1,
     });
 
-    const rawText = response?.response || response?.result?.response || '';
-    const parsedArray = extractJsonFromText(rawText);
+    const rawData = response?.response !== undefined ? response?.response : (response?.result?.response !== undefined ? response?.result?.response : (response?.result !== undefined ? response.result : response));
+    const parsedArray = extractJsonFromText(rawData);
 
     if (!Array.isArray(parsedArray)) {
-      throw new Error(`Workers AI (${model}) tidak mengembalikan array JSON benchmark valid.`);
+      const debugPreview = typeof rawData === 'object' ? JSON.stringify(rawData) : String(rawData || '');
+      throw new Error(`Workers AI (${model}) tidak mengembalikan array JSON benchmark valid: "${debugPreview.slice(0, 100)}..."`);
     }
 
     const results = items.map((item: any) => {

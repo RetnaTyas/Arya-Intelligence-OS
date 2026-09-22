@@ -59,11 +59,12 @@ Output strictly a JSON array matching:
       temperature: 0.1,
     });
 
-    const rawText = response?.response || response?.result?.response || '';
-    const parsedArray = extractJsonFromText(rawText);
+    const rawData = response?.response !== undefined ? response?.response : (response?.result?.response !== undefined ? response?.result?.response : (response?.result !== undefined ? response.result : response));
+    const parsedArray = extractJsonFromText(rawData);
 
     if (!Array.isArray(parsedArray)) {
-      throw new Error(`Workers AI (${model}) tidak mengembalikan array JSON kalibrasi valid.`);
+      const debugPreview = typeof rawData === 'object' ? JSON.stringify(rawData) : String(rawData || '');
+      throw new Error(`Workers AI (${model}) tidak mengembalikan array JSON kalibrasi valid: "${debugPreview.slice(0, 100)}..."`);
     }
 
     const evaluations = cases.map((c: any) => {
