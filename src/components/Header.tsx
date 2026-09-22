@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Brain, Sparkles, BookOpen, Activity, User, ShieldCheck, Cpu } from 'lucide-react';
 
 export type AppView = 'child' | 'parent' | 'engine';
@@ -20,6 +20,30 @@ export const Header: React.FC<HeaderProps> = ({
   criticalDebt,
   activeTrajectoryTitle,
 }) => {
+  const [bindingInfo, setBindingInfo] = useState<{
+    bindingName: string;
+    model: string;
+  }>({
+    bindingName: 'AiOS AI',
+    model: '@cf/qwen/qwen3-30b-a3b-fp8',
+  });
+
+  useEffect(() => {
+    fetch('/api/health')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.cloudflarePagesBinding) {
+          setBindingInfo({
+            bindingName: data.cloudflarePagesBinding.name || 'AiOS AI',
+            model: data.cloudflarePagesBinding.defaultModel || data.activeModel || '@cf/qwen/qwen3-30b-a3b-fp8',
+          });
+        }
+      })
+      .catch(() => {
+        // Keep default Pages Functions binding specification
+      });
+  }, []);
+
   return (
     <header className="border-b border-slate-800 bg-[#0a0d16]/95 backdrop-blur sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -35,6 +59,10 @@ export const Header: React.FC<HeaderProps> = ({
               </h1>
               <span className="px-2 py-0.5 text-[10px] font-mono font-semibold rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 hidden sm:inline-block">
                 Draf v0.1
+              </span>
+              <span className="px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-orange-500/20 text-orange-300 border border-orange-500/30 hidden lg:inline-flex items-center gap-1">
+                <Sparkles className="w-3 h-3 text-orange-400" />
+                <span>Pages: {bindingInfo.bindingName} (Workers AI)</span>
               </span>
             </div>
             <p className="text-[11px] text-slate-400 hidden md:block">

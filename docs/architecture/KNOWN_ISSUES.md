@@ -34,13 +34,19 @@ Audit independen terhadap implementasi kode menemukan kesenjangan struktural ant
 
 ---
 
-### 🔴 Temuan 3: Konfigurasi Model AI & Integrasi Cloudflare Workers AI (Qwen 3 30B)
-* **Kondisi Awal**: Pada beberapa draf pemanggilan server dicantumkan penamaan model yang tidak konsisten dengan katalog runtime resmi `@google/genai`. Selain itu, penyebaran ke Cloudflare memerlukan dukungan penuh terhadap ekosistem Cloudflare Workers AI.
-* **Akar Masalah**: Penulisan manual string model tanpa menyelaraskan dengan panduan SDK `@google/genai` dan arsitektur target Cloudflare.
+### 🔴 Temuan 3: Konfigurasi Model AI & Integrasi Cloudflare Pages Functions Workers AI Binding
+* **Kondisi Awal**: Pada beberapa draf pemanggilan server dicantumkan penamaan model yang tidak konsisten dengan katalog runtime resmi `@google/genai`. Selain itu, penyebaran ke Cloudflare Pages memerlukan dukungan binding native Pages Functions.
+* **Akar Masalah**: Penulisan manual string model tanpa menyelaraskan dengan panduan SDK `@google/genai` dan arsitektur target Cloudflare Pages Functions.
 * **Tindakan Perbaikan**:
-  1. **Dukungan Penuh Cloudflare Workers AI**: Mengintegrasikan model canggih `@cf/qwen/qwen3-30b-a3b-fp8` (Qwen 3 30B FP8) sebagai penyedia AI utama untuk deployment Cloudflare.
-  2. **Arsitektur Dual-Engine Resilien**: Jika kredensial Cloudflare Workers AI (`CLOUDFLARE_ACCOUNT_ID` & `CLOUDFLARE_API_TOKEN`) diset, sistem secara langsung menggunakan REST endpoint Workers AI. Jika tidak, sistem beralih ke `gemini-3.8-flash` (atau heuristik deterministik lokal bila offline).
-  3. Seluruh endpoint penilai Feynman, Central Hypothesis Benchmark, dan Socratic Tutor kini memiliki penanganan status error transparan dan memberitahukan kepada klien apakah respons berasal dari `cloudflare-workers-ai (@cf/qwen/qwen3-30b-a3b-fp8)`, `gemini-3.8-flash`, atau `local-fallback-engine`.
+  1. **Pages Functions Workers AI Binding**: Mengonfigurasi dan mengimplementasikan endpoint Pages Functions native di folder `/functions/api/*` dengan binding spesifik:
+     - **Type**: `Workers AI`
+     - **Name**: `AiOS AI` (diakses via `env['AiOS AI']` atau `env.AI`)
+     - **Value**: `Workers AI Catalog`
+     - **Model Default**: `@cf/qwen/qwen3-30b-a3b-fp8` (Qwen 3 30B FP8)
+  2. **Arsitektur Dual-Engine Resilien**:
+     - Di Cloudflare Pages: Eksekusi langsung melalui Pages Functions Workers AI binding (`env['AiOS AI'].run(...)`).
+     - Di Node.js / Container: Menjalankan REST gateway Workers AI via `CLOUDFLARE_ACCOUNT_ID` & `CLOUDFLARE_API_TOKEN`, atau `gemini-3.8-flash`, atau fallback heuristik deterministik lokal.
+  3. Seluruh endpoint penilai Feynman, Central Hypothesis Benchmark, dan Socratic Tutor kini memiliki penanganan status error transparan dan memberitahukan kepada klien apakah respons berasal dari `cloudflare-pages-binding (AiOS AI: @cf/qwen/qwen3-30b-a3b-fp8)`, `cloudflare-workers-ai`, `gemini-3.8-flash`, atau `local-fallback-engine`.
 
 ---
 

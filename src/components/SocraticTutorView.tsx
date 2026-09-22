@@ -68,6 +68,10 @@ export const SocraticTutorView: React.FC<SocraticTutorViewProps> = ({
       });
 
       const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || `HTTP error ${res.status}`);
+      }
+
       if (data.source) {
         setActiveModelSource(data.source);
       }
@@ -88,8 +92,8 @@ export const SocraticTutorView: React.FC<SocraticTutorViewProps> = ({
         {
           id: `err-${Date.now()}`,
           role: 'tutor',
-          text: 'Mari kita telusuri bersama: jika kita menimbang air yang tumpah akibat benda yang kita celupkan, apa hubungan berat air tersebut dengan dorongan ke atas yang dirasakan benda?',
-          timestamp: '17:42',
+          text: `[Cloudflare Workers AI Error]: ${e.message}. Pastikan binding Pages "AiOS AI" atau kredensial CLOUDFLARE_ACCOUNT_ID & CLOUDFLARE_API_TOKEN telah terhubung.`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       ]);
     } finally {

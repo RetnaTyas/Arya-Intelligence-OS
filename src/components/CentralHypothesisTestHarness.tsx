@@ -4,6 +4,7 @@ import {
   ShieldCheck,
   CheckCircle2,
   AlertTriangle,
+  AlertCircle,
   Play,
   RotateCcw,
   Sparkles,
@@ -24,15 +25,17 @@ import {
 export const CentralHypothesisTestHarness: React.FC = () => {
   const [results, setResults] = useState<PerturbationEvaluationResult[]>([]);
   const [isRunning, setIsRunning] = useState<boolean>(false);
-  const [diagnosisSource, setDiagnosisSource] = useState<'cloudflare' | 'gemini' | 'heuristic' | 'none'>('none');
+  const [diagnosisSource, setDiagnosisSource] = useState<'cloudflare' | 'error' | 'none'>('none');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<HumanGoldStandardItem | null>(
     HUMAN_GOLD_STANDARD_BENCHMARK[0]
   );
   const [activeTab, setActiveTab] = useState<'overview' | 'detail' | 'perturbation_matrix'>('overview');
 
-  // Eksekusi pengujian aktual: memanggil endpoint backend LLM (Cloudflare Workers AI Qwen 3 30B / Gemini)
+  // Eksekusi pengujian aktual: memanggil Cloudflare Workers AI secara eksklusif
   const handleRunFullBenchmark = async () => {
     setIsRunning(true);
+    setErrorMessage(null);
     try {
       const response = await fetch('/api/benchmark/central-hypothesis', {
         method: 'POST',
@@ -40,11 +43,11 @@ export const CentralHypothesisTestHarness: React.FC = () => {
         body: JSON.stringify({ items: HUMAN_GOLD_STANDARD_BENCHMARK }),
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error ${response.status}`);
+      const data = await response.json();
+      if (!response.ok || data.error) {
+        throw new Error(data.error || `HTTP error ${response.status}`);
       }
 
-      const data = await response.json();
       const aiResultsMap: Record<string, any> = {};
       if (Array.isArray(data.results)) {
         data.results.forEach((r: any) => {
@@ -52,41 +55,22 @@ export const CentralHypothesisTestHarness: React.FC = () => {
         });
       }
 
-      const sourceStr = (data.source || '').toLowerCase();
-      if (sourceStr.includes('cloudflare') || sourceStr.includes('qwen')) {
-        setDiagnosisSource('cloudflare');
-      } else if (sourceStr.includes('gemini')) {
-        setDiagnosisSource('gemini');
-      } else {
-        setDiagnosisSource('heuristic');
-      }
+      setDiagnosisSource('cloudflare');
 
       const computedResults: PerturbationEvaluationResult[] = HUMAN_GOLD_STANDARD_BENCHMARK.map((item) => {
-        const aiDiag = aiResultsMap[item.id] || {
-          hasMisconception: item.humanExpertDiagnosis.hasMisconception,
-          misconceptionName: item.humanExpertDiagnosis.misconceptionName,
-          structuralMasteryScore: item.humanExpertDiagnosis.structuralMasteryScore,
-          explanation: item.humanExpertDiagnosis.explanation,
-        };
-
+        const aiDiag = aiResultsMap[item.id];
+        if (!aiDiag) {
+          throw new Error(`Item ${item.id} tidak menerima evaluasi dari Workers AI.`);
+        }
         return evaluateDiagnosticAgreementAndPerturbation(item, aiDiag);
       });
 
       setResults(computedResults);
-    } catch (err) {
-      console.warn('Backend inference failed, running robust deterministic fallback evaluation:', err);
-      // Fallback
-      setDiagnosisSource('heuristic');
-      const fallbackResults: PerturbationEvaluationResult[] = HUMAN_GOLD_STANDARD_BENCHMARK.map((item) => {
-        const fallbackDiag = {
-          hasMisconception: item.humanExpertDiagnosis.hasMisconception,
-          misconceptionName: item.humanExpertDiagnosis.misconceptionName,
-          structuralMasteryScore: Number((item.humanExpertDiagnosis.structuralMasteryScore + (item.id === 'bench-frac-01' ? 0.02 : -0.02)).toFixed(2)),
-          explanation: `[Heuristik Lokal Evaluasi]: ${item.humanExpertDiagnosis.explanation}`,
-        };
-        return evaluateDiagnosticAgreementAndPerturbation(item, fallbackDiag);
-      });
-      setResults(fallbackResults);
+    } catch (err: any) {
+      console.error('Workers AI benchmark error:', err);
+      setDiagnosisSource('error');
+      setErrorMessage(err.message || 'Gagal memanggil Cloudflare Workers AI.');
+      setResults([]);
     } finally {
       setIsRunning(false);
     }
@@ -124,18 +108,18 @@ export const CentralHypothesisTestHarness: React.FC = () => {
                   <span>CLOUDFLARE WORKERS AI (QWEN 3 30B FP8)</span>
                 </span>
               )}
-              {diagnosisSource === 'gemini' && (
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                  <Sparkles className="w-3 h-3 text-emerald-400" />
-                  <span>LIVE GEMINI 3.8 FLASH INFERENCE</span>
-                </span>
-              )}
-              {diagnosisSource === 'heuristic' && (
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                  HEURISTIC LOCAL ENGINE (OFFLINE)
+              {diagnosisSource === 'error' && (
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3 text-rose-400" />
+                  <span>WORKERS AI GAGAL / TIDAK TERHUBUNG</span>
                 </span>
               )}
             </div>
+            {errorMessage && (
+              <div className="p-3 bg-rose-950/40 border border-rose-500/50 rounded-lg text-rose-200 text-xs">
+                <strong>Error Cloudflare Workers AI:</strong> {errorMessage}
+              </div>
+            )}
             <h2 className="text-lg font-bold text-white">
               Uji Hipotesis Pusat & Ketahanan Semantic Perturbation (Layer 0–2)
             </h2>

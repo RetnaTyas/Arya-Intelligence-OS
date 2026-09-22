@@ -2,7 +2,6 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import { GoogleGenAI } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
 
 dotenv.config();
@@ -15,27 +14,8 @@ const PORT = 3000;
 
 app.use(express.json());
 
-// Initialize Gemini Client
-let geminiClient: GoogleGenAI | null = null;
-function getGeminiClient(): GoogleGenAI | null {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') {
-    return null;
-  }
-  if (!geminiClient) {
-    geminiClient = new GoogleGenAI({
-      apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        },
-      },
-    });
-  }
-  return geminiClient;
-}
-
 // Cloudflare Workers AI Configuration & Inference Helper
+// Binding Name in Cloudflare Pages: "AiOS AI" (Value: Workers AI Catalog)
 // Model: @cf/qwen/qwen3-30b-a3b-fp8 (https://developers.cloudflare.com/workers-ai/models/qwen3-30b-a3b-fp8/)
 function getCloudflareConfig() {
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
@@ -43,7 +23,13 @@ function getCloudflareConfig() {
   const model = process.env.CLOUDFLARE_AI_MODEL || '@cf/qwen/qwen3-30b-a3b-fp8';
 
   const isConfigured = Boolean(accountId && apiToken && accountId.trim() !== '' && apiToken.trim() !== '');
-  return { accountId, apiToken, model, isConfigured };
+  return {
+    accountId,
+    apiToken,
+    model,
+    isConfigured,
+    pagesBindingName: 'AiOS AI',
+  };
 }
 
 interface UniversalChatMsg {
@@ -55,7 +41,7 @@ interface UniversalChatMsg {
 async function runCloudflareWorkersAI(messages: UniversalChatMsg[], temperature = 0.3) {
   const cf = getCloudflareConfig();
   if (!cf.isConfigured) {
-    throw new Error('Cloudflare Workers AI credentials (CLOUDFLARE_ACCOUNT_ID & CLOUDFLARE_API_TOKEN) not set');
+    throw new Error('Cloudflare Workers AI credentials (CLOUDFLARE_ACCOUNT_ID & CLOUDFLARE_API_TOKEN) belum diset pada environment.');
   }
 
   const endpoint = `https://api.cloudflare.com/client/v4/accounts/${cf.accountId}/ai/run/${cf.model}`;
@@ -77,8 +63,10 @@ async function runCloudflareWorkersAI(messages: UniversalChatMsg[], temperature 
   }
 
   const result = await response.json();
-  // Cloudflare Workers AI text generation standard format: { result: { response: "..." } }
   const reply = result?.result?.response || result?.response || '';
+  if (!reply) {
+    throw new Error(`Cloudflare Workers AI (${cf.model}) mengembalikan payload kosong: ${JSON.stringify(result)}`);
+  }
   return reply;
 }
 
@@ -86,7 +74,6 @@ async function runCloudflareWorkersAI(messages: UniversalChatMsg[], temperature 
 function extractJsonFromText(rawText: string): any {
   if (!rawText) return null;
   const cleaned = rawText.trim();
-  // If wrapped in markdown block
   const jsonMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
   const jsonString = jsonMatch ? jsonMatch[1] : cleaned;
   return JSON.parse(jsonString);
@@ -95,16 +82,21 @@ function extractJsonFromText(rawText: string): any {
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   const cf = getCloudflareConfig();
-  const hasGeminiKey = Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'MY_GEMINI_API_KEY');
 
   res.json({
     status: 'ok',
-    primaryProvider: cf.isConfigured ? 'cloudflare-workers-ai' : (hasGeminiKey ? 'google-gemini' : 'local-heuristic'),
-    activeModel: cf.isConfigured ? cf.model : (hasGeminiKey ? 'gemini-3.8-flash' : 'local-engine'),
+    primaryProvider: 'cloudflare-workers-ai',
+    activeModel: cf.model,
     hasCloudflareCredentials: cf.isConfigured,
     cloudflareModel: cf.model,
-    hasGeminiKey,
-    system: 'Personal Intelligence OS v0.1 (Cloudflare Workers AI & Gemini)',
+    cloudflarePagesBinding: {
+      type: 'Workers AI',
+      name: 'AiOS AI',
+      value: 'Workers AI Catalog',
+      defaultModel: cf.model,
+    },
+    exclusiveProvider: 'Workers AI Only (@cf/qwen/qwen3-30b-a3b-fp8)',
+    system: 'Personal Intelligence OS (Cloudflare Workers AI Exclusively)',
   });
 });
 
@@ -126,63 +118,34 @@ Concept context: ${JSON.stringify(concept || 'General')}
 Current learner state: ${JSON.stringify(learnerState || {})}
 `;
 
-  // 1. Try Cloudflare Workers AI first if configured (Qwen 3 30B)
-  if (cf.isConfigured) {
-    try {
-      const messages: UniversalChatMsg[] = [
-        { role: 'system', content: systemInstruction },
-      ];
-      (history || []).forEach((h: any) => {
-        messages.push({
-          role: h.role === 'student' ? 'user' : 'assistant',
-          content: h.text,
-        });
-      });
+  try {
+    const messages: UniversalChatMsg[] = [
+      { role: 'system', content: systemInstruction },
+    ];
+    (history || []).forEach((h: any) => {
       messages.push({
-        role: 'user',
-        content: studentMessage || 'Halo, saya ingin memahami konsep ini.',
+        role: h.role === 'student' ? 'user' : 'assistant',
+        content: h.text,
       });
+    });
+    messages.push({
+      role: 'user',
+      content: studentMessage || 'Halo, saya ingin memahami konsep ini.',
+    });
 
-      const replyText = await runCloudflareWorkersAI(messages, 0.7);
-      return res.json({
-        text: replyText || 'Bagaimana menurutmu hal itu bisa terjadi jika kita telaah dari sebab akibatnya?',
-        source: `cloudflare-workers-ai (${cf.model})`,
-        model: cf.model,
-      });
-    } catch (cfErr: any) {
-      console.warn('Cloudflare Workers AI error, falling back to secondary provider:', cfErr.message);
-    }
+    const replyText = await runCloudflareWorkersAI(messages, 0.7);
+    return res.json({
+      text: replyText,
+      source: `cloudflare-workers-ai (${cf.model})`,
+      model: cf.model,
+    });
+  } catch (error: any) {
+    console.error('Cloudflare Workers AI Socratic error:', error.message);
+    return res.status(500).json({
+      error: `Cloudflare Workers AI Error: ${error.message}`,
+      source: 'cloudflare-workers-ai-error',
+    });
   }
-
-  // 2. Try Gemini as secondary provider
-  const ai = getGeminiClient();
-  if (ai) {
-    try {
-      const chatContents = (history || []).map((h: any) => `${h.role === 'student' ? 'Student' : 'Tutor'}: ${h.text}`).join('\n');
-      const prompt = `${chatContents}\nStudent: ${studentMessage || 'Halo, saya ingin memahami konsep ini.'}\nTutor:`;
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
-        contents: prompt,
-        config: {
-          systemInstruction,
-          temperature: 0.7,
-        },
-      });
-
-      const replyText = response.text || 'Bagaimana menurutmu hal itu bisa terjadi jika kita telaah dari sebab akibatnya?';
-      return res.json({ text: replyText, source: 'gemini-3.8-flash' });
-    } catch (geminiErr: any) {
-      console.warn('Gemini inference error:', geminiErr.message);
-    }
-  }
-
-  // 3. Deterministic Local Fallback Engine
-  const localResponse = generateLocalSocraticResponse(concept, studentMessage, learnerState);
-  res.json({
-    ...localResponse,
-    source: 'local-fallback',
-  });
 });
 
 // Endpoint: Feynman Sensor Diagnosis
@@ -209,51 +172,29 @@ Expected Principle: "${expectedPrinciple || 'Fundamental causal mechanism'}"
 Do not output markdown codeblocks or extra conversational filler, output clean JSON.
 `;
 
-  // 1. Try Cloudflare Workers AI
-  if (cf.isConfigured) {
-    try {
-      const prompt = `Analisis penjelasan siswa berikut ini:\n"${studentExplanation}"`;
-      const reply = await runCloudflareWorkersAI([
-        { role: 'system', content: systemInstruction },
-        { role: 'user', content: prompt },
-      ], 0.1);
+  try {
+    const prompt = `Analisis penjelasan siswa berikut ini:\n"${studentExplanation}"`;
+    const reply = await runCloudflareWorkersAI([
+      { role: 'system', content: systemInstruction },
+      { role: 'user', content: prompt },
+    ], 0.1);
 
-      const parsed = extractJsonFromText(reply);
-      if (parsed && typeof parsed.conceptualUnderstanding === 'number') {
-        return res.json({
-          ...parsed,
-          source: `cloudflare-workers-ai (${cf.model})`,
-        });
-      }
-    } catch (cfErr: any) {
-      console.warn('Cloudflare Workers AI diagnose error, fallback to secondary:', cfErr.message);
+    const parsed = extractJsonFromText(reply);
+    if (!parsed || typeof parsed.conceptualUnderstanding !== 'number') {
+      throw new Error(`Cloudflare Workers AI (${cf.model}) tidak menghasilkan JSON Feynman yang valid: "${reply.slice(0, 100)}..."`);
     }
+
+    return res.json({
+      ...parsed,
+      source: `cloudflare-workers-ai (${cf.model})`,
+    });
+  } catch (error: any) {
+    console.error('Cloudflare Workers AI Feynman error:', error.message);
+    return res.status(500).json({
+      error: `Cloudflare Workers AI Error: ${error.message}`,
+      source: 'cloudflare-workers-ai-error',
+    });
   }
-
-  // 2. Try Gemini
-  const ai = getGeminiClient();
-  if (ai) {
-    try {
-      const prompt = `Student explanation: "${studentExplanation}"`;
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
-        contents: prompt,
-        config: {
-          systemInstruction,
-          responseMimeType: 'application/json',
-        },
-      });
-
-      const parsed = JSON.parse(response.text || '{}');
-      return res.json({ ...parsed, source: 'gemini-3.8-flash' });
-    } catch (error: any) {
-      console.warn('Error in Gemini Feynman Sensor:', error.message);
-    }
-  }
-
-  // 3. Fallback Heuristic
-  const fallback = generateLocalFeynmanDiagnosis(req.body.conceptName, req.body.studentExplanation);
-  res.json({ ...fallback, source: 'local-fallback' });
 });
 
 // Endpoint: Batch Benchmark Diagnosis for Central Hypothesis (Tahap 2 Harness)
@@ -292,79 +233,42 @@ Output strictly a JSON array of objects with the exact structure:
     studentUtterance: it.childUtterance,
   }));
 
-  // 1. Try Cloudflare Workers AI (Qwen 3 30B FP8)
-  if (cf.isConfigured) {
-    try {
-      const reply = await runCloudflareWorkersAI([
-        { role: 'system', content: systemInstruction },
-        { role: 'user', content: `Evaluasi benchmark kasus berikut:\n${JSON.stringify(promptItems)}` },
-      ], 0.1);
+  try {
+    const reply = await runCloudflareWorkersAI([
+      { role: 'system', content: systemInstruction },
+      { role: 'user', content: `Evaluasi benchmark kasus berikut:\n${JSON.stringify(promptItems)}` },
+    ], 0.1);
 
-      const parsedArray = extractJsonFromText(reply);
-      if (Array.isArray(parsedArray)) {
-        const results = items.map((item: any) => {
-          const found = parsedArray.find((p: any) => p.itemId === item.id) || generateLocalBenchmarkDiagnosis(item);
-          return {
-            itemId: item.id,
-            aiDiagnosis: {
-              hasMisconception: Boolean(found.hasMisconception),
-              misconceptionName: found.misconceptionName || 'Tidak teridentifikasi',
-              structuralMasteryScore: typeof found.structuralMasteryScore === 'number' ? Math.min(1, Math.max(0, found.structuralMasteryScore)) : 0.5,
-              explanation: found.explanation || `Analisis inferensi model Cloudflare Workers AI (${cf.model}).`,
-            },
-            source: `cloudflare-workers-ai (${cf.model})`,
-          };
-        });
+    const parsedArray = extractJsonFromText(reply);
+    if (!Array.isArray(parsedArray)) {
+      throw new Error(`Workers AI (${cf.model}) tidak mengembalikan array JSON benchmark valid.`);
+    }
 
-        return res.json({ results, source: `cloudflare-workers-ai (${cf.model})` });
+    const results = items.map((item: any) => {
+      const found = parsedArray.find((p: any) => p.itemId === item.id);
+      if (!found) {
+        throw new Error(`Item ${item.id} tidak ditemukan dalam respons Workers AI.`);
       }
-    } catch (cfErr: any) {
-      console.warn('Cloudflare Workers AI central-hypothesis error, falling back:', cfErr.message);
-    }
-  }
-
-  // 2. Try Gemini Client
-  const ai = getGeminiClient();
-  if (ai) {
-    try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
-        contents: JSON.stringify(promptItems),
-        config: {
-          systemInstruction,
-          responseMimeType: 'application/json',
-          temperature: 0.1,
+      return {
+        itemId: item.id,
+        aiDiagnosis: {
+          hasMisconception: Boolean(found.hasMisconception),
+          misconceptionName: found.misconceptionName || 'Tidak teridentifikasi',
+          structuralMasteryScore: typeof found.structuralMasteryScore === 'number' ? Math.min(1, Math.max(0, found.structuralMasteryScore)) : 0.5,
+          explanation: found.explanation || `Analisis inferensi model Cloudflare Workers AI (${cf.model}).`,
         },
-      });
+        source: `cloudflare-workers-ai (${cf.model})`,
+      };
+    });
 
-      const parsedArray = JSON.parse(response.text || '[]');
-      const results = items.map((item: any) => {
-        const found = parsedArray.find((p: any) => p.itemId === item.id) || generateLocalBenchmarkDiagnosis(item);
-        return {
-          itemId: item.id,
-          aiDiagnosis: {
-            hasMisconception: Boolean(found.hasMisconception),
-            misconceptionName: found.misconceptionName || 'Tidak teridentifikasi',
-            structuralMasteryScore: typeof found.structuralMasteryScore === 'number' ? Math.min(1, Math.max(0, found.structuralMasteryScore)) : 0.5,
-            explanation: found.explanation || 'Analisis inferensi model Gemini.',
-          },
-          source: 'gemini-3.8-flash',
-        };
-      });
-
-      return res.json({ results, source: 'gemini-3.8-flash' });
-    } catch (error: any) {
-      console.warn('Error in Gemini Central Hypothesis benchmark endpoint:', error.message);
-    }
+    return res.json({ results, source: `cloudflare-workers-ai (${cf.model})` });
+  } catch (error: any) {
+    console.error('Cloudflare Workers AI Central Hypothesis error:', error.message);
+    return res.status(500).json({
+      error: `Cloudflare Workers AI Error: ${error.message}`,
+      source: 'cloudflare-workers-ai-error',
+    });
   }
-
-  // 3. Fallback Heuristic
-  const offlineResults = items.map((item: any) => ({
-    itemId: item.id,
-    aiDiagnosis: generateLocalBenchmarkDiagnosis(item),
-    source: 'local-fallback-engine',
-  }));
-  res.json({ results: offlineResults, source: 'local-fallback' });
 });
 
 // Endpoint: Batch Feynman Suite Calibration
@@ -401,98 +305,39 @@ Output strictly a JSON array matching:
     childUtterance: c.childUtterance,
   }));
 
-  // 1. Try Cloudflare Workers AI
-  if (cf.isConfigured) {
-    try {
-      const reply = await runCloudflareWorkersAI([
-        { role: 'system', content: systemInstruction },
-        { role: 'user', content: `Kalibrasi kasus Feynman berikut:\n${JSON.stringify(promptData)}` },
-      ], 0.1);
+  try {
+    const reply = await runCloudflareWorkersAI([
+      { role: 'system', content: systemInstruction },
+      { role: 'user', content: `Kalibrasi kasus Feynman berikut:\n${JSON.stringify(promptData)}` },
+    ], 0.1);
 
-      const parsedArray = extractJsonFromText(reply);
-      if (Array.isArray(parsedArray)) {
-        const evaluations = cases.map((c: any) => {
-          const match = parsedArray.find((p: any) => p.caseId === c.id);
-          if (match) {
-            return {
-              caseId: c.id,
-              aiScore: Math.min(1, Math.max(0, match.aiScore)),
-              aiLabel: match.aiLabel || 'Teridentifikasi',
-              aiReasoning: match.aiReasoning || `Inferensi kalibrasi Cloudflare Workers AI (${cf.model}).`,
-              source: `cloudflare-workers-ai (${cf.model})`,
-            };
-          }
-          const local = generateLocalFeynmanDiagnosis(c.conceptName, c.childUtterance);
-          return {
-            caseId: c.id,
-            aiScore: local.conceptualUnderstanding,
-            aiLabel: local.misconceptions.length > 0 ? 'Miskonsepsi Terdeteksi' : 'Penalaran Dinilai',
-            aiReasoning: local.feedbackSummary,
-            source: 'local-fallback',
-          };
-        });
+    const parsedArray = extractJsonFromText(reply);
+    if (!Array.isArray(parsedArray)) {
+      throw new Error(`Workers AI (${cf.model}) tidak mengembalikan array JSON kalibrasi valid.`);
+    }
 
-        return res.json({ evaluations, source: `cloudflare-workers-ai (${cf.model})` });
+    const evaluations = cases.map((c: any) => {
+      const match = parsedArray.find((p: any) => p.caseId === c.id);
+      if (!match) {
+        throw new Error(`Kasus ${c.id} tidak ditemukan dalam evaluasi Workers AI.`);
       }
-    } catch (cfErr: any) {
-      console.warn('Cloudflare Workers AI feynman-suite error, falling back:', cfErr.message);
-    }
+      return {
+        caseId: c.id,
+        aiScore: Math.min(1, Math.max(0, match.aiScore)),
+        aiLabel: match.aiLabel || 'Teridentifikasi',
+        aiReasoning: match.aiReasoning || `Inferensi kalibrasi Cloudflare Workers AI (${cf.model}).`,
+        source: `cloudflare-workers-ai (${cf.model})`,
+      };
+    });
+
+    return res.json({ evaluations, source: `cloudflare-workers-ai (${cf.model})` });
+  } catch (error: any) {
+    console.error('Cloudflare Workers AI Feynman suite error:', error.message);
+    return res.status(500).json({
+      error: `Cloudflare Workers AI Error: ${error.message}`,
+      source: 'cloudflare-workers-ai-error',
+    });
   }
-
-  // 2. Try Gemini Client
-  const ai = getGeminiClient();
-  if (ai) {
-    try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
-        contents: JSON.stringify(promptData),
-        config: {
-          systemInstruction,
-          responseMimeType: 'application/json',
-          temperature: 0.1,
-        },
-      });
-
-      const parsedArray = JSON.parse(response.text || '[]');
-      const evaluations = cases.map((c: any) => {
-        const match = parsedArray.find((p: any) => p.caseId === c.id);
-        if (match) {
-          return {
-            caseId: c.id,
-            aiScore: Math.min(1, Math.max(0, match.aiScore)),
-            aiLabel: match.aiLabel || 'Teridentifikasi',
-            aiReasoning: match.aiReasoning || 'Inferensi kalibrasi Gemini.',
-            source: 'gemini-3.8-flash',
-          };
-        }
-        const local = generateLocalFeynmanDiagnosis(c.conceptName, c.childUtterance);
-        return {
-          caseId: c.id,
-          aiScore: local.conceptualUnderstanding,
-          aiLabel: local.misconceptions.length > 0 ? 'Miskonsepsi Terdeteksi' : 'Penalaran Dinilai',
-          aiReasoning: local.feedbackSummary,
-          source: 'local-fallback',
-        };
-      });
-
-      return res.json({ evaluations, source: 'gemini-3.8-flash' });
-    } catch (error: any) {
-      console.warn('Error in Gemini Feynman suite benchmark endpoint:', error.message);
-    }
-  }
-
-  // 3. Fallback Heuristic
-  const offlineEvaluations = cases.map((c: any) => {
-    const diag = generateLocalFeynmanDiagnosis(c.conceptName, c.childUtterance);
-    return {
-      caseId: c.id,
-      aiScore: diag.conceptualUnderstanding,
-      aiLabel: 'Evaluasi Heuristik Lokal',
-      aiReasoning: diag.feedbackSummary,
-      source: 'local-fallback',
-    };
-  });
-  res.json({ evaluations: offlineEvaluations, source: 'local-fallback' });
 });
 
 // Fallback intelligent helpers

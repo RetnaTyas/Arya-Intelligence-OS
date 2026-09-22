@@ -3,6 +3,7 @@ import {
   Brain,
   ShieldCheck,
   AlertTriangle,
+  AlertCircle,
   CheckCircle2,
   Sliders,
   Sparkles,
@@ -151,7 +152,8 @@ export const FeynmanCalibrationSuite: React.FC = () => {
   const [humanAuditMode, setHumanAuditMode] = useState<boolean>(true);
   const [overrideScores, setOverrideScores] = useState<Record<string, number>>({});
   const [calibrating, setCalibrating] = useState<boolean>(false);
-  const [calibrationSource, setCalibrationSource] = useState<'cloudflare' | 'gemini' | 'heuristic' | 'none'>('none');
+  const [calibrationSource, setCalibrationSource] = useState<'cloudflare' | 'error' | 'none'>('none');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Compute aggregate statistics from dynamic cases & overrides
   const totalCases = cases.length;
@@ -174,6 +176,7 @@ export const FeynmanCalibrationSuite: React.FC = () => {
 
   const handleRunCalibration = async () => {
     setCalibrating(true);
+    setErrorMessage(null);
     try {
       const response = await fetch('/api/benchmark/feynman-suite', {
         method: 'POST',
@@ -181,24 +184,19 @@ export const FeynmanCalibrationSuite: React.FC = () => {
         body: JSON.stringify({ cases: BENCHMARK_CASES }),
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error ${response.status}`);
+      const data = await response.json();
+      if (!response.ok || data.error) {
+        throw new Error(data.error || `HTTP error ${response.status}`);
       }
 
-      const data = await response.json();
-      const sourceStr = (data.source || '').toLowerCase();
-      if (sourceStr.includes('cloudflare') || sourceStr.includes('qwen')) {
-        setCalibrationSource('cloudflare');
-      } else if (sourceStr.includes('gemini')) {
-        setCalibrationSource('gemini');
-      } else {
-        setCalibrationSource('heuristic');
-      }
+      setCalibrationSource('cloudflare');
 
       if (Array.isArray(data.evaluations)) {
         const updatedCases = cases.map((c) => {
           const evalMatch = data.evaluations.find((e: any) => e.caseId === c.id);
-          if (!evalMatch) return c;
+          if (!evalMatch) {
+            throw new Error(`Kasus ${c.id} tidak menerima evaluasi dari Workers AI.`);
+          }
           return {
             ...c,
             aiDiagnosis: {
@@ -216,9 +214,10 @@ export const FeynmanCalibrationSuite: React.FC = () => {
           setSelectedCase(updatedSelected);
         }
       }
-    } catch (err) {
-      console.warn('Gagal memanggil endpoint feynman-suite, menggunakan fallback kalibrasi:', err);
-      setCalibrationSource('heuristic');
+    } catch (err: any) {
+      console.error('Workers AI feynman suite error:', err);
+      setCalibrationSource('error');
+      setErrorMessage(err.message || 'Gagal memanggil Cloudflare Workers AI.');
     } finally {
       setCalibrating(false);
     }
@@ -248,18 +247,18 @@ export const FeynmanCalibrationSuite: React.FC = () => {
                   <span>CLOUDFLARE WORKERS AI (QWEN 3 30B FP8)</span>
                 </span>
               )}
-              {calibrationSource === 'gemini' && (
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                  <Sparkles className="w-3 h-3 text-emerald-400" />
-                  <span>LIVE GEMINI 3.8 FLASH INFERENCE</span>
-                </span>
-              )}
-              {calibrationSource === 'heuristic' && (
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                  HEURISTIC LOCAL ENGINE (OFFLINE)
+              {calibrationSource === 'error' && (
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3 text-rose-400" />
+                  <span>WORKERS AI GAGAL / TIDAK TERHUBUNG</span>
                 </span>
               )}
             </div>
+            {errorMessage && (
+              <div className="p-3 bg-rose-950/40 border border-rose-500/50 rounded-lg text-rose-200 text-xs">
+                <strong>Error Cloudflare Workers AI:</strong> {errorMessage}
+              </div>
+            )}
             <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
               <strong>Solusi Mitigasi Single Point of Failure (Section 11, Risiko #1):</strong> Mendiagnosis pemahaman dari dialog adalah riset terbuka. Untuk mencegah <em>diagnosis noise</em> yang menyesatkan intervensi, sistem mengisolasi bobot AI ke {triangulationWeight}%, memvalidasi deteksi terhadap kasus terstandarisasi, dan melakukan triangulasi dengan data empiris simulasi.
             </p>

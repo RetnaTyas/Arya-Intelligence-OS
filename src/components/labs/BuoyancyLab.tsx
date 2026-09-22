@@ -59,7 +59,10 @@ export const BuoyancyLab: React.FC<BuoyancyLabProps> = ({ onFeynmanDiagnosed, on
           expectedPrinciple: 'Gaya apung sama dengan berat volume fluida yang didesak; lambung berongga mendesak lebih banyak air sehingga gaya ke atas melebihi berat total.',
         }),
       });
-      const data: FeynmanDiagnosisResult = await res.json();
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || `HTTP error ${res.status}`);
+      }
       setLastDiagnosis(data);
       if (onFeynmanDiagnosed) onFeynmanDiagnosed(data, childExplanation);
       if (onMasteryEvidence) {
@@ -67,8 +70,17 @@ export const BuoyancyLab: React.FC<BuoyancyLabProps> = ({ onFeynmanDiagnosed, on
           `Penjelasan Feynman Sensor Archimedes: "${childExplanation}" (Skor Kausal: ${(data.causalReasoning * 100).toFixed(0)}%, Transfer: ${(data.transferScore * 100).toFixed(0)}%)`
         );
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      setLastDiagnosis({
+        conceptualUnderstanding: 0.0,
+        causalReasoning: 0.0,
+        transferScore: 0.0,
+        analogyDetected: false,
+        misconceptions: ['Workers AI Error'],
+        feedbackSummary: `[Cloudflare Workers AI Error]: ${e.message}`,
+        nextBestProbe: 'Periksa binding Pages Functions "AiOS AI" atau kredensial API Cloudflare Workers AI.',
+      });
     } finally {
       setIsDiagnosing(false);
     }
