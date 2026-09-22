@@ -1,0 +1,7 @@
+{
+  "name": "Personal Intelligence OS",
+  "description": "Sistem operasi personal untuk memelihara perkembangan intelektual dengan Dynamic Knowledge Graph, Feynman Sensor, dan Self-Healing Learning.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
