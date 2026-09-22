@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Header, AppView } from './components/Header';
 import { KnowledgeGraphExplorer } from './components/KnowledgeGraphExplorer';
 import { LabHub, LabId } from './components/labs/LabHub';
@@ -27,8 +27,19 @@ import {
 
 import { triangulateEvidence } from './engine/evidenceTriangulation';
 import { applyMasteryGating } from './engine/deterministicCore';
+import {
+  loadInitialOSState,
+  persistAllLearnerNodes,
+  persistAllEvidenceLogs,
+  persistActiveTrajectory,
+  getBrowserStorageEstimate,
+  exportOSDatasetJSON,
+  importOSDatasetJSON,
+  resetOSDatabase,
+} from './storage/indexedDbStorage';
+import { computeRealTimeTelemetry } from './engine/dynamicTelemetry';
 
-import { Network, FlaskConical, MessageSquare, Compass, ShieldAlert, Sparkles, CheckCircle2, Cpu, Brain } from 'lucide-react';
+import { Network, FlaskConical, MessageSquare, Compass, ShieldAlert, Sparkles, CheckCircle2, Cpu, Brain, HardDrive } from 'lucide-react';
 
 export default function App() {
   // Views & Tabs
@@ -50,9 +61,148 @@ export default function App() {
   const [criticalDebt, setCriticalDebt] = useState<'LOW' | 'MEDIUM' | 'HIGH'>('LOW');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // IndexedDB Storage & Quota State
+  const [isDbReady, setIsDbReady] = useState<boolean>(false);
+  const [storageInfo, setStorageInfo] = useState<{
+    usageMb: number;
+    quotaMb: number;
+    percentageUsed: number;
+    isSupported: boolean;
+  }>({
+    usageMb: 0.15,
+    quotaMb: 2048,
+    percentageUsed: 0.01,
+    isSupported: true,
+  });
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4500);
+  };
+
+  // 1. Initial hydration from IndexedDB local browser storage
+  useEffect(() => {
+    let isMounted = true;
+
+    async function hydrateFromIndexedDB() {
+      try {
+        const loaded = await loadInitialOSState();
+        if (!isMounted) return;
+
+        setLearnerNodes(loaded.learnerNodes);
+        setEvidenceLogs(loaded.evidenceLogs);
+        setActiveTrajectory(loaded.activeTrajectory);
+
+        // Dynamically compute real telemetry from persisted learner nodes and evidence logs
+        const computed = computeRealTimeTelemetry(
+          knowledgeNodes,
+          loaded.learnerNodes,
+          loaded.evidenceLogs,
+          loaded.activeTrajectory
+        );
+
+        setTelemetry(computed.telemetry);
+        setKnowledgeStability(computed.overallKnowledgeStability);
+        setCriticalDebt(computed.criticalDebt);
+        setIsDbReady(true);
+
+        const est = await getBrowserStorageEstimate();
+        if (isMounted) {
+          setStorageInfo(est);
+        }
+
+        if (loaded.isFreshDB) {
+          showToast('IndexedDB diinisialisasi: Penyimpanan lokal aktif di browser ini.');
+        }
+      } catch (err) {
+        console.warn('Inisialisasi IndexedDB fallback:', err);
+        setIsDbReady(true);
+      }
+    }
+
+    hydrateFromIndexedDB();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [knowledgeNodes]);
+
+  // 2. Persist to IndexedDB & recompute real-time telemetry whenever learner state updates
+  useEffect(() => {
+    if (!isDbReady) return;
+
+    persistAllLearnerNodes(learnerNodes);
+    persistAllEvidenceLogs(evidenceLogs);
+    persistActiveTrajectory(activeTrajectory);
+
+    // Compute dynamic telemetry, stability, and debt without mock values
+    const computed = computeRealTimeTelemetry(
+      knowledgeNodes,
+      learnerNodes,
+      evidenceLogs,
+      activeTrajectory
+    );
+
+    setTelemetry(computed.telemetry);
+    setKnowledgeStability(computed.overallKnowledgeStability);
+    setCriticalDebt(computed.criticalDebt);
+
+    // Refresh storage estimate
+    getBrowserStorageEstimate().then((est) => setStorageInfo(est));
+  }, [learnerNodes, evidenceLogs, activeTrajectory, isDbReady, knowledgeNodes]);
+
+  // Handler for full JSON backup download
+  const handleExportFullJSON = async () => {
+    try {
+      const jsonStr = await exportOSDatasetJSON();
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute('href', url);
+      downloadAnchor.setAttribute('download', `arya_intelligence_os_backup_${Date.now()}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      URL.revokeObjectURL(url);
+      showToast('✓ Cadangan lengkap IndexedDB berhasil diekspor!');
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal mengekspor data cadangan.');
+    }
+  };
+
+  // Handler for JSON backup file import
+  const handleImportFullJSON = async (file: File) => {
+    try {
+      const text = await file.text();
+      const res = await importOSDatasetJSON(text);
+      if (res.success) {
+        setLearnerNodes(res.learnerNodes);
+        setEvidenceLogs(res.evidenceLogs);
+        setActiveTrajectory(res.activeTrajectory);
+        showToast(
+          `✓ Data berhasil dipulihkan: ${Object.keys(res.learnerNodes).length} node & ${res.evidenceLogs.length} bukti tersimpan.`
+        );
+      }
+    } catch (err: any) {
+      console.error('Import error:', err);
+      showToast(`Gagal mengimpor file: ${err.message || 'Format tidak valid'}`);
+    }
+  };
+
+  // Handler to reset IndexedDB to clean state
+  const handleResetDatabase = async () => {
+    try {
+      await resetOSDatabase();
+      const loaded = await loadInitialOSState();
+      setLearnerNodes(loaded.learnerNodes);
+      setEvidenceLogs(loaded.evidenceLogs);
+      setActiveTrajectory(loaded.activeTrajectory);
+      showToast('Basis data IndexedDB berhasil direset ke kondisi awal!');
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal mereset basis data.');
+    }
   };
 
   const selectedNode = knowledgeNodes.find((n) => n.id === selectedNodeId) || knowledgeNodes[0];
@@ -466,9 +616,14 @@ export default function App() {
             telemetry={telemetry}
             evidenceLogs={evidenceLogs}
             learnerNodes={learnerNodes}
+            knowledgeNodes={knowledgeNodes}
             activeTrajectory={activeTrajectory}
             knowledgeStability={knowledgeStability}
             criticalDebt={criticalDebt}
+            storageInfo={storageInfo}
+            onExportJSON={handleExportFullJSON}
+            onImportJSON={handleImportFullJSON}
+            onResetData={handleResetDatabase}
             onNavigateToStealthProject={() => {
               setCurrentView('child');
               setChildTab('labs');

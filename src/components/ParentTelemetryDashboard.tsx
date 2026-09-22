@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Activity,
   ShieldCheck,
@@ -7,6 +7,8 @@ import {
   ArrowRight,
   Database,
   Download,
+  Upload,
+  HardDrive,
   Calendar,
   Layers,
   Sparkles,
@@ -14,37 +16,109 @@ import {
   Info,
   Cpu,
   Brain,
+  RefreshCw,
+  Trash2,
 } from 'lucide-react';
 import {
   CognitiveDomainTelemetry,
   EvidenceEntry,
   ActiveTrajectory,
   LearnerNodeState,
+  KnowledgeNode,
 } from '../types';
+import { calculateDeterministicEpistemicDebt } from '../engine/deterministicCore';
 
 interface ParentTelemetryDashboardProps {
   telemetry: CognitiveDomainTelemetry[];
   evidenceLogs: EvidenceEntry[];
   learnerNodes: Record<string, LearnerNodeState>;
+  knowledgeNodes: KnowledgeNode[];
   activeTrajectory: ActiveTrajectory;
   knowledgeStability: number;
   criticalDebt: 'LOW' | 'MEDIUM' | 'HIGH';
   onNavigateToStealthProject: () => void;
   onOpenDeterministicEngine?: () => void;
+  onExportJSON?: () => void;
+  onImportJSON?: (file: File) => void;
+  onResetData?: () => void;
+  storageInfo?: {
+    usageMb: number;
+    quotaMb: number;
+    percentageUsed: number;
+    isSupported: boolean;
+  };
 }
 
 export const ParentTelemetryDashboard: React.FC<ParentTelemetryDashboardProps> = ({
   telemetry,
   evidenceLogs,
   learnerNodes,
+  knowledgeNodes,
   activeTrajectory,
   knowledgeStability,
   criticalDebt,
   onNavigateToStealthProject,
   onOpenDeterministicEngine,
+  onExportJSON,
+  onImportJSON,
+  onResetData,
+  storageInfo,
 }) => {
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
   const [exportNotice, setExportNotice] = useState<boolean>(false);
+  const [showResetConfirm, setShowResetConfirm] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Dynamic calculation of Transfer Strength across all active nodes
+  const dynamicTransferStrength = Math.round(
+    (Object.values(learnerNodes).reduce((sum, n) => sum + (n.mastery?.transfer || 0), 0) /
+      Math.max(1, Object.keys(learnerNodes).length)) * 100
+  );
+
+  // Dynamic ranking of top epistemic debt risk nodes
+  const riskRankedNodes = knowledgeNodes
+    .map((node) => {
+      const state = learnerNodes[node.id] || {
+        nodeId: node.id,
+        mastery: {
+          recognition: 0.8,
+          recall: 0.7,
+          understanding: 0.7,
+          application: 0.6,
+          transfer: 0.5,
+          explanation: 0.5,
+          creation: 0.3,
+        },
+        decayRate: 0.02,
+        lastReinforcedDate: new Date().toISOString(),
+        activeMisconceptions: [],
+        learningRate: 1.0,
+        confidence: 'medium' as const,
+        debtRisk: 0.02,
+        isBottleneck: false,
+      };
+      const decay = state.decayRate || 0;
+      const debtAssessment = calculateDeterministicEpistemicDebt(node, state);
+      const debt: number = debtAssessment.debtRiskScore;
+      return {
+        node,
+        state,
+        decay,
+        debt,
+      };
+    })
+    .sort((a, b) => b.debt - a.debt || b.decay - a.decay)
+    .slice(0, 4);
+
+  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && onImportJSON) {
+      onImportJSON(file);
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   // Filter evidence
   const filteredEvidence = evidenceLogs.filter((entry) => {
@@ -175,8 +249,10 @@ export const ParentTelemetryDashboard: React.FC<ParentTelemetryDashboardProps> =
 
             <div className="bg-slate-950/90 p-4 rounded-xl border border-slate-800 space-y-1">
               <span className="text-[11px] text-slate-400 block">Bottleneck Risk</span>
-              <div className="text-2xl font-extrabold text-cyan-400 font-mono">
-                LOW
+              <div className={`text-2xl font-extrabold font-mono ${
+                criticalDebt === 'HIGH' ? 'text-rose-400' : criticalDebt === 'MEDIUM' ? 'text-amber-400' : 'text-cyan-400'
+              }`}>
+                {criticalDebt === 'HIGH' ? 'HIGH' : criticalDebt === 'MEDIUM' ? 'ELEVATED' : 'LOW'}
               </div>
               <span className="text-[10px] text-slate-400 block">Predictive maintenance aktif</span>
             </div>
@@ -184,7 +260,7 @@ export const ParentTelemetryDashboard: React.FC<ParentTelemetryDashboardProps> =
             <div className="bg-slate-950/90 p-4 rounded-xl border border-slate-800 space-y-1">
               <span className="text-[11px] text-slate-400 block">Transfer Strength</span>
               <div className="text-2xl font-extrabold text-purple-400 font-mono">
-                78%
+                {dynamicTransferStrength}%
               </div>
               <span className="text-[10px] text-purple-400/80 block">Mampu transfer lintas bidang</span>
             </div>
@@ -436,7 +512,7 @@ export const ParentTelemetryDashboard: React.FC<ParentTelemetryDashboardProps> =
             </p>
           </div>
 
-          {/* Node Risk Table */}
+          {/* Node Risk Table (Dynamically computed from actual graph & learner states) */}
           <div className="space-y-2 text-xs">
             <div className="flex justify-between text-[11px] text-slate-400 font-mono px-2">
               <span>Node Pengetahuan</span>
@@ -444,37 +520,153 @@ export const ParentTelemetryDashboard: React.FC<ParentTelemetryDashboardProps> =
               <span>Status Tindakan</span>
             </div>
 
-            <div className="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-lg flex items-center justify-between">
-              <div>
-                <strong className="text-amber-200 block">Aljabar Simbolik</strong>
-                <span className="text-[10px] text-slate-400 font-mono">Decay: 15% · Centrality: 0.92</span>
+            {riskRankedNodes.length === 0 ? (
+              <div className="p-3 text-center text-xs text-slate-400 bg-slate-950/60 rounded-lg">
+                Tidak ada risiko hutang kognitif terdeteksi.
               </div>
-              <span className="text-[10px] font-mono font-bold text-teal-300 bg-teal-950/80 px-2 py-1 rounded border border-teal-800">
-                Stealth Insertion: Aktif
-              </span>
-            </div>
+            ) : (
+              riskRankedNodes.map(({ node, decay, debt }) => {
+                const isHighRisk = debt >= 0.08 || decay >= 0.08;
+                const isWarning = debt >= 0.04 || decay >= 0.04;
 
-            <div className="bg-slate-950/60 border border-slate-800 p-2.5 rounded-lg flex items-center justify-between">
-              <div>
-                <strong className="text-slate-200 block">Gaya Apung Archimedes</strong>
-                <span className="text-[10px] text-slate-400 font-mono">Decay: 5% · Centrality: 0.85</span>
-              </div>
-              <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/40 px-2 py-1 rounded">
-                Stabil
-              </span>
-            </div>
+                return (
+                  <div
+                    key={node.id}
+                    className={`p-2.5 rounded-lg flex items-center justify-between transition ${
+                      isHighRisk
+                        ? 'bg-amber-500/10 border border-amber-500/30'
+                        : isWarning
+                        ? 'bg-cyan-950/30 border border-cyan-500/20'
+                        : 'bg-slate-950/60 border border-slate-800'
+                    }`}
+                  >
+                    <div>
+                      <strong className={`block ${isHighRisk ? 'text-amber-200' : 'text-slate-200'}`}>
+                        {node.name}
+                      </strong>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        Decay: {Math.round(decay * 100)}% · Centrality: {node.centrality.toFixed(2)} · Risk: {(debt * 100).toFixed(1)}%
+                      </span>
+                    </div>
 
-            <div className="bg-slate-950/60 border border-slate-800 p-2.5 rounded-lg flex items-center justify-between">
-              <div>
-                <strong className="text-slate-200 block">Fondasi Kesetaraan</strong>
-                <span className="text-[10px] text-slate-400 font-mono">Decay: 2% · Centrality: 0.95</span>
-              </div>
-              <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/40 px-2 py-1 rounded">
-                Mastered
+                    {isHighRisk ? (
+                      <span className="text-[10px] font-mono font-bold text-teal-300 bg-teal-950/80 px-2 py-1 rounded border border-teal-800">
+                        Stealth Insertion: Aktif
+                      </span>
+                    ) : isWarning ? (
+                      <span className="text-[10px] font-mono text-cyan-300 bg-cyan-950/50 px-2 py-1 rounded border border-cyan-800/60">
+                        Monitoring
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/40 px-2 py-1 rounded">
+                        Stabil
+                      </span>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Local Browser Storage (IndexedDB) & Data Sovereignty Section */}
+      <div className="bg-[#0b0f1e] border border-cyan-500/30 rounded-2xl p-6 space-y-4 shadow-xl">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 text-xs font-semibold rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 flex items-center gap-1.5">
+                <HardDrive className="w-3.5 h-3.5" />
+                <span>Penyimpanan Lokal Browser: IndexedDB Aktif</span>
               </span>
+              <span className="text-xs text-slate-400 font-mono hidden sm:inline">Kapasitas Sesuai Storage HP</span>
+            </div>
+            <h3 className="text-base font-bold text-white tracking-wide">
+              Kedaulatan Data & Log Bukti Tanpa Ketergantungan Server Pihak Ketiga
+            </h3>
+            <p className="text-xs text-slate-400 max-w-2xl leading-relaxed">
+              Seluruh progress, rekaman telemetri, dan log bukti kausal disimpan langsung di dalam <strong>IndexedDB</strong> browser perangkat ini. Ruang penyimpanan aman dan berkapasitas besar (ratusan MB hingga puluhan GB), tidak dibatasi kuota 5MB standar localStorage.
+            </p>
+          </div>
+
+          {/* Storage telemetry pill */}
+          <div className="p-3 bg-slate-950/90 rounded-xl border border-slate-800/90 flex flex-col items-end shrink-0">
+            <div className="text-[11px] text-slate-400 font-mono">Estimasi Kuota Storage HP:</div>
+            <div className="text-sm font-bold font-mono text-cyan-300">
+              {storageInfo?.usageMb.toFixed(2) || '0.15'} MB / ~{storageInfo?.quotaMb ? (storageInfo.quotaMb > 1024 ? (storageInfo.quotaMb / 1024).toFixed(1) + ' GB' : storageInfo.quotaMb + ' MB') : '10+ GB'}
+            </div>
+            <div className="text-[10px] text-emerald-400 font-mono mt-0.5">
+              ✓ {evidenceLogs.length} Entri Bukti · {Object.keys(learnerNodes).length} Node Terlacak
             </div>
           </div>
         </div>
+
+        {/* Data Action Controls */}
+        <div className="flex flex-wrap items-center gap-2.5 pt-2 border-t border-slate-800/80">
+          <button
+            id="btn-export-full-db"
+            onClick={onExportJSON || handleExportData}
+            className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow transition"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Ekspor Cadangan Lengkap (JSON)</span>
+          </button>
+
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileSelected}
+            accept=".json,application/json"
+            className="hidden"
+          />
+
+          <button
+            id="btn-import-full-db"
+            onClick={() => fileInputRef.current?.click()}
+            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition"
+          >
+            <Upload className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Impor / Pulihkan Cadangan JSON</span>
+          </button>
+
+          <button
+            id="btn-reset-full-db"
+            onClick={() => setShowResetConfirm(true)}
+            className="px-3 py-2 bg-rose-950/30 hover:bg-rose-900/40 border border-rose-900/50 text-rose-300 rounded-lg text-xs font-medium flex items-center gap-1.5 transition ml-auto"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+            <span>Reset ke Status Baru</span>
+          </button>
+        </div>
+
+        {showResetConfirm && (
+          <div className="p-3.5 bg-rose-950/60 border border-rose-800/80 rounded-xl space-y-2">
+            <div className="flex items-center gap-2 text-rose-200 text-xs font-bold">
+              <AlertTriangle className="w-4 h-4 text-rose-400" />
+              <span>Konfirmasi Reset Basis Data IndexedDB:</span>
+            </div>
+            <p className="text-[11px] text-rose-300/90 leading-snug">
+              Tindakan ini akan mengosongkan IndexedDB lokal pada browser ini dan mengembalikan profil belajar ke baseline awal. Pastikan Anda telah mengunduh cadangan JSON terlebih dahulu jika ingin menyimpan bukti sebelumnya.
+            </p>
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                onClick={() => {
+                  if (onResetData) onResetData();
+                  setShowResetConfirm(false);
+                }}
+                className="px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded text-xs font-semibold"
+              >
+                Ya, Bersihkan & Reset
+              </button>
+              <button
+                onClick={() => setShowResetConfirm(false)}
+                className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs"
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Long-Term Evidence Log (Section 6.4) */}
