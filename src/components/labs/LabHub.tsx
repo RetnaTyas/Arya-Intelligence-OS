@@ -23,11 +23,39 @@ import { ComputationalAlgorithmLab } from './ComputationalAlgorithmLab';
 import { ObjectPermanenceLab } from './ObjectPermanenceLab';
 import { PiagetConservationLab } from './PiagetConservationLab';
 import { PatternSequenceLab } from './PatternSequenceLab';
+import { ToddlerLogicLabs } from './toddler/ToddlerLogicLabs';
+import { ToddlerMathLabs } from './toddler/ToddlerMathLabs';
+import { ToddlerPhysicsLabs } from './toddler/ToddlerPhysicsLabs';
+import { ToddlerComputingLabs } from './toddler/ToddlerComputingLabs';
 
 import { FeynmanDiagnosisResult } from '../../types';
 
 export type LabId =
+  // Umur 1-3 Logika
   | 'object_permanence'
+  | 'action_reaction'
+  | 'containment_relations'
+  | 'mirror_identity'
+  | 'domino_cascade'
+  // Umur 1-3 Matematika
+  | 'subitizing_quantity'
+  | 'size_comparison'
+  | 'tower_stacking'
+  | 'one_to_one'
+  | 'part_whole'
+  // Umur 1-3 Fisika
+  | 'gravity_ramp'
+  | 'heavy_light'
+  | 'sink_or_float'
+  | 'magnetic_attraction'
+  | 'bounce_elasticity'
+  // Umur 1-3 Komputasi
+  | 'spatial_sorting'
+  | 'color_grouping'
+  | 'step_sequence'
+  | 'binary_switch'
+  | 'path_maze'
+  // Umur 4-12
   | 'piaget_conservation'
   | 'pattern_sequence'
   | 'causal_logic'
@@ -74,6 +102,240 @@ export const LabHub: React.FC<LabHubProps> = ({
       color: 'from-amber-600 to-orange-600',
       badgeBg: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
       description: 'Eksperimen kotak cilukba: membuktikan bahwa objek tetap eksis meskipun tidak terlihat mata.',
+    },
+    {
+      id: 'action_reaction' as LabId,
+      name: 'Aksi-Reaksi Kausal & Tuas Rangsang',
+      nodeRef: 'node-action-reaction',
+      domain: 'Logika & Kausal' as const,
+      ageBracket: '1-3' as const,
+      ageLabel: '1 - 3 Thn (Sensori)',
+      icon: Zap,
+      color: 'from-amber-500 to-orange-500',
+      badgeBg: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+      description: 'Eksplorasi agensi fisik: setiap tekanan tombol memicu efek audio-visual deterministik seketika.',
+    },
+    {
+      id: 'containment_relations' as LabId,
+      name: 'Relasi Spasial Wadah & Konten (In/Out)',
+      nodeRef: 'node-containment-relations',
+      domain: 'Logika & Kausal' as const,
+      ageBracket: '1-3' as const,
+      ageLabel: '1 - 3 Thn (Sensori)',
+      icon: Baby,
+      color: 'from-orange-600 to-amber-600',
+      badgeBg: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+      description: 'Eksplorasi batas ruang: memasukkan ke dalam, mengeluarkan, dan menumpahkan wadah saat dibalik.',
+    },
+    {
+      id: 'mirror_identity' as LabId,
+      name: 'Pencerminan Diri & Simetri Optik',
+      nodeRef: 'node-mirror-identity',
+      domain: 'Logika & Kausal' as const,
+      ageBracket: '1-3' as const,
+      ageLabel: '1 - 3 Thn (Sensori)',
+      icon: Sparkles,
+      color: 'from-amber-600 to-yellow-500',
+      badgeBg: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+      description: 'Uji cermin Rouge: kesadaran refleksi optik diri dan pemetaan spasial gerakan tubuh.',
+    },
+    {
+      id: 'domino_cascade' as LabId,
+      name: 'Rantai Kausal Sekuensial & Efek Domino',
+      nodeRef: 'node-domino-cascade',
+      domain: 'Logika & Kausal' as const,
+      ageBracket: '1-3' as const,
+      ageLabel: '1 - 3 Thn (Sensori)',
+      icon: Compass,
+      color: 'from-yellow-600 to-amber-600',
+      badgeBg: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+      description: 'Transitivitas gaya: dorongan awal diteruskan melalui balok perantara hingga memicu sasaran akhir.',
+    },
+
+    // --- Matematika 1 - 3 Tahun ---
+    {
+      id: 'subitizing_quantity' as LabId,
+      name: 'Subitisasi & Persepsi Kuantitas Kasar',
+      nodeRef: 'node-subitizing-quantity',
+      domain: 'Matematika' as const,
+      ageBracket: '1-3' as const,
+      ageLabel: '1 - 3 Thn (Sensori)',
+      icon: Scale,
+      color: 'from-indigo-500 to-purple-500',
+      badgeBg: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+      description: 'Pengenalan instan jumlah 1, 2, atau 3 buah secara visual tanpa membilang satu per satu.',
+    },
+    {
+      id: 'size_comparison' as LabId,
+      name: 'Perbandingan Ukuran Relatif & Magnitudo',
+      nodeRef: 'node-size-comparison',
+      domain: 'Matematika' as const,
+      ageBracket: '1-3' as const,
+      ageLabel: '1 - 3 Thn (Sensori)',
+      icon: Scale,
+      color: 'from-indigo-600 to-blue-600',
+      badgeBg: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+      description: 'Membedakan dimensi fisik: besar vs kecil, banyak vs sedikit untuk membangun relasi ordinal.',
+    },
+    {
+      id: 'tower_stacking' as LabId,
+      name: 'Seriasi Ukuran & Menara Pink Tower',
+      nodeRef: 'node-tower-stacking',
+      domain: 'Matematika' as const,
+      ageBracket: '1-3' as const,
+      ageLabel: '1 - 3 Thn (Sensori)',
+      icon: Brain,
+      color: 'from-pink-600 to-rose-600',
+      badgeBg: 'bg-pink-500/20 text-pink-300 border-pink-500/30',
+      description: 'Menumpuk 5 balok dari alas terlebar ke puncak terkecil untuk menguji pusat massa kesetimbangan.',
+    },
+    {
+      id: 'one_to_one' as LabId,
+      name: 'Korespondensi Satu-ke-Satu (1-to-1 Matching)',
+      nodeRef: 'node-one-to-one',
+      domain: 'Matematika' as const,
+      ageBracket: '1-3' as const,
+      ageLabel: '1 - 3 Thn (Sensori)',
+      icon: Sparkles,
+      color: 'from-purple-600 to-indigo-600',
+      badgeBg: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+      description: 'Memasangkan tepat 1 wortel untuk 1 kelinci secara adil, fondasi sejati proses pencacahan.',
+    },
+    {
+      id: 'part_whole' as LabId,
+      name: 'Part-Whole Intuitif & Konservasi Kesatuan',
+      nodeRef: 'node-part-whole',
+      domain: 'Matematika' as const,
+      ageBracket: '1-3' as const,
+      ageLabel: '1 - 3 Thn (Sensori)',
+      icon: Brain,
+      color: 'from-indigo-500 to-teal-500',
+      badgeBg: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+      description: 'Memotong satu buah utuh menjadi 2 belahan dan menyatukannya kembali tanpa kehilangan substansi.',
+    },
+
+    // --- Fisika 1 - 3 Tahun ---
+    {
+      id: 'gravity_ramp' as LabId,
+      name: 'Gravitasi Jatuh Bebas & Bidang Miring',
+      nodeRef: 'node-gravity-ramp',
+      domain: 'Fisika' as const,
+      ageBracket: '1-3' as const,
+      ageLabel: '1 - 3 Thn (Sensori)',
+      icon: Zap,
+      color: 'from-teal-500 to-cyan-500',
+      badgeBg: 'bg-teal-500/20 text-teal-300 border-teal-500/30',
+      description: 'Eksplorasi gaya tarik bumi: sudut miring mempercepat bola menggelinding ke bawah.',
+    },
+    {
+      id: 'heavy_light' as LabId,
+      name: 'Massa Komparatif & Jungkat-Jungkit',
+      nodeRef: 'node-heavy-light',
+      domain: 'Fisika' as const,
+      ageBracket: '1-3' as const,
+      ageLabel: '1 - 3 Thn (Sensori)',
+      icon: Scale,
+      color: 'from-cyan-600 to-teal-600',
+      badgeBg: 'bg-teal-500/20 text-teal-300 border-teal-500/30',
+      description: 'Benda berbobot lebih berat menekan tuas jungkat-jungkit lebih dalam dibandingkan benda ringan.',
+    },
+    {
+      id: 'sink_or_float' as LabId,
+      name: 'Tenggelam vs Terapung Intuitif Fluida',
+      nodeRef: 'node-sink-or-float',
+      domain: 'Fisika' as const,
+      ageBracket: '1-3' as const,
+      ageLabel: '1 - 3 Thn (Sensori)',
+      icon: Droplets,
+      color: 'from-teal-600 to-blue-600',
+      badgeBg: 'bg-teal-500/20 text-teal-300 border-teal-500/30',
+      description: 'Air memberikan gaya apung ke atas: kayu mengambang, sedangkan batu dan logam tenggelam.',
+    },
+    {
+      id: 'magnetic_attraction' as LabId,
+      name: 'Gaya Magnetik & Tarik Logam',
+      nodeRef: 'node-magnetic-attraction',
+      domain: 'Fisika' as const,
+      ageBracket: '1-3' as const,
+      ageLabel: '1 - 3 Thn (Sensori)',
+      icon: Zap,
+      color: 'from-rose-600 to-teal-600',
+      badgeBg: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
+      description: 'Gaya kontak tak kasat mata: magnet menarik paku dan klip besi tanpa perlu menyentuh langsung.',
+    },
+    {
+      id: 'bounce_elasticity' as LabId,
+      name: 'Elastisitas & Benturan Pantul Benda',
+      nodeRef: 'node-bounce-elasticity',
+      domain: 'Fisika' as const,
+      ageBracket: '1-3' as const,
+      ageLabel: '1 - 3 Thn (Sensori)',
+      icon: Sparkles,
+      color: 'from-teal-500 to-emerald-500',
+      badgeBg: 'bg-teal-500/20 text-teal-300 border-teal-500/30',
+      description: 'Bola karet elastis memantul kembali, sedangkan adonan lempung pipih menyerap energi tanpa memantul.',
+    },
+
+    // --- Komputasi 1 - 3 Tahun ---
+    {
+      id: 'spatial_sorting' as LabId,
+      name: 'Pola Geometri & Shape Sorter',
+      nodeRef: 'node-spatial-sorting',
+      domain: 'Komputasi' as const,
+      ageBracket: '1-3' as const,
+      ageLabel: '1 - 3 Thn (Sensori)',
+      icon: Puzzle,
+      color: 'from-emerald-500 to-teal-500',
+      badgeBg: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+      description: 'Mencocokkan bentuk fisik dengan lubang cetakan geometris: lingkaran, segitiga, persegi.',
+    },
+    {
+      id: 'color_grouping' as LabId,
+      name: 'Klasifikasi Atribut & Kelompok Warna',
+      nodeRef: 'node-color-grouping',
+      domain: 'Komputasi' as const,
+      ageBracket: '1-3' as const,
+      ageLabel: '1 - 3 Thn (Sensori)',
+      icon: Cpu,
+      color: 'from-emerald-600 to-green-500',
+      badgeBg: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+      description: 'Pengelompokan elemen berdasarkan kesamaan atribut diskret: kelereng merah vs biru.',
+    },
+    {
+      id: 'step_sequence' as LabId,
+      name: 'Runtunan Instruksi 2-Langkah (Algoritma Dini)',
+      nodeRef: 'node-step-sequence',
+      domain: 'Komputasi' as const,
+      ageBracket: '1-3' as const,
+      ageLabel: '1 - 3 Thn (Sensori)',
+      icon: Compass,
+      color: 'from-teal-600 to-emerald-600',
+      badgeBg: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+      description: 'Pemahaman urutan kausal: langkah ambil kunci adalah prasyarat langkah membuka peti.',
+    },
+    {
+      id: 'binary_switch' as LabId,
+      name: 'Saklar Logika Biner 0/1 (Boolean State)',
+      nodeRef: 'node-binary-switch',
+      domain: 'Komputasi' as const,
+      ageBracket: '1-3' as const,
+      ageLabel: '1 - 3 Thn (Sensori)',
+      icon: Zap,
+      color: 'from-emerald-500 to-cyan-500',
+      badgeBg: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+      description: 'Dua kondisi diskret saling eksklusif (ON atau OFF, 1 atau 0) pada saklar kendali.',
+    },
+    {
+      id: 'path_maze' as LabId,
+      name: 'Pelacakan Lintasan Garis (Path Traversal)',
+      nodeRef: 'node-path-maze',
+      domain: 'Komputasi' as const,
+      ageBracket: '1-3' as const,
+      ageLabel: '1 - 3 Thn (Sensori)',
+      icon: Compass,
+      color: 'from-green-600 to-teal-600',
+      badgeBg: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+      description: 'Navigasi ruang linear: memandu anak kucing melintasi jalur berurutan menuju mangkuk susu.',
     },
     // ----------------------------------------------------
     // Umur 4 - 6 Tahun: Pra-Operasional & Intuisi Kuantitas
@@ -314,6 +576,49 @@ export const LabHub: React.FC<LabHubProps> = ({
             onMasteryEvidence={(details) =>
               onMasteryEvidence('Permanensi Objek & Kausalitas Primer', details)
             }
+          />
+        )}
+
+        {(activeLabId === 'action_reaction' ||
+          activeLabId === 'containment_relations' ||
+          activeLabId === 'mirror_identity' ||
+          activeLabId === 'domino_cascade') && (
+          <ToddlerLogicLabs
+            labType={activeLabId}
+            onMasteryEvidence={(concept, details) => onMasteryEvidence(concept, details)}
+          />
+        )}
+
+        {(activeLabId === 'subitizing_quantity' ||
+          activeLabId === 'size_comparison' ||
+          activeLabId === 'tower_stacking' ||
+          activeLabId === 'one_to_one' ||
+          activeLabId === 'part_whole') && (
+          <ToddlerMathLabs
+            labType={activeLabId}
+            onMasteryEvidence={(concept, details) => onMasteryEvidence(concept, details)}
+          />
+        )}
+
+        {(activeLabId === 'gravity_ramp' ||
+          activeLabId === 'heavy_light' ||
+          activeLabId === 'sink_or_float' ||
+          activeLabId === 'magnetic_attraction' ||
+          activeLabId === 'bounce_elasticity') && (
+          <ToddlerPhysicsLabs
+            labType={activeLabId}
+            onMasteryEvidence={(concept, details) => onMasteryEvidence(concept, details)}
+          />
+        )}
+
+        {(activeLabId === 'spatial_sorting' ||
+          activeLabId === 'color_grouping' ||
+          activeLabId === 'step_sequence' ||
+          activeLabId === 'binary_switch' ||
+          activeLabId === 'path_maze') && (
+          <ToddlerComputingLabs
+            labType={activeLabId}
+            onMasteryEvidence={(concept, details) => onMasteryEvidence(concept, details)}
           />
         )}
 
