@@ -1,21 +1,51 @@
-import React, { useState, useEffect } from 'react';
-import { Play, RotateCcw, Sparkles, CheckCircle2, AlertTriangle, ArrowDown, ArrowUp, Send, HelpCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import {
+  RotateCcw,
+  Sparkles,
+  CheckCircle2,
+  AlertTriangle,
+  ArrowDown,
+  ArrowUp,
+  Send,
+  Target,
+  Activity,
+  Compass,
+} from 'lucide-react';
 import { FeynmanDiagnosisResult } from '../../types';
+import { useLabTelemetry } from '../../engine/useLabTelemetry';
+import { deriveEmpiricalEvidenceFromTelemetry } from '../../engine/empiricalEvidenceDerivation';
+import { EmpiricalSimulationEvidence } from '../../engine/evidenceTriangulation';
 
 interface BuoyancyLabProps {
   onFeynmanDiagnosed?: (result: FeynmanDiagnosisResult, explanation: string) => void;
   onMasteryEvidence?: (details: string) => void;
+  onEmpiricalEvidence?: (evidence: EmpiricalSimulationEvidence) => void;
 }
 
-export const BuoyancyLab: React.FC<BuoyancyLabProps> = ({ onFeynmanDiagnosed, onMasteryEvidence }) => {
+export const BuoyancyLab: React.FC<BuoyancyLabProps> = ({
+  onFeynmanDiagnosed,
+  onMasteryEvidence,
+  onEmpiricalEvidence,
+}) => {
+  // Mode: Challenge or Free Exploration
+  const [labMode, setLabMode] = useState<'challenge' | 'exploration'>('challenge');
+
   // Object properties
   const [mass, setMass] = useState<number>(3.0); // kg
   const [volume, setVolume] = useState<number>(4.0); // Liters
   const [shape, setShape] = useState<'solid' | 'hollow_hull'>('solid');
   const [fluidType, setFluidType] = useState<'fresh' | 'salt'>('fresh');
 
+  // Telemetry Engine integration
+  const telemetry = useLabTelemetry('buoyancy');
+  const [liveEmpirical, setLiveEmpirical] = useState<EmpiricalSimulationEvidence | null>(null);
+  const [verificationFeedback, setVerificationFeedback] = useState<{
+    tested: boolean;
+    isCorrect: boolean;
+    message: string;
+  } | null>(null);
+
   // Simulation state
-  const [isSimulating, setIsSimulating] = useState<boolean>(true);
   const [childExplanation, setChildExplanation] = useState<string>('');
   const [isDiagnosing, setIsDiagnosing] = useState<boolean>(false);
   const [lastDiagnosis, setLastDiagnosis] = useState<FeynmanDiagnosisResult | null>(null);
@@ -23,8 +53,8 @@ export const BuoyancyLab: React.FC<BuoyancyLabProps> = ({ onFeynmanDiagnosed, on
   // Constants
   const g = 9.8;
   const fluidDensity = fluidType === 'fresh' ? 1.0 : 1.03; // kg / L
+  const TARGET_TOLERANCE = 0.05; // kg/L tolerance for neutral buoyancy target
 
-  // Calculations
   // Effective volume of hull if hollow: air trapped increases displaced volume without increasing mass
   const effectiveVolume = shape === 'hollow_hull' ? volume * 1.8 : volume;
   const objectDensity = mass / effectiveVolume; // kg / L
@@ -40,10 +70,85 @@ export const BuoyancyLab: React.FC<BuoyancyLabProps> = ({ onFeynmanDiagnosed, on
   const baseWaterLevel = 55; // %
   const displacedRise = displacedVolume * 2.5; // visual %
 
+  // Check if object is neutrally buoyant (hovering in middle)
+  const isNeutralBuoyancy = Math.abs(objectDensity - fluidDensity) <= TARGET_TOLERANCE;
+
   // Position of object in tank: 0 (top floating) to 70 (bottom)
-  const objectY = willFloat
+  const objectY = isNeutralBuoyancy
+    ? 40 // exactly hovering in the middle
+    : willFloat
     ? Math.max(10, 48 - (1 - submergedFraction) * 20)
     : 72; // bottom
+
+  // Telemetry-aware parameter handlers
+  const handleMassChange = (newMass: number) => {
+    setMass(newMass);
+    telemetry.recordParameterChange('mass', newMass);
+  };
+
+  const handleVolumeChange = (newVolume: number) => {
+    setVolume(newVolume);
+    telemetry.recordParameterChange('volume', newVolume);
+  };
+
+  const handleShapeChange = (newShape: 'solid' | 'hollow_hull') => {
+    setShape(newShape);
+    telemetry.recordParameterChange('shape', newShape);
+  };
+
+  const handleFluidChange = (newFluid: 'fresh' | 'salt') => {
+    setFluidType(newFluid);
+    telemetry.recordParameterChange('fluidType', newFluid);
+  };
+
+  const handleReset = () => {
+    setMass(3.0);
+    setVolume(4.0);
+    setShape('solid');
+    setFluidType('fresh');
+    setVerificationFeedback(null);
+    telemetry.recordReset();
+  };
+
+  // Empirical Challenge Verification
+  const handleTestConfiguration = () => {
+    const densityDiff = Math.abs(objectDensity - fluidDensity);
+    // Normalized distance from target: 0 (exact match) up to 1 (off by 0.5 kg/L or more)
+    const distance = Math.min(1.0, densityDiff / 0.5);
+    const isCorrect = densityDiff <= TARGET_TOLERANCE;
+
+    telemetry.recordVerificationAttempt(isCorrect, distance);
+
+    const session = telemetry.getCurrentSession();
+    const derived = deriveEmpiricalEvidenceFromTelemetry(session);
+    setLiveEmpirical(derived);
+
+    if (onEmpiricalEvidence) {
+      onEmpiricalEvidence(derived);
+    }
+
+    if (isCorrect) {
+      setVerificationFeedback({
+        tested: true,
+        isCorrect: true,
+        message: `✓ Target Tercapai! Kerapatan benda (${objectDensity.toFixed(2)} kg/L) seimbang dengan fluida (${fluidDensity.toFixed(2)} kg/L). Benda melayang di tengah!`,
+      });
+      if (onMasteryEvidence) {
+        onMasteryEvidence(
+          `Berhasil mencapai melayang stabil (kepadatan seimbang: ${objectDensity.toFixed(2)} kg/L) dengan akurasi empiris ${(derived.accuracyScore * 100).toFixed(0)}% (${derived.trialCount}x uji).`
+        );
+      }
+    } else {
+      setVerificationFeedback({
+        tested: true,
+        isCorrect: false,
+        message:
+          objectDensity > fluidDensity
+            ? `Benda tenggelam (selisih +${densityDiff.toFixed(2)} kg/L). Perbesar volume atau kurangi massa.`
+            : `Benda mengapung terlalu tinggi (selisih -${densityDiff.toFixed(2)} kg/L). Perbesar massa atau kurangi rongga.`,
+      });
+    }
+  };
 
   const handleRunDiagnosis = async () => {
     if (!childExplanation.trim()) return;
@@ -64,10 +169,19 @@ export const BuoyancyLab: React.FC<BuoyancyLabProps> = ({ onFeynmanDiagnosed, on
         throw new Error(data.error || `HTTP error ${res.status}`);
       }
       setLastDiagnosis(data);
+
+      // Finalize telemetry session and derive deterministic empirical evidence
+      const session = telemetry.finalizeSession();
+      const empiricalEvidence = deriveEmpiricalEvidenceFromTelemetry(session);
+      setLiveEmpirical(empiricalEvidence);
+
+      // Send both empirical evidence and Feynman diagnosis
+      if (onEmpiricalEvidence) onEmpiricalEvidence(empiricalEvidence);
       if (onFeynmanDiagnosed) onFeynmanDiagnosed(data, childExplanation);
+
       if (onMasteryEvidence) {
         onMasteryEvidence(
-          `Penjelasan Feynman Sensor Archimedes: "${childExplanation}" (Skor Kausal: ${(data.causalReasoning * 100).toFixed(0)}%, Transfer: ${(data.transferScore * 100).toFixed(0)}%)`
+          `Feynman: "${childExplanation}" | Empiris: ${empiricalEvidence.trialCount}x percobaan, akurasi ${(empiricalEvidence.accuracyScore * 100).toFixed(0)}%, presisi ${(empiricalEvidence.manipulationPrecision * 100).toFixed(0)}%`
         );
       }
     } catch (e: any) {
@@ -88,28 +202,111 @@ export const BuoyancyLab: React.FC<BuoyancyLabProps> = ({ onFeynmanDiagnosed, on
 
   return (
     <div id="buoyancy-lab-container" className="space-y-6">
-      {/* Top Banner / Cognitive Purpose */}
+      {/* Top Banner / Cognitive Purpose & Mode Switch */}
       <div className="bg-slate-900/80 border border-cyan-500/30 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-lg">
         <div>
           <div className="flex items-center gap-2">
             <span className="px-2 py-0.5 text-xs font-semibold rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-              Lab Simulasi Eksperimen
+              Lab Simulasi Eksperimen & Telemetri
             </span>
             <h3 className="text-lg font-bold text-white tracking-wide">
               Mekanika Fluida & Teka-teki Kapal Baja
             </h3>
           </div>
           <p className="text-xs text-slate-300 mt-1 max-w-2xl">
-            Tujuan Kognitif: Mengurai miskonsepsi <span className="text-amber-300 font-semibold">"benda berat pasti tenggelam"</span> melalui hukum desakan fluida Archimedes.
+            Tujuan Kognitif: Mengurai miskonsepsi <span className="text-amber-300 font-semibold">"benda berat pasti tenggelam"</span> melalui hukum desakan fluida Archimedes & telemetri empiris nyata.
           </p>
         </div>
-        <div className="text-right flex items-center gap-2">
-          <span className="text-xs text-slate-400">Status Pembuktian:</span>
-          <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${willFloat ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'}`}>
-            {willFloat ? '✓ Mengapung / Melayang' : '✗ Tenggelam ke Dasar'}
-          </span>
+
+        {/* Mode Selector */}
+        <div className="flex items-center gap-2 bg-slate-950/80 p-1 rounded-lg border border-slate-800">
+          <button
+            id="mode-challenge-btn"
+            onClick={() => setLabMode('challenge')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-md flex items-center gap-1.5 transition ${
+              labMode === 'challenge'
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Target className="w-3.5 h-3.5" />
+            <span>Mode Tantangan</span>
+          </button>
+          <button
+            id="mode-explore-btn"
+            onClick={() => setLabMode('exploration')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-md flex items-center gap-1.5 transition ${
+              labMode === 'exploration'
+                ? 'bg-slate-800 text-slate-200 border border-slate-700'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Compass className="w-3.5 h-3.5" />
+            <span>Eksplorasi Bebas</span>
+          </button>
         </div>
       </div>
+
+      {/* Challenge Mission Banner (When in Challenge Mode) */}
+      {labMode === 'challenge' && (
+        <div className="bg-gradient-to-r from-cyan-950/60 via-slate-900/90 to-blue-950/60 border border-cyan-500/40 rounded-xl p-4 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-cyan-300 font-bold text-sm">
+              <Target className="w-4 h-4 text-cyan-400" />
+              <span>Misi Tantangan: Rekayasa Melayang Seimbang (Neutral Buoyancy)</span>
+            </div>
+            <p className="text-xs text-slate-300">
+              Atur massa dan volume sampai kepadatan benda sama persis dengan kerapatan air (<strong className="text-cyan-300">{fluidDensity} kg/L ±{TARGET_TOLERANCE}</strong>) agar benda melayang di tengah tangki!
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="text-right">
+              <div className="text-[10px] text-slate-400">Selisih Kepadatan:</div>
+              <div
+                className={`font-mono text-sm font-bold ${
+                  isNeutralBuoyancy ? 'text-emerald-400' : 'text-amber-400'
+                }`}
+              >
+                {Math.abs(objectDensity - fluidDensity).toFixed(2)} kg/L
+              </div>
+            </div>
+            <button
+              id="test-configuration-btn"
+              onClick={handleTestConfiguration}
+              className="px-4 py-2 bg-gradient-to-r from-cyan-600 to-emerald-600 hover:from-cyan-500 hover:to-emerald-500 text-white text-xs font-bold rounded-lg shadow-lg flex items-center gap-1.5 transition active:scale-95"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              <span>Uji Konfigurasi Ini</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Verification Feedback Notice */}
+      {verificationFeedback && (
+        <div
+          className={`p-3 rounded-xl border text-xs flex items-center justify-between gap-2 animate-fade-in ${
+            verificationFeedback.isCorrect
+              ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-200'
+              : 'bg-amber-950/40 border-amber-500/50 text-amber-200'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {verificationFeedback.isCorrect ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+            )}
+            <span>{verificationFeedback.message}</span>
+          </div>
+          {liveEmpirical && (
+            <span className="text-[10px] font-mono bg-slate-900/80 px-2 py-0.5 rounded border border-slate-700">
+              Percobaan ke-{liveEmpirical.trialCount} · Presisi: {(liveEmpirical.manipulationPrecision * 100).toFixed(0)}%
+            </span>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Visual Tank Simulation Canvas */}
@@ -135,6 +332,11 @@ export const BuoyancyLab: React.FC<BuoyancyLabProps> = ({ onFeynmanDiagnosed, on
             >
               {/* Depth markers */}
               <div className="absolute left-2 top-2 text-[10px] text-cyan-200/50 font-mono">Permukaan Air (Displaced +{displacedRise.toFixed(1)}%)</div>
+              {isNeutralBuoyancy && (
+                <div className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-emerald-300 font-mono bg-emerald-950/70 px-1.5 py-0.5 rounded border border-emerald-500/40">
+                  Target: Zona Melayang Seimbang
+                </div>
+              )}
               <div className="absolute left-2 bottom-2 text-[10px] text-cyan-200/40 font-mono">Dasar Tangki Tekanan</div>
 
               {/* Water displacement waves */}
@@ -190,22 +392,42 @@ export const BuoyancyLab: React.FC<BuoyancyLabProps> = ({ onFeynmanDiagnosed, on
             </div>
           </div>
 
-          {/* Real-time Force Balance Meter */}
-          <div className="grid grid-cols-3 gap-3 bg-slate-900/90 rounded-lg p-3 border border-slate-800 text-xs font-mono">
-            <div>
-              <span className="text-slate-400 block text-[10px]">Berat Benda (W):</span>
-              <span className="text-rose-400 font-bold text-sm">{gravityForce.toFixed(1)} N</span>
+          {/* Real-time Force Balance Meter & Telemetry Strip */}
+          <div className="space-y-2">
+            <div className="grid grid-cols-3 gap-3 bg-slate-900/90 rounded-lg p-3 border border-slate-800 text-xs font-mono">
+              <div>
+                <span className="text-slate-400 block text-[10px]">Berat Benda (W):</span>
+                <span className="text-rose-400 font-bold text-sm">{gravityForce.toFixed(1)} N</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[10px]">Gaya Angkat (Fb):</span>
+                <span className="text-emerald-400 font-bold text-sm">{buoyantForce.toFixed(1)} N</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[10px]">Gaya Bersih (Net):</span>
+                <span className={`font-bold text-sm ${netForce >= 0 ? 'text-emerald-300' : 'text-rose-400'}`}>
+                  {netForce >= 0 ? `+${netForce.toFixed(1)} N (Ke Atas)` : `${netForce.toFixed(1)} N (Ke Bawah)`}
+                </span>
+              </div>
             </div>
-            <div>
-              <span className="text-slate-400 block text-[10px]">Gaya Angkat (Fb):</span>
-              <span className="text-emerald-400 font-bold text-sm">{buoyantForce.toFixed(1)} N</span>
-            </div>
-            <div>
-              <span className="text-slate-400 block text-[10px]">Gaya Bersih (Net):</span>
-              <span className={`font-bold text-sm ${netForce >= 0 ? 'text-emerald-300' : 'text-rose-400'}`}>
-                {netForce >= 0 ? `+${netForce.toFixed(1)} N (Ke Atas)` : `${netForce.toFixed(1)} N (Ke Bawah)`}
-              </span>
-            </div>
+
+            {/* Live Telemetry Sensor Panel */}
+            {liveEmpirical && (
+              <div className="bg-cyan-950/30 border border-cyan-500/30 rounded-lg p-2.5 flex items-center justify-between text-[11px] font-mono text-slate-300">
+                <div className="flex items-center gap-2">
+                  <Activity className="w-3.5 h-3.5 text-cyan-400" />
+                  <span className="text-cyan-300 font-semibold">Telemetri Empiris Nyata:</span>
+                  <span>Uji: <strong>{liveEmpirical.trialCount}x</strong></span>
+                  <span>Akurasi: <strong>{(liveEmpirical.accuracyScore * 100).toFixed(0)}%</strong></span>
+                  <span>Presisi: <strong>{(liveEmpirical.manipulationPrecision * 100).toFixed(0)}%</strong></span>
+                </div>
+                <div className="text-[10px]">
+                  Pola: <span className={liveEmpirical.isTrialAndErrorGuesswork ? 'text-rose-400' : 'text-emerald-400 font-semibold'}>
+                    {liveEmpirical.isTrialAndErrorGuesswork ? 'Tebak Acak (Penalti)' : 'Eksplorasi Konvergen'}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -217,12 +439,7 @@ export const BuoyancyLab: React.FC<BuoyancyLabProps> = ({ onFeynmanDiagnosed, on
               <span>Variabel Eksperimen</span>
               <button
                 id="reset-lab-btn"
-                onClick={() => {
-                  setMass(3.0);
-                  setVolume(4.0);
-                  setShape('solid');
-                  setFluidType('fresh');
-                }}
+                onClick={handleReset}
                 className="text-xs text-slate-400 hover:text-cyan-300 flex items-center gap-1 transition"
               >
                 <RotateCcw className="w-3.5 h-3.5" /> Reset
@@ -235,7 +452,7 @@ export const BuoyancyLab: React.FC<BuoyancyLabProps> = ({ onFeynmanDiagnosed, on
               <div className="grid grid-cols-2 gap-2">
                 <button
                   id="shape-solid-btn"
-                  onClick={() => setShape('solid')}
+                  onClick={() => handleShapeChange('solid')}
                   className={`py-2 px-3 text-xs rounded-lg border font-medium transition ${
                     shape === 'solid'
                       ? 'bg-amber-500/20 border-amber-500/60 text-amber-200'
@@ -246,7 +463,7 @@ export const BuoyancyLab: React.FC<BuoyancyLabProps> = ({ onFeynmanDiagnosed, on
                 </button>
                 <button
                   id="shape-hull-btn"
-                  onClick={() => setShape('hollow_hull')}
+                  onClick={() => handleShapeChange('hollow_hull')}
                   className={`py-2 px-3 text-xs rounded-lg border font-medium transition ${
                     shape === 'hollow_hull'
                       ? 'bg-cyan-500/20 border-cyan-500/60 text-cyan-200'
@@ -271,7 +488,7 @@ export const BuoyancyLab: React.FC<BuoyancyLabProps> = ({ onFeynmanDiagnosed, on
                 max="10.0"
                 step="0.5"
                 value={mass}
-                onChange={(e) => setMass(parseFloat(e.target.value))}
+                onChange={(e) => handleMassChange(parseFloat(e.target.value))}
                 className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-400"
               />
             </div>
@@ -289,7 +506,7 @@ export const BuoyancyLab: React.FC<BuoyancyLabProps> = ({ onFeynmanDiagnosed, on
                 max="8.0"
                 step="0.5"
                 value={volume}
-                onChange={(e) => setVolume(parseFloat(e.target.value))}
+                onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
                 className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
               />
             </div>
@@ -299,7 +516,8 @@ export const BuoyancyLab: React.FC<BuoyancyLabProps> = ({ onFeynmanDiagnosed, on
               <label className="text-xs text-slate-400 block mb-1.5 font-medium">Jenis Fluida:</label>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <button
-                  onClick={() => setFluidType('fresh')}
+                  id="fluid-fresh-btn"
+                  onClick={() => handleFluidChange('fresh')}
                   className={`py-1.5 px-3 rounded-lg border font-medium transition ${
                     fluidType === 'fresh'
                       ? 'bg-cyan-500/20 border-cyan-500/60 text-cyan-200'
@@ -309,7 +527,8 @@ export const BuoyancyLab: React.FC<BuoyancyLabProps> = ({ onFeynmanDiagnosed, on
                   Air Tawar (1.0 kg/L)
                 </button>
                 <button
-                  onClick={() => setFluidType('salt')}
+                  id="fluid-salt-btn"
+                  onClick={() => handleFluidChange('salt')}
                   className={`py-1.5 px-3 rounded-lg border font-medium transition ${
                     fluidType === 'salt'
                       ? 'bg-teal-500/20 border-teal-500/60 text-teal-200'

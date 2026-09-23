@@ -33,6 +33,7 @@ import { DensityMassLab } from './DensityMassLab';
 import { BinarySearchComplexityLab } from './BinarySearchComplexityLab';
 
 import { FeynmanDiagnosisResult } from '../../types';
+import { EmpiricalSimulationEvidence } from '../../engine/evidenceTriangulation';
 
 export type LabId =
   // Umur 1-3 Logika
@@ -84,6 +85,7 @@ interface LabHubProps {
   onStealthResolved: () => void;
   onFeynmanDiagnosed?: (result: FeynmanDiagnosisResult, explanation: string) => void;
   onNavigateToGraph?: (nodeId: string) => void;
+  onEmpiricalEvidence?: (simulationId: string, evidence: EmpiricalSimulationEvidence) => void;
 }
 
 export const LabHub: React.FC<LabHubProps> = ({
@@ -93,6 +95,7 @@ export const LabHub: React.FC<LabHubProps> = ({
   onStealthResolved,
   onFeynmanDiagnosed,
   onNavigateToGraph,
+  onEmpiricalEvidence,
 }) => {
   const [selectedDomain, setSelectedDomain] = useState<DomainFilter>('Semua');
   const [selectedAge, setSelectedAge] = useState<AgeFilter>('Semua');
@@ -756,6 +759,7 @@ export const LabHub: React.FC<LabHubProps> = ({
             onMasteryEvidence={(details) =>
               onMasteryEvidence('Fondasi Kesetaraan & Hubungan', details)
             }
+            onEmpiricalEvidence={(ev) => onEmpiricalEvidence?.('causal_logic', ev)}
           />
         )}
 
@@ -764,6 +768,7 @@ export const LabHub: React.FC<LabHubProps> = ({
             onMasteryEvidence={(details) =>
               onMasteryEvidence('Aljabar Simbolik & Transformasi Kesetaraan', details)
             }
+            onEmpiricalEvidence={(ev) => onEmpiricalEvidence?.('bar_model', ev)}
           />
         )}
 
@@ -788,6 +793,7 @@ export const LabHub: React.FC<LabHubProps> = ({
             onMasteryEvidence={(details) =>
               onMasteryEvidence('Mekanika Fluida & Gaya Apung Archimedes', details)
             }
+            onEmpiricalEvidence={(ev) => onEmpiricalEvidence?.('buoyancy', ev)}
           />
         )}
 

@@ -1,11 +1,20 @@
 import React, { useState } from 'react';
-import { Scale, ArrowRight, RotateCcw, CheckCircle2, Lightbulb, Sparkles } from 'lucide-react';
+import { Scale, ArrowRight, RotateCcw, CheckCircle2, Lightbulb, Sparkles, Activity } from 'lucide-react';
+import { useLabTelemetry } from '../../engine/useLabTelemetry';
+import { deriveEmpiricalEvidenceFromTelemetry } from '../../engine/empiricalEvidenceDerivation';
+import { EmpiricalSimulationEvidence } from '../../engine/evidenceTriangulation';
 
 interface BarModelAlgebraLabProps {
   onMasteryEvidence: (details: string) => void;
+  onEmpiricalEvidence?: (evidence: EmpiricalSimulationEvidence) => void;
 }
 
-export const BarModelAlgebraLab: React.FC<BarModelAlgebraLabProps> = ({ onMasteryEvidence }) => {
+export const BarModelAlgebraLab: React.FC<BarModelAlgebraLabProps> = ({
+  onMasteryEvidence,
+  onEmpiricalEvidence,
+}) => {
+  const telemetry = useLabTelemetry('bar_model');
+
   // Target equation: 2x + 4 = 14
   // Step 0: 2x + 4 = 14
   // Step 1: subtract 4 from both sides => 2x = 10
@@ -29,19 +38,29 @@ export const BarModelAlgebraLab: React.FC<BarModelAlgebraLabProps> = ({ onMaster
 
   const handleSubtractFour = () => {
     if (currentStep === 0) {
+      telemetry.recordVerificationAttempt(true, 0.4);
       setCurrentStep(1);
     }
   };
 
   const handleDivideByTwo = () => {
     if (currentStep === 1) {
+      telemetry.recordVerificationAttempt(true, 0.0);
       setCurrentStep(2);
       setHasCompleted(true);
-      onMasteryEvidence('Menyelesaikan reduksi kesetaraan aljabar 2x + 4 = 14 melalui transformasi neraca simetris dua sisi tanpa menghafal aturan pindah ruas.');
+
+      const session = telemetry.finalizeSession();
+      const evidence = deriveEmpiricalEvidenceFromTelemetry(session);
+      if (onEmpiricalEvidence) onEmpiricalEvidence(evidence);
+
+      onMasteryEvidence(
+        `Menyelesaikan reduksi kesetaraan aljabar 2x + 4 = 14 melalui transformasi neraca simetris dua sisi tanpa menghafal aturan pindah ruas (Akurasi: ${(evidence.accuracyScore * 100).toFixed(0)}%, Presisi: ${(evidence.manipulationPrecision * 100).toFixed(0)}%).`
+      );
     }
   };
 
   const handleReset = () => {
+    telemetry.recordReset();
     setCurrentStep(0);
     setHasCompleted(false);
   };

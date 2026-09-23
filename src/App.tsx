@@ -25,7 +25,7 @@ import {
   FeynmanDiagnosisResult,
 } from './types';
 
-import { triangulateEvidence } from './engine/evidenceTriangulation';
+import { triangulateEvidence, EmpiricalSimulationEvidence } from './engine/evidenceTriangulation';
 import { applyMasteryGating } from './engine/deterministicCore';
 import {
   loadInitialOSState,
@@ -60,6 +60,13 @@ export default function App() {
   const [knowledgeStability, setKnowledgeStability] = useState<number>(91);
   const [criticalDebt, setCriticalDebt] = useState<'LOW' | 'MEDIUM' | 'HIGH'>('LOW');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Dynamic Empirical Lab Telemetry derived from real child manipulations (docs/architecture/lab-telemetry-design.md)
+  const [pendingEmpiricalEvidence, setPendingEmpiricalEvidence] = useState<Record<string, EmpiricalSimulationEvidence>>({});
+
+  const handleEmpiricalEvidence = (simulationId: string, evidence: EmpiricalSimulationEvidence) => {
+    setPendingEmpiricalEvidence((prev) => ({ ...prev, [simulationId]: evidence }));
+  };
 
   // IndexedDB Storage & Quota State
   const [isDbReady, setIsDbReady] = useState<boolean>(false);
@@ -212,16 +219,17 @@ export default function App() {
     const wordCount = (childExplanation || '').split(/\s+/).filter(Boolean).length;
 
     // Multi-modal evidence triangulation: Lab Empiris (60%) + Transfer (25%) + Feynman AI (15%)
-    // Mencegah Feynman Sensor menjadi single point of failure (Section 11, Risiko #1)
+    // Menggunakan bukti empiris interaksi anak nyata dari telemetry lab (docs/architecture/lab-telemetry-design.md)
+    const empirical = pendingEmpiricalEvidence['buoyancy'];
+
+    if (!empirical) {
+      // Tidak ada bukti empiris tersedia — JANGAN diam-diam pakai angka optimis.
+      // Turunkan confidence secara eksplisit alih-alih menyamarkan ketiadaan data.
+      console.warn('Empirical evidence belum tersedia untuk simulationId=buoyancy; triangulasi berjalan tanpa bukti lab.');
+    }
+
     const triangulation = triangulateEvidence(
-      {
-        simulationId: 'buoyancy',
-        taskCompleted: true,
-        accuracyScore: 0.85,
-        manipulationPrecision: 0.80,
-        trialCount: 3,
-        isTrialAndErrorGuesswork: false,
-      },
+      empirical, // undefined jika lab belum pernah dites — triangulateEvidence SUDAH menangani ini (empiricalScore = 0.5 default netral)
       result,
       {
         targetDomain: 'Fisika Fluida & Archimedes',
@@ -260,6 +268,10 @@ export default function App() {
     });
 
     // 2. Append to Evidence Log with triangulation audit metadata
+    const empiricalSummary = empirical
+      ? `Lab Empiris: ${empirical.trialCount}x uji, akurasi ${(empirical.accuracyScore * 100).toFixed(0)}%, presisi ${(empirical.manipulationPrecision * 100).toFixed(0)}%`
+      : 'Lab Empiris: Belum diuji (Default netral 50%)';
+
     const newEntry: EvidenceEntry = {
       id: `ev-${Date.now()}`,
       timestamp: new Date().toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' }),
@@ -281,8 +293,8 @@ export default function App() {
       confidence: triangulation.confidence,
       retentionStatus: triangulation.noiseFlagDetected ? 'pending' : 'fresh',
       notes: triangulation.noiseFlagDetected
-        ? `[Feynman Noise Shield Aktif] ${triangulation.discrepancyNote}`
-        : `[Triangulasi Tervalidasi] ${result.feedbackSummary}`,
+        ? `[Feynman Noise Shield Aktif] ${triangulation.discrepancyNote} | ${empiricalSummary}`
+        : `[Triangulasi Tervalidasi] ${result.feedbackSummary} | ${empiricalSummary}`,
     };
 
     setEvidenceLogs((prev) => [newEntry, ...prev]);
@@ -290,7 +302,9 @@ export default function App() {
     if (triangulation.noiseFlagDetected) {
       showToast(`Perisai Noise Feynman: ${triangulation.discrepancyNote}`);
     } else {
-      showToast('Triangulasi Multimodal (Lab 60% + AI 15%): Bukti kausal diverifikasi & digate secara deterministik!');
+      showToast(
+        `Triangulasi Multimodal (${empirical ? `Lab ${empirical.trialCount}x uji` : 'Lab Netral'} + AI 15%): Bukti kausal diverifikasi & digate secara deterministik!`
+      );
     }
   };
 
@@ -590,6 +604,7 @@ export default function App() {
                   setSelectedNodeId(nodeId);
                   setChildTab('graph');
                 }}
+                onEmpiricalEvidence={handleEmpiricalEvidence}
               />
             )}
 

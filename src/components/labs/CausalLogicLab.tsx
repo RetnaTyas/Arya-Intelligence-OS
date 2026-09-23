@@ -9,13 +9,24 @@ import {
   ShieldCheck,
   Scale,
   Brain,
+  Activity,
 } from 'lucide-react';
+import { useLabTelemetry } from '../../engine/useLabTelemetry';
+import { deriveEmpiricalEvidenceFromTelemetry } from '../../engine/empiricalEvidenceDerivation';
+import { EmpiricalSimulationEvidence } from '../../engine/evidenceTriangulation';
 
 interface CausalLogicLabProps {
   onMasteryEvidence: (details: string) => void;
+  onEmpiricalEvidence?: (evidence: EmpiricalSimulationEvidence) => void;
 }
 
-export const CausalLogicLab: React.FC<CausalLogicLabProps> = ({ onMasteryEvidence }) => {
+export const CausalLogicLab: React.FC<CausalLogicLabProps> = ({
+  onMasteryEvidence,
+  onEmpiricalEvidence,
+}) => {
+  // Telemetry Engine
+  const telemetry = useLabTelemetry('causal_logic');
+
   // Scenario 1: Transitive property (A = B and B = C => A = C)
   // Scenario 2: Bilateral symmetry (A = B <=> B = A)
   // Scenario 3: Non-destructive transformation (f(A) = f(B))
@@ -46,8 +57,19 @@ export const CausalLogicLab: React.FC<CausalLogicLabProps> = ({ onMasteryEvidenc
   const isACEqual = weightA === weightC;
 
   const handleTestTransitive = () => {
-    if (isABEqual && isBCEqual) {
+    const isCorrect = isABEqual && isBCEqual;
+    const distance = Math.min(
+      1.0,
+      (Math.abs(weightA - weightB) + Math.abs(weightB - weightC)) / Math.max(1, weightA)
+    );
+    telemetry.recordVerificationAttempt(isCorrect, distance);
+
+    if (isCorrect) {
       setHasVerifiedTransitive(true);
+      const session = telemetry.getCurrentSession();
+      const evidence = deriveEmpiricalEvidenceFromTelemetry(session);
+      if (onEmpiricalEvidence) onEmpiricalEvidence(evidence);
+
       onMasteryEvidence(
         `Membuktikan sifat transitif relasional kesetaraan: Karena Wadah A (nilai ${weightA}) identik dengan Wadah B (${termB1} + ${termB2}), dan Wadah B identik dengan Wadah C (${termC1} × ${termC2}), maka secara mutlak Wadah A identik dengan Wadah C tanpa kalkulasi ulang.`
       );
@@ -56,8 +78,14 @@ export const CausalLogicLab: React.FC<CausalLogicLabProps> = ({ onMasteryEvidenc
 
   const handleFlipSymmetry = () => {
     setFlippedSymmetry((prev) => !prev);
+    telemetry.recordVerificationAttempt(true, 0);
+
     if (!hasVerifiedSymmetric) {
       setHasVerifiedSymmetric(true);
+      const session = telemetry.getCurrentSession();
+      const evidence = deriveEmpiricalEvidenceFromTelemetry(session);
+      if (onEmpiricalEvidence) onEmpiricalEvidence(evidence);
+
       onMasteryEvidence(
         'Memverifikasi sifat simetris kesetaraan: Membalik posisi ruas (A = B menjadi B = A) mempertahankan nilai kebenaran logika secara absolut.'
       );
@@ -67,8 +95,15 @@ export const CausalLogicLab: React.FC<CausalLogicLabProps> = ({ onMasteryEvidenc
   const handleApplyInvariant = (delta: number) => {
     const nextVal = invariantOp + delta;
     setInvariantOp(nextVal);
+    telemetry.recordParameterChange('invariantOp', nextVal);
+    telemetry.recordVerificationAttempt(true, 0);
+
     if (!hasVerifiedInvariant && nextVal !== 0) {
       setHasVerifiedInvariant(true);
+      const session = telemetry.getCurrentSession();
+      const evidence = deriveEmpiricalEvidenceFromTelemetry(session);
+      if (onEmpiricalEvidence) onEmpiricalEvidence(evidence);
+
       onMasteryEvidence(
         `Membuktikan invarian kesetaraan: Menambahkan operasi identik (${nextVal > 0 ? `+${nextVal}` : nextVal}) di kedua ruas mempertahankan keseimbangan neraca secara simultan.`
       );
