@@ -123,19 +123,18 @@ export function computeRealTimeTelemetry(
 
   // Calculate Overall Knowledge Stability (0 - 100%)
   const avgDecay = totalNodesCount > 0 ? totalDecaySum / totalNodesCount : 0;
-  const overallKnowledgeStability = Math.max(
-    50,
-    Math.min(99, Math.round(100 - avgDecay * 100))
-  );
+  const overallKnowledgeStability = totalNodesCount === 0
+    ? 0
+    : Math.max(0, Math.min(99, Math.round(100 - avgDecay * 100)));
 
   // Determine Critical Debt status
   const criticalDebt: 'LOW' | 'MEDIUM' | 'HIGH' =
-    maxDebtRisk >= 0.15 ? 'HIGH' : maxDebtRisk >= 0.08 ? 'MEDIUM' : 'LOW';
+    totalNodesCount === 0 ? 'LOW' : maxDebtRisk >= 0.15 ? 'HIGH' : maxDebtRisk >= 0.08 ? 'MEDIUM' : 'LOW';
 
   // Average Transfer Strength
-  const averageTransferStrength = Math.round(
-    (totalNodesCount > 0 ? totalTransferMasterySum / totalNodesCount : 0.75) * 100
-  );
+  const averageTransferStrength = totalNodesCount === 0
+    ? 0
+    : Math.round((totalTransferMasterySum / totalNodesCount) * 100);
 
   // 3. Compute telemetry vectors for each domain
   const telemetry: CognitiveDomainTelemetry[] = Object.keys(domainGroups).map((domainKey) => {
@@ -146,14 +145,13 @@ export function computeRealTimeTelemetry(
     // Domain stability
     const domainDecaySum = states.reduce((sum, s) => sum + (s.decayRate || 0), 0);
     const domainAvgDecay = states.length > 0 ? domainDecaySum / states.length : 0;
-    const stabilityScore = Math.max(
-      60,
-      Math.min(99, Math.round(100 - domainAvgDecay * 100))
-    );
+    const stabilityScore = states.length === 0
+      ? 0
+      : Math.max(0, Math.min(99, Math.round(100 - domainAvgDecay * 100)));
 
     // Compute Demonstrated Stage based on highest solidly mastered nodes
-    let demonstratedStage = 'Sensori-Motorik Dasar';
-    let highestBracket: '1-3' | '4-6' | '7-9' | '10-12' = '1-3';
+    let demonstratedStage = states.length === 0 ? 'Belum Ada Aktivitas' : 'Sensori-Motorik Dasar';
+    let highestBracket: '1-3' | '4-6' | '7-9' | '10-12' | 'none' = states.length === 0 ? 'none' : '1-3';
 
     for (const kn of kNodes) {
       const st = learnerNodes[kn.id];
@@ -162,13 +160,15 @@ export function computeRealTimeTelemetry(
           highestBracket = '10-12';
         } else if (kn.ageBracket === '7-9' && highestBracket !== '10-12') {
           highestBracket = '7-9';
-        } else if (kn.ageBracket === '4-6' && highestBracket === '1-3') {
+        } else if (kn.ageBracket === '4-6' && (highestBracket === '1-3' || highestBracket === 'none')) {
           highestBracket = '4-6';
         }
       }
     }
 
-    if (highestBracket === '10-12') {
+    if (states.length === 0) {
+      demonstratedStage = 'Belum Ada Aktivitas (Kosong)';
+    } else if (highestBracket === '10-12') {
       demonstratedStage =
         domainKey === 'Matematika'
           ? 'Linear Equivalence & Calculus Intro'
@@ -236,17 +236,19 @@ export function computeRealTimeTelemetry(
   });
 
   // 4. Compute Dynamic Active Trajectory
-  let computedTrajectory: ActiveTrajectory = currentTrajectory || {
-    id: 'traj-auto',
-    title: 'Fluid Mechanics → Applied Submersible Engineering',
-    fromNode: 'node-buoyancy-archimedes',
-    toNode: 'node-submarine-ballast',
-    status: 'active',
-    bottleneckWarning: undefined,
-    systemActionNote: 'Sistem memandu eksplorasi domain fluida dan aljabar.',
-  };
+  let computedTrajectory: ActiveTrajectory;
 
-  if (activeBottlenecks.length > 0) {
+  if (totalNodesCount === 0) {
+    computedTrajectory = {
+      id: 'traj-empty',
+      title: 'Menunggu Eksplorasi Pertama Anak',
+      fromNode: 'node-object-permanence',
+      toNode: 'node-buoyancy-archimedes',
+      status: 'active',
+      bottleneckWarning: undefined,
+      systemActionNote: 'Data IndexedDB kosong. Buka Lab Eksplorasi atau Dialog Sokrates untuk mulai merekam bukti pemikiran anak.',
+    };
+  } else if (activeBottlenecks.length > 0) {
     const primaryBottleneck = activeBottlenecks[0];
     computedTrajectory = {
       id: `traj-repair-${primaryBottleneck.nodeId}`,

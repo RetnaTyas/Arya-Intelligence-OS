@@ -18,6 +18,7 @@ import {
   Brain,
   RefreshCw,
   Trash2,
+  UserCheck,
 } from 'lucide-react';
 import {
   CognitiveDomainTelemetry,
@@ -27,6 +28,11 @@ import {
   KnowledgeNode,
 } from '../types';
 import { calculateDeterministicEpistemicDebt } from '../engine/deterministicCore';
+
+import {
+  ParentCalibrationSettings,
+  DEFAULT_PARENT_CALIBRATION,
+} from '../engine/evidenceTriangulation';
 
 interface ParentTelemetryDashboardProps {
   telemetry: CognitiveDomainTelemetry[];
@@ -41,6 +47,10 @@ interface ParentTelemetryDashboardProps {
   onExportJSON?: () => void;
   onImportJSON?: (file: File) => void;
   onResetData?: () => void;
+  onClearAllData?: () => void;
+  parentCalibration?: ParentCalibrationSettings;
+  onUpdateParentCalibration?: (settings: ParentCalibrationSettings) => void;
+  onApplyParentAudit?: (evidenceId: string, parentScore: number, notes: string) => void;
   storageInfo?: {
     usageMb: number;
     quotaMb: number;
@@ -62,53 +72,72 @@ export const ParentTelemetryDashboard: React.FC<ParentTelemetryDashboardProps> =
   onExportJSON,
   onImportJSON,
   onResetData,
+  onClearAllData,
+  parentCalibration = DEFAULT_PARENT_CALIBRATION,
+  onUpdateParentCalibration,
+  onApplyParentAudit,
   storageInfo,
 }) => {
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
   const [exportNotice, setExportNotice] = useState<boolean>(false);
   const [showResetConfirm, setShowResetConfirm] = useState<boolean>(false);
+  const [showClearConfirm, setShowClearConfirm] = useState<boolean>(false);
+  const [auditingEntryId, setAuditingEntryId] = useState<string | null>(null);
+  const [auditScore, setAuditScore] = useState<number>(0.8);
+  const [auditNotes, setAuditNotes] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Dynamic calculation of Transfer Strength across all active nodes
-  const dynamicTransferStrength = Math.round(
-    (Object.values(learnerNodes).reduce((sum, n) => sum + (n.mastery?.transfer || 0), 0) /
-      Math.max(1, Object.keys(learnerNodes).length)) * 100
-  );
+  const activeLearnerNodeKeys = Object.keys(learnerNodes);
+  const totalLearnerNodes = activeLearnerNodeKeys.length;
 
-  // Dynamic ranking of top epistemic debt risk nodes
-  const riskRankedNodes = knowledgeNodes
-    .map((node) => {
-      const state = learnerNodes[node.id] || {
-        nodeId: node.id,
-        mastery: {
-          recognition: 0.8,
-          recall: 0.7,
-          understanding: 0.7,
-          application: 0.6,
-          transfer: 0.5,
-          explanation: 0.5,
-          creation: 0.3,
-        },
-        decayRate: 0.02,
-        lastReinforcedDate: new Date().toISOString(),
-        activeMisconceptions: [],
-        learningRate: 1.0,
-        confidence: 'medium' as const,
-        debtRisk: 0.02,
-        isBottleneck: false,
-      };
-      const decay = state.decayRate || 0;
-      const debtAssessment = calculateDeterministicEpistemicDebt(node, state);
-      const debt: number = debtAssessment.debtRiskScore;
-      return {
-        node,
-        state,
-        decay,
-        debt,
-      };
-    })
-    .sort((a, b) => b.debt - a.debt || b.decay - a.decay)
-    .slice(0, 4);
+  // Dynamic calculation of Transfer Strength across all active nodes (0 if empty)
+  const dynamicTransferStrength = totalLearnerNodes === 0
+    ? 0
+    : Math.round(
+        (Object.values(learnerNodes).reduce((sum, n) => sum + (n.mastery?.transfer || 0), 0) /
+          totalLearnerNodes) * 100
+      );
+
+  // Dynamic calculation of cognitive stage solidness (Piaget & Vygotsky development spectrum)
+  const computeBracketStats = (bracket: '1-3' | '4-6' | '7-9' | '10-12') => {
+    const bracketNodes = knowledgeNodes.filter((n) => n.ageBracket === bracket);
+    const total = bracketNodes.length;
+    if (total === 0 || totalLearnerNodes === 0) {
+      return { total, masteredCount: 0, solidPercent: 0, statusLabel: '0% (Belum Ada Aktivitas)' };
+    }
+    const mastered = bracketNodes.filter((n) => {
+      const st = learnerNodes[n.id];
+      return st && st.mastery && st.mastery.understanding >= 0.70;
+    });
+    const percent = Math.round((mastered.length / total) * 100);
+    const label = percent >= 95 ? `${percent}% Solid` : percent > 0 ? `${percent}% Konsolidasi` : '0% Belum Terbuka';
+    return { total, masteredCount: mastered.length, solidPercent: percent, statusLabel: label };
+  };
+
+  const stage1 = computeBracketStats('1-3');
+  const stage2 = computeBracketStats('4-6');
+  const stage3 = computeBracketStats('7-9');
+  const stage4 = computeBracketStats('10-12');
+
+  // Dynamic ranking of top epistemic debt risk nodes ONLY for existing tracked nodes
+  const riskRankedNodes = totalLearnerNodes === 0
+    ? []
+    : knowledgeNodes
+        .filter((node) => learnerNodes[node.id] !== undefined)
+        .map((node) => {
+          const state = learnerNodes[node.id];
+          const decay = state.decayRate || 0;
+          const debtAssessment = calculateDeterministicEpistemicDebt(node, state);
+          const debt: number = debtAssessment.debtRiskScore;
+          return {
+            node,
+            state,
+            decay,
+            debt,
+          };
+        })
+        .sort((a, b) => b.debt - a.debt || b.decay - a.decay)
+        .slice(0, 4);
 
   const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -365,65 +394,85 @@ export const ParentTelemetryDashboard: React.FC<ParentTelemetryDashboardProps> =
               <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
                 Umur 1 - 3 Tahun
               </span>
-              <span className="text-[10px] font-mono text-emerald-400 font-bold">100% Solid</span>
+              <span className={`text-[10px] font-mono font-bold ${stage1.solidPercent >= 80 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                {stage1.statusLabel} ({stage1.masteredCount}/{stage1.total})
+              </span>
             </div>
             <h4 className="text-xs font-bold text-white">Sensori-Motorik</h4>
             <p className="text-[11px] text-slate-400 leading-snug">
               Permanensi objek fisik, subitisasi kuantitas kasar, dan kecocokan ruang topologis.
             </p>
             <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-              <div className="bg-emerald-400 h-full rounded-full w-full" />
+              <div
+                className="bg-emerald-400 h-full rounded-full transition-all duration-500"
+                style={{ width: `${stage1.solidPercent}%` }}
+              />
             </div>
           </div>
 
           {/* Stage 2 */}
-          <div className="p-3.5 rounded-xl bg-slate-950/80 border border-emerald-500/30 space-y-2">
+          <div className="p-3.5 rounded-xl bg-slate-950/80 border border-teal-500/30 space-y-2">
             <div className="flex items-center justify-between">
               <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30">
                 Umur 4 - 6 Tahun
               </span>
-              <span className="text-[10px] font-mono text-emerald-400 font-bold">96% Solid</span>
+              <span className={`text-[10px] font-mono font-bold ${stage2.solidPercent >= 80 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                {stage2.statusLabel} ({stage2.masteredCount}/{stage2.total})
+              </span>
             </div>
             <h4 className="text-xs font-bold text-white">Pra-Operasional</h4>
             <p className="text-[11px] text-slate-400 leading-snug">
               Konservasi volume Piaget, komparasi bobot kualitatif, dan pengenalan pola sekuensial.
             </p>
             <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-              <div className="bg-emerald-400 h-full rounded-full w-[96%]" />
+              <div
+                className="bg-teal-400 h-full rounded-full transition-all duration-500"
+                style={{ width: `${stage2.solidPercent}%` }}
+              />
             </div>
           </div>
 
           {/* Stage 3 */}
-          <div className="p-3.5 rounded-xl bg-slate-950/80 border border-emerald-500/30 space-y-2">
+          <div className="p-3.5 rounded-xl bg-slate-950/80 border border-indigo-500/30 space-y-2">
             <div className="flex items-center justify-between">
               <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
                 Umur 7 - 9 Tahun
               </span>
-              <span className="text-[10px] font-mono text-emerald-400 font-bold">91% Solid</span>
+              <span className={`text-[10px] font-mono font-bold ${stage3.solidPercent >= 80 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                {stage3.statusLabel} ({stage3.masteredCount}/{stage3.total})
+              </span>
             </div>
             <h4 className="text-xs font-bold text-white">Operasional Konkret</h4>
             <p className="text-[11px] text-slate-400 leading-snug">
               Kesetaraan relasional tanda (=), pemodelan balok spasial (Bar Model), dan algoritma diskrit.
             </p>
             <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-              <div className="bg-emerald-400 h-full rounded-full w-[91%]" />
+              <div
+                className="bg-indigo-400 h-full rounded-full transition-all duration-500"
+                style={{ width: `${stage3.solidPercent}%` }}
+              />
             </div>
           </div>
 
           {/* Stage 4 */}
-          <div className="p-3.5 rounded-xl bg-slate-950/80 border border-amber-500/40 space-y-2">
+          <div className="p-3.5 rounded-xl bg-slate-950/80 border border-purple-500/30 space-y-2">
             <div className="flex items-center justify-between">
               <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
                 Umur 10 - 12 Tahun
               </span>
-              <span className="text-[10px] font-mono text-amber-300 font-bold">78% Konsolidasi</span>
+              <span className={`text-[10px] font-mono font-bold ${stage4.solidPercent >= 80 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                {stage4.statusLabel} ({stage4.masteredCount}/{stage4.total})
+              </span>
             </div>
             <h4 className="text-xs font-bold text-white">Transisi Operasional Formal</h4>
             <p className="text-[11px] text-slate-400 leading-snug">
               Aljabar simbolik murni, mekanika fluida Archimedes, rekayasa multi-variabel & limit kalkulus.
             </p>
             <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-              <div className="bg-amber-400 h-full rounded-full w-[78%]" />
+              <div
+                className="bg-purple-400 h-full rounded-full transition-all duration-500"
+                style={{ width: `${stage4.solidPercent}%` }}
+              />
             </div>
           </div>
         </div>
@@ -570,6 +619,158 @@ export const ParentTelemetryDashboard: React.FC<ParentTelemetryDashboardProps> =
         </div>
       </div>
 
+      {/* Human-in-the-Loop Ground Truth Calibration (Parent vs AI) */}
+      <div className="bg-[#0b1022] border border-indigo-500/30 rounded-2xl p-6 space-y-4 shadow-xl">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-0.5 text-xs font-semibold rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center gap-1.5 font-mono">
+                <Brain className="w-3.5 h-3.5 text-purple-400" />
+                <span>Audit Human-in-the-Loop: Ground Truth Orang Tua vs AI</span>
+              </span>
+              <span className="text-xs text-indigo-300 font-mono hidden sm:inline">Homeschooling Sovereign Principle</span>
+            </div>
+            <h3 className="text-base font-bold text-white tracking-wide">
+              Kedaulatan Evaluasi: Orang Tua Pemegang Otoritas Kebenaran
+            </h3>
+            <p className="text-xs text-slate-400 max-w-2xl leading-relaxed">
+              Di aplikasi belajar dari rumah, orang tua adalah sumber kebenaran (<em>Ground Truth</em>) utama. Anda dapat mengatur bobot penilaian: jika Anda menguasai topik anak, Anda dapat memperbesar bobot observasi Anda. Jika materi terlalu teoritis (misal kalkulus abstrak), Anda dapat mengalihkan penilaian diagnostik pada AI dan lab empiris.
+            </p>
+          </div>
+
+          {/* Current weight display */}
+          <div className="p-3.5 bg-slate-950/90 rounded-xl border border-slate-800 flex flex-col items-end shrink-0 min-w-[200px]">
+            <div className="text-[11px] text-slate-400 font-mono">Formula Pembobotan Aktif:</div>
+            <div className="text-sm font-bold font-mono text-purple-300 mt-0.5">
+              Ortu {(parentCalibration.parentWeight * 100).toFixed(0)}% · AI {(parentCalibration.aiWeight * 100).toFixed(0)}%
+            </div>
+            <div className="text-[10px] text-slate-400 font-mono mt-1">
+              Mode: <span className="text-emerald-400 uppercase font-semibold">{parentCalibration.mode.replace('_', ' ')}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Preset Selector */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+          <button
+            onClick={() => {
+              if (onUpdateParentCalibration) {
+                onUpdateParentCalibration({
+                  parentWeight: 0.80,
+                  aiWeight: 0.20,
+                  mode: 'human_dominant',
+                  expertiseLevel: 'expert',
+                });
+              }
+            }}
+            className={`p-3 rounded-xl border text-left transition space-y-1 ${
+              parentCalibration.mode === 'human_dominant'
+                ? 'bg-purple-950/40 border-purple-500/80 ring-2 ring-purple-500/20'
+                : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-white">Ortu Pakar Penuh</span>
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-900/60 text-purple-200">80% / 20%</span>
+            </div>
+            <p className="text-[11px] text-slate-400 leading-snug">
+              Ortu memahami materi & intuisi anak. Putusan ortu menjadi ground truth definitif penahan noise AI.
+            </p>
+          </button>
+
+          <button
+            onClick={() => {
+              if (onUpdateParentCalibration) {
+                onUpdateParentCalibration({
+                  parentWeight: 0.50,
+                  aiWeight: 0.50,
+                  mode: 'balanced',
+                  expertiseLevel: 'moderate',
+                });
+              }
+            }}
+            className={`p-3 rounded-xl border text-left transition space-y-1 ${
+              parentCalibration.mode === 'balanced'
+                ? 'bg-indigo-950/40 border-indigo-500/80 ring-2 ring-indigo-500/20'
+                : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-white">Audit Berimbang (Co-Audit)</span>
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-indigo-900/60 text-indigo-200">50% / 50%</span>
+            </div>
+            <p className="text-[11px] text-slate-400 leading-snug">
+              Kolaborasi seimbang: AI mendeteksi struktur logika bahasa, orang tua mengonfirmasi penalaran riil anak.
+            </p>
+          </button>
+
+          <button
+            onClick={() => {
+              if (onUpdateParentCalibration) {
+                onUpdateParentCalibration({
+                  parentWeight: 0.15,
+                  aiWeight: 0.85,
+                  mode: 'ai_delegated',
+                  expertiseLevel: 'novice',
+                });
+              }
+            }}
+            className={`p-3 rounded-xl border text-left transition space-y-1 ${
+              parentCalibration.mode === 'ai_delegated'
+                ? 'bg-cyan-950/40 border-cyan-500/80 ring-2 ring-cyan-500/20'
+                : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-white">Pendampingan Penuh AI</span>
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-900/60 text-cyan-200">15% / 85%</span>
+            </div>
+            <p className="text-[11px] text-slate-400 leading-snug">
+              Pilihan jika ortu kurang menguasai materi lanjut. Evaluasi diserahkan ke AI & verifikasi lab empiris.
+            </p>
+          </button>
+        </div>
+
+        {/* Custom Weight Slider */}
+        <div className="bg-slate-950/80 p-4 rounded-xl border border-slate-800/80 space-y-3">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-semibold text-slate-300">Setel Bobot Kustom Pakar Manusia (Orang Tua):</span>
+            <span className="font-mono text-xs font-bold text-purple-300">
+              {(parentCalibration.parentWeight * 100).toFixed(0)}% Ortu · {(parentCalibration.aiWeight * 100).toFixed(0)}% AI
+            </span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            step="5"
+            value={Math.round(parentCalibration.parentWeight * 100)}
+            onChange={(e) => {
+              const pW = Number(e.target.value) / 100;
+              const aW = Number((1.0 - pW).toFixed(2));
+              let mode: 'human_dominant' | 'balanced' | 'ai_delegated' = 'balanced';
+              if (pW >= 0.70) mode = 'human_dominant';
+              else if (pW <= 0.30) mode = 'ai_delegated';
+
+              if (onUpdateParentCalibration) {
+                onUpdateParentCalibration({
+                  parentWeight: pW,
+                  aiWeight: aW,
+                  mode,
+                  expertiseLevel: parentCalibration.expertiseLevel,
+                });
+              }
+            }}
+            className="w-full accent-purple-500 cursor-pointer"
+          />
+          <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+            <span>0% (AI Penuh)</span>
+            <span>50% (Co-Audit Seimbang)</span>
+            <span>100% (Pakar Ortu Mutlak)</span>
+          </div>
+        </div>
+      </div>
+
       {/* Local Browser Storage (IndexedDB) & Data Sovereignty Section */}
       <div className="bg-[#0b0f1e] border border-cyan-500/30 rounded-2xl p-6 space-y-4 shadow-xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -596,7 +797,7 @@ export const ParentTelemetryDashboard: React.FC<ParentTelemetryDashboardProps> =
               {storageInfo?.usageMb.toFixed(2) || '0.15'} MB / ~{storageInfo?.quotaMb ? (storageInfo.quotaMb > 1024 ? (storageInfo.quotaMb / 1024).toFixed(1) + ' GB' : storageInfo.quotaMb + ' MB') : '10+ GB'}
             </div>
             <div className="text-[10px] text-emerald-400 font-mono mt-0.5">
-              ✓ {evidenceLogs.length} Entri Bukti · {Object.keys(learnerNodes).length} Node Terlacak
+              ✓ {evidenceLogs.length} Entri Bukti · {totalLearnerNodes} Node Terlacak
             </div>
           </div>
         </div>
@@ -630,23 +831,65 @@ export const ParentTelemetryDashboard: React.FC<ParentTelemetryDashboardProps> =
           </button>
 
           <button
-            id="btn-reset-full-db"
+            id="btn-reset-demo-db"
             onClick={() => setShowResetConfirm(true)}
-            className="px-3 py-2 bg-rose-950/30 hover:bg-rose-900/40 border border-rose-900/50 text-rose-300 rounded-lg text-xs font-medium flex items-center gap-1.5 transition ml-auto"
+            className="px-3 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 rounded-lg text-xs font-medium flex items-center gap-1.5 transition ml-auto"
+            title="Pulihkan dataset demonstrasi awal untuk keperluan pengujian"
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-slate-400" />
+            <span>Pulihkan Dataset Contoh Baseline</span>
+          </button>
+
+          <button
+            id="btn-clear-empty-db"
+            onClick={() => setShowClearConfirm(true)}
+            className="px-3.5 py-2 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/80 text-rose-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow"
+            title="Hapus seluruh data dan kosongkan profil belajar anak sepenuhnya"
           >
             <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-            <span>Reset ke Status Baru</span>
+            <span>Hapus Bersih Semua Data (Kosongkan Profil)</span>
           </button>
         </div>
 
-        {showResetConfirm && (
-          <div className="p-3.5 bg-rose-950/60 border border-rose-800/80 rounded-xl space-y-2">
+        {/* Clear Confirmation Modal */}
+        {showClearConfirm && (
+          <div className="p-4 bg-rose-950/70 border border-rose-700 rounded-xl space-y-2.5 animate-fade-in">
             <div className="flex items-center gap-2 text-rose-200 text-xs font-bold">
-              <AlertTriangle className="w-4 h-4 text-rose-400" />
-              <span>Konfirmasi Reset Basis Data IndexedDB:</span>
+              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>Konfirmasi Hapus Bersih & Kosongkan Seluruh Data:</span>
             </div>
-            <p className="text-[11px] text-rose-300/90 leading-snug">
-              Tindakan ini akan mengosongkan IndexedDB lokal pada browser ini dan mengembalikan profil belajar ke baseline awal. Pastikan Anda telah mengunduh cadangan JSON terlebih dahulu jika ingin menyimpan bukti sebelumnya.
+            <p className="text-[11px] text-rose-200/90 leading-relaxed">
+              Tindakan ini akan <strong>menghapus bersih seluruh data node anak dan log bukti</strong> di IndexedDB lokal browser ini. Setelah dihapus, statistik akan kembali ke <strong>0 (kosong) tanpa data tiruan atau hardcoded</strong>. Pastikan Anda telah mengunduh cadangan JSON jika ingin menyimpan rekaman sebelumnya.
+            </p>
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                onClick={() => {
+                  if (onClearAllData) onClearAllData();
+                  setShowClearConfirm(false);
+                }}
+                className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded text-xs font-bold shadow"
+              >
+                Ya, Hapus Bersih Seluruhnya
+              </button>
+              <button
+                onClick={() => setShowClearConfirm(false)}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs font-medium"
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Reset Demo Baseline Confirmation Modal */}
+        {showResetConfirm && (
+          <div className="p-4 bg-slate-900 border border-slate-700 rounded-xl space-y-2.5 animate-fade-in">
+            <div className="flex items-center gap-2 text-cyan-200 text-xs font-bold">
+              <RefreshCw className="w-4 h-4 text-cyan-400 shrink-0" />
+              <span>Pulihkan Dataset Contoh Baseline:</span>
+            </div>
+            <p className="text-[11px] text-slate-300 leading-relaxed">
+              Tindakan ini akan memulihkan sampel data demonstrasi awal (graf kognitif 1-12 tahun & contoh bukti log) ke dalam IndexedDB lokal Anda untuk keperluan pengujian dan demonstrasi sistem.
             </p>
             <div className="flex items-center gap-2 pt-1">
               <button
@@ -654,13 +897,13 @@ export const ParentTelemetryDashboard: React.FC<ParentTelemetryDashboardProps> =
                   if (onResetData) onResetData();
                   setShowResetConfirm(false);
                 }}
-                className="px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded text-xs font-semibold"
+                className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-xs font-semibold shadow"
               >
-                Ya, Bersihkan & Reset
+                Pulihkan Sampel Demo
               </button>
               <button
                 onClick={() => setShowResetConfirm(false)}
-                className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs"
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs font-medium"
               >
                 Batal
               </button>
@@ -713,63 +956,137 @@ export const ParentTelemetryDashboard: React.FC<ParentTelemetryDashboardProps> =
 
         {/* Evidence Table */}
         <div className="space-y-3">
-          {filteredEvidence.map((entry) => (
-            <div
-              key={entry.id}
-              className="bg-slate-950/80 border border-slate-800/90 rounded-xl p-4 space-y-3 hover:border-slate-700 transition"
-            >
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-900 pb-2">
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                  <span className="text-xs font-mono text-slate-400">{entry.timestamp}</span>
-                  <span className="text-slate-600">·</span>
-                  <strong className="text-xs text-white">{entry.conceptName}</strong>
-                </div>
-
-                <div className="flex items-center gap-2 text-xs font-mono">
-                  <span className="text-[10px] text-slate-400">Confidence:</span>
-                  <span className="text-emerald-400 font-semibold">{entry.confidence.toUpperCase()}</span>
-                  <span className="text-slate-600">·</span>
-                  <span className="text-[10px] text-slate-400">Retention:</span>
-                  <span className="text-indigo-300 font-semibold">{entry.retentionStatus}</span>
-                </div>
-              </div>
-
-              {/* Action List items */}
-              <div className="space-y-1.5">
-                {entry.actions.map((act, i) => (
-                  <div key={i} className="flex items-start gap-2 text-xs text-slate-300">
-                    <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400 shrink-0 mt-0.5">
-                      {act.actionType.replace('_', ' ')}
-                    </span>
-                    <span className={act.actionType === 'transfer_fail' ? 'text-amber-300 italic' : ''}>
-                      {act.description}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Feynman Sensor Diagnosis details */}
-              {entry.feynmanDiagnosis && (
-                <div className="pt-2 border-t border-slate-900 flex flex-wrap items-center gap-4 text-xs font-mono text-slate-400">
-                  <span>Konseptual: <strong className="text-cyan-300">{(entry.feynmanDiagnosis.conceptualUnderstanding * 100).toFixed(0)}%</strong></span>
-                  <span>Kausalitas: <strong className="text-emerald-300">{(entry.feynmanDiagnosis.causalReasoning * 100).toFixed(0)}%</strong></span>
-                  <span>Transfer: <strong className="text-amber-300">{(entry.feynmanDiagnosis.transferScore * 100).toFixed(0)}%</strong></span>
-                  {entry.feynmanDiagnosis.misconceptionDetected && (
-                    <span className="text-rose-400 bg-rose-950/40 px-2 py-0.5 rounded border border-rose-900/60">
-                      Miskonsepsi: {entry.feynmanDiagnosis.misconceptionDetected}
-                    </span>
-                  )}
-                </div>
-              )}
-
-              {entry.notes && (
-                <p className="text-[11px] text-slate-400 italic bg-slate-900/50 p-2 rounded">
-                  Catatan Observasi: "{entry.notes}"
-                </p>
-              )}
+          {filteredEvidence.length === 0 ? (
+            <div className="p-8 text-center bg-slate-950/50 rounded-xl border border-slate-800 text-slate-400 space-y-2">
+              <Database className="w-8 h-8 text-slate-600 mx-auto opacity-50" />
+              <div className="text-xs font-bold text-slate-300">Belum Ada Log Bukti Tersimpan di IndexedDB</div>
+              <p className="text-[11px] text-slate-500 max-w-md mx-auto leading-relaxed">
+                Seluruh telemetri simulasi lab dan percakapan Sokrates disimpan di IndexedDB browser lokal tanpa server telemetry pihak ketiga. Buka <strong>Lab Simulasi & Proyek</strong> atau <strong>Tutor Socratic AI</strong> untuk mulai merekam bukti pemikiran anak.
+              </p>
             </div>
-          ))}
+          ) : (
+            filteredEvidence.map((entry) => (
+              <div
+                key={entry.id}
+                className="bg-slate-950/80 border border-slate-800/90 rounded-xl p-4 space-y-3 hover:border-slate-700 transition"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-900 pb-2">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="text-xs font-mono text-slate-400">{entry.timestamp}</span>
+                    <span className="text-slate-600">·</span>
+                    <strong className="text-xs text-white">{entry.conceptName}</strong>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-xs font-mono">
+                    <span className="text-[10px] text-slate-400">Confidence:</span>
+                    <span className="text-emerald-400 font-semibold">{entry.confidence.toUpperCase()}</span>
+                    <span className="text-slate-600">·</span>
+                    <span className="text-[10px] text-slate-400">Retention:</span>
+                    <span className="text-indigo-300 font-semibold">{entry.retentionStatus}</span>
+
+                    {onApplyParentAudit && (
+                      <button
+                        onClick={() => {
+                          if (auditingEntryId === entry.id) {
+                            setAuditingEntryId(null);
+                          } else {
+                            setAuditingEntryId(entry.id);
+                            setAuditScore(entry.feynmanDiagnosis?.conceptualUnderstanding || 0.8);
+                            setAuditNotes('');
+                          }
+                        }}
+                        className="ml-2 px-2 py-0.5 rounded bg-purple-950/60 hover:bg-purple-900/80 border border-purple-700/60 text-purple-200 text-[10px] font-semibold flex items-center gap-1 transition"
+                      >
+                        <Brain className="w-3 h-3 text-purple-400" />
+                        <span>{auditingEntryId === entry.id ? 'Tutup' : 'Audit Ortu'}</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Inline Parent Audit Console */}
+                {auditingEntryId === entry.id && (
+                  <div className="p-3 bg-purple-950/30 border border-purple-500/40 rounded-xl space-y-2.5 animate-fade-in">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-purple-200 flex items-center gap-1.5">
+                        <UserCheck className="w-3.5 h-3.5 text-purple-400" />
+                        <span>Audit Human-in-the-Loop (Koreksi Ortu):</span>
+                      </span>
+                      <span className="font-mono text-xs text-purple-300 font-bold">
+                        Skor Evaluasi Ortu: {(auditScore * 100).toFixed(0)}%
+                      </span>
+                    </div>
+
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="5"
+                      value={Math.round(auditScore * 100)}
+                      onChange={(e) => setAuditScore(Number(e.target.value) / 100)}
+                      className="w-full accent-purple-500 cursor-pointer"
+                    />
+
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input
+                        type="text"
+                        value={auditNotes}
+                        onChange={(e) => setAuditNotes(e.target.value)}
+                        placeholder="Catatan observasi orang tua (misal: Anak paham konsep, hanya grogi mengetik)..."
+                        className="flex-1 bg-slate-950 border border-slate-700 rounded px-2.5 py-1 text-xs text-slate-200 placeholder:text-slate-500"
+                      />
+                      <button
+                        onClick={() => {
+                          if (onApplyParentAudit) {
+                            onApplyParentAudit(entry.id, auditScore, auditNotes);
+                          }
+                          setAuditingEntryId(null);
+                        }}
+                        className="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded text-xs font-semibold shrink-0 shadow"
+                      >
+                        Simpan Ground Truth
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Action List items */}
+                <div className="space-y-1.5">
+                  {entry.actions.map((act, i) => (
+                    <div key={i} className="flex items-start gap-2 text-xs text-slate-300">
+                      <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400 shrink-0 mt-0.5">
+                        {act.actionType.replace('_', ' ')}
+                      </span>
+                      <span className={act.actionType === 'transfer_fail' ? 'text-amber-300 italic' : ''}>
+                        {act.description}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Feynman Sensor Diagnosis details */}
+                {entry.feynmanDiagnosis && (
+                  <div className="pt-2 border-t border-slate-900 flex flex-wrap items-center gap-4 text-xs font-mono text-slate-400">
+                    <span>Konseptual: <strong className="text-cyan-300">{(entry.feynmanDiagnosis.conceptualUnderstanding * 100).toFixed(0)}%</strong></span>
+                    <span>Kausalitas: <strong className="text-emerald-300">{(entry.feynmanDiagnosis.causalReasoning * 100).toFixed(0)}%</strong></span>
+                    <span>Transfer: <strong className="text-amber-300">{(entry.feynmanDiagnosis.transferScore * 100).toFixed(0)}%</strong></span>
+                    {entry.feynmanDiagnosis.misconceptionDetected && (
+                      <span className="text-rose-400 bg-rose-950/40 px-2 py-0.5 rounded border border-rose-900/60">
+                        Miskonsepsi: {entry.feynmanDiagnosis.misconceptionDetected}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {entry.notes && (
+                  <p className="text-[11px] text-slate-400 italic bg-slate-900/50 p-2 rounded">
+                    Catatan Observasi: "{entry.notes}"
+                  </p>
+                )}
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>

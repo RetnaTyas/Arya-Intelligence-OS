@@ -8,6 +8,10 @@ import {
   INITIAL_EVIDENCE_LOGS,
   INITIAL_ACTIVE_TRAJECTORY,
 } from '../data/initialLearnerState';
+import {
+  ParentCalibrationSettings,
+  DEFAULT_PARENT_CALIBRATION,
+} from '../engine/evidenceTriangulation';
 
 const DB_NAME = 'PersonalIntelligenceOS_v1';
 const DB_VERSION = 1;
@@ -83,6 +87,21 @@ export async function loadInitialOSState(): Promise<{
   try {
     const db = await openOSDatabase();
 
+    // Check if user has explicitly cleared the database
+    const isCleared = await getFromStore<{ key: string; value: boolean }>(
+      db,
+      STORES.METADATA,
+      'isUserCleared'
+    );
+    if (isCleared?.value) {
+      return {
+        learnerNodes: {},
+        evidenceLogs: [],
+        activeTrajectory: INITIAL_ACTIVE_TRAJECTORY,
+        isFreshDB: false,
+      };
+    }
+
     // Check existing learner nodes
     const savedNodes = await getAllFromStore<LearnerNodeState>(db, STORES.LEARNER_NODES);
     const savedEvidence = await getAllFromStore<EvidenceEntry>(db, STORES.EVIDENCE_LOGS);
@@ -104,7 +123,7 @@ export async function loadInitialOSState(): Promise<{
 
       return {
         learnerNodes: nodesMap,
-        evidenceLogs: savedEvidence.length > 0 ? savedEvidence : INITIAL_EVIDENCE_LOGS,
+        evidenceLogs: savedEvidence, // Jujur sesuai data IndexedDB, tidak re-inject INITIAL_EVIDENCE_LOGS
         activeTrajectory: savedTrajectory?.value || INITIAL_ACTIVE_TRAJECTORY,
         isFreshDB: false,
       };
@@ -152,6 +171,7 @@ async function seedBaselineData(db: IDBDatabase): Promise<void> {
   const metaStore = tx.objectStore(STORES.METADATA);
   metaStore.put({ key: 'activeTrajectory', value: INITIAL_ACTIVE_TRAJECTORY });
   metaStore.put({ key: 'initDate', value: new Date().toISOString() });
+  metaStore.put({ key: 'isUserCleared', value: false });
 
   return new Promise((resolve, reject) => {
     tx.oncomplete = () => resolve();
@@ -349,7 +369,63 @@ export async function importOSDatasetJSON(jsonString: string): Promise<{
 }
 
 /**
- * Reset IndexedDB database to pristine baseline.
+ * Clear all data from IndexedDB completely (blank state, no fake data, no re-seeding).
+ * Explicitly records that user wanted an empty state.
+ */
+export async function clearAllOSData(): Promise<void> {
+  const db = await openOSDatabase();
+  const tx = db.transaction(
+    [STORES.LEARNER_NODES, STORES.EVIDENCE_LOGS, STORES.METADATA],
+    'readwrite'
+  );
+
+  tx.objectStore(STORES.LEARNER_NODES).clear();
+  tx.objectStore(STORES.EVIDENCE_LOGS).clear();
+  tx.objectStore(STORES.METADATA).clear();
+
+  // Mark as intentionally cleared
+  tx.objectStore(STORES.METADATA).put({ key: 'isUserCleared', value: true });
+  tx.objectStore(STORES.METADATA).put({ key: 'clearedAt', value: new Date().toISOString() });
+
+  await new Promise<void>((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+/**
+ * Persist parent Ground Truth Human-in-the-Loop calibration settings in IndexedDB.
+ */
+export async function persistParentCalibration(settings: ParentCalibrationSettings): Promise<void> {
+  try {
+    const db = await openOSDatabase();
+    const tx = db.transaction(STORES.METADATA, 'readwrite');
+    tx.objectStore(STORES.METADATA).put({ key: 'parentCalibration', value: settings });
+  } catch (err) {
+    console.error('Gagal menyimpan kalibrasi orang tua ke IndexedDB:', err);
+  }
+}
+
+/**
+ * Load parent Ground Truth Human-in-the-Loop calibration settings from IndexedDB.
+ */
+export async function loadParentCalibration(): Promise<ParentCalibrationSettings> {
+  try {
+    const db = await openOSDatabase();
+    const res = await getFromStore<{ key: string; value: ParentCalibrationSettings }>(
+      db,
+      STORES.METADATA,
+      'parentCalibration'
+    );
+    return res?.value || DEFAULT_PARENT_CALIBRATION;
+  } catch (err) {
+    console.warn('Gagal memuat kalibrasi orang tua, menggunakan default:', err);
+    return DEFAULT_PARENT_CALIBRATION;
+  }
+}
+
+/**
+ * Reset IndexedDB database to pristine baseline demonstration data.
  */
 export async function resetOSDatabase(): Promise<void> {
   const db = await openOSDatabase();

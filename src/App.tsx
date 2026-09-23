@@ -25,7 +25,7 @@ import {
   FeynmanDiagnosisResult,
 } from './types';
 
-import { triangulateEvidence, EmpiricalSimulationEvidence } from './engine/evidenceTriangulation';
+import { triangulateEvidence, EmpiricalSimulationEvidence, ParentCalibrationSettings, DEFAULT_PARENT_CALIBRATION } from './engine/evidenceTriangulation';
 import { applyMasteryGating } from './engine/deterministicCore';
 import {
   loadInitialOSState,
@@ -36,6 +36,9 @@ import {
   exportOSDatasetJSON,
   importOSDatasetJSON,
   resetOSDatabase,
+  clearAllOSData,
+  persistParentCalibration,
+  loadParentCalibration,
 } from './storage/indexedDbStorage';
 import { computeRealTimeTelemetry } from './engine/dynamicTelemetry';
 
@@ -56,6 +59,7 @@ export default function App() {
   const [telemetry, setTelemetry] = useState<CognitiveDomainTelemetry[]>(INITIAL_COGNITIVE_TELEMETRY);
   const [activeTrajectory, setActiveTrajectory] = useState<ActiveTrajectory>(INITIAL_ACTIVE_TRAJECTORY);
   const [selectedNodeId, setSelectedNodeId] = useState<string>('node-buoyancy-archimedes');
+  const [parentCalibration, setParentCalibration] = useState<ParentCalibrationSettings>(DEFAULT_PARENT_CALIBRATION);
 
   const [knowledgeStability, setKnowledgeStability] = useState<number>(91);
   const [criticalDebt, setCriticalDebt] = useState<'LOW' | 'MEDIUM' | 'HIGH'>('LOW');
@@ -200,6 +204,11 @@ export default function App() {
         setCriticalDebt(computed.criticalDebt);
         setIsDbReady(true);
 
+        const savedCalibration = await loadParentCalibration();
+        if (savedCalibration && isMounted) {
+          setParentCalibration(savedCalibration);
+        }
+
         const est = await getBrowserStorageEstimate();
         if (isMounted) {
           setStorageInfo(est);
@@ -284,6 +293,67 @@ export default function App() {
     }
   };
 
+  // Handler to clear all data completely (empty profile, 0% stats, no fake fallback)
+  const handleClearAllData = async () => {
+    try {
+      await clearAllOSData();
+      setLearnerNodes({});
+      setEvidenceLogs([]);
+      setActiveTrajectory({
+        id: 'traj-empty',
+        title: 'Trajektori Kosong (Menunggu Aktivitas Pertama)',
+        fromNode: 'node-buoyancy-archimedes',
+        toNode: 'node-symbolic-algebra',
+        status: 'active',
+        systemActionNote: 'Menunggu inisiasi aktivitas pertama anak',
+      });
+      showToast('✓ Seluruh data anak & log bukti berhasil dihapus bersih (0%).');
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal mengosongkan data.');
+    }
+  };
+
+  // Handler to update Parent Ground Truth calibration
+  const handleUpdateParentCalibration = async (settings: ParentCalibrationSettings) => {
+    setParentCalibration(settings);
+    await persistParentCalibration(settings);
+    showToast(
+      `✓ Kalibrasi Ground Truth disimpan: ${(settings.parentWeight * 100).toFixed(0)}% Ortu / ${(settings.aiWeight * 100).toFixed(0)}% AI`
+    );
+  };
+
+  // Handler to apply Parent Ground Truth inline audit to an evidence entry
+  const handleApplyParentAudit = async (entryId: string, parentScore: number, notes?: string) => {
+    const pWeight = parentCalibration.parentWeight;
+    const aiWeight = parentCalibration.aiWeight;
+
+    setEvidenceLogs((prev) =>
+      prev.map((e) => {
+        if (e.id === entryId) {
+          const currentAiScore = e.feynmanDiagnosis?.conceptualUnderstanding ?? 0.7;
+          const fusedScore = Number(((pWeight * parentScore) + (aiWeight * currentAiScore)).toFixed(3));
+          return {
+            ...e,
+            confidence: 'high',
+            notes: notes
+              ? `[Ground Truth Ortu: ${(parentScore * 100).toFixed(0)}%, Fusi: ${(fusedScore * 100).toFixed(0)}%] ${notes}`
+              : `[Ground Truth Ortu: ${(parentScore * 100).toFixed(0)}%, Fusi: ${(fusedScore * 100).toFixed(0)}%]`,
+            feynmanDiagnosis: e.feynmanDiagnosis
+              ? {
+                  ...e.feynmanDiagnosis,
+                  conceptualUnderstanding: fusedScore,
+                }
+              : undefined,
+          };
+        }
+        return e;
+      })
+    );
+
+    showToast('✓ Ground Truth Orang Tua berhasil diterapkan ke log bukti!');
+  };
+
   // Handler to reset IndexedDB to clean state
   const handleResetDatabase = async () => {
     try {
@@ -292,7 +362,7 @@ export default function App() {
       setLearnerNodes(loaded.learnerNodes);
       setEvidenceLogs(loaded.evidenceLogs);
       setActiveTrajectory(loaded.activeTrajectory);
-      showToast('Basis data IndexedDB berhasil direset ke kondisi awal!');
+      showToast('Basis data IndexedDB berhasil dipulihkan ke sampel baseline demo!');
     } catch (err) {
       console.error(err);
       showToast('Gagal mereset basis data.');
@@ -323,7 +393,10 @@ export default function App() {
         appliedSuccessfully: result.transferScore >= 0.6,
         transferScore: result.transferScore,
       },
-      { childUtteranceWordCount: wordCount }
+      {
+        childUtteranceWordCount: wordCount,
+        parentCalibration,
+      }
     );
 
     // 1. Update Learner State with deterministic mastery gating
@@ -714,9 +787,13 @@ export default function App() {
             knowledgeStability={knowledgeStability}
             criticalDebt={criticalDebt}
             storageInfo={storageInfo}
+            parentCalibration={parentCalibration}
+            onUpdateParentCalibration={handleUpdateParentCalibration}
+            onApplyParentAudit={handleApplyParentAudit}
             onExportJSON={handleExportFullJSON}
             onImportJSON={handleImportFullJSON}
             onResetData={handleResetDatabase}
+            onClearAllData={handleClearAllData}
             onNavigateToStealthProject={() => {
               setCurrentView('child');
               setChildTab('labs');
@@ -766,6 +843,9 @@ export default function App() {
               <DeterministicCoreInspector
                 nodes={knowledgeNodes}
                 learnerNodes={learnerNodes}
+                evidenceLogs={evidenceLogs}
+                parentCalibration={parentCalibration}
+                onUpdateParentCalibration={handleUpdateParentCalibration}
                 onSelectNode={(id) => setSelectedNodeId(id)}
                 onLaunchSimulation={(simId) => {
                   setCurrentView('child');

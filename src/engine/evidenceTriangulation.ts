@@ -39,6 +39,26 @@ export interface TransferChallengeEvidence {
   transferScore: number; // 0.0 to 1.0
 }
 
+export interface ParentAuditAssessment {
+  parentScore: number; // 0.0 to 1.0 (Skor penilaian observasi orang tua)
+  parentNotes?: string;
+  hasOverridden: boolean;
+}
+
+export interface ParentCalibrationSettings {
+  parentWeight: number; // 0.0 to 1.0 (Bobot Pakar Manusia / Ortu)
+  aiWeight: number;     // 1.0 - parentWeight (Bobot Evaluasi AI)
+  mode: 'human_dominant' | 'balanced' | 'ai_delegated';
+  expertiseLevel: 'expert' | 'moderate' | 'novice';
+}
+
+export const DEFAULT_PARENT_CALIBRATION: ParentCalibrationSettings = {
+  parentWeight: 0.50,
+  aiWeight: 0.50,
+  mode: 'balanced',
+  expertiseLevel: 'moderate',
+};
+
 export interface TriangulatedAssessmentResult {
   compositeUnderstanding: number; // 0.0 to 1.0
   compositeApplication: number;
@@ -53,6 +73,8 @@ export interface TriangulatedAssessmentResult {
     transferContribution: number;
     feynmanWeight: number;   // e.g. 0.15
     feynmanContribution: number;
+    humanParentWeight?: number;
+    humanParentContribution?: number;
   };
   recommendedMasteryDelta: Partial<MasteryHierarchy>;
   shouldUpdateLearnerModel: boolean;
@@ -79,10 +101,14 @@ export function triangulateEvidence(
   options: {
     customWeights?: typeof DEFAULT_TRIANGULATION_WEIGHTS;
     childUtteranceWordCount?: number;
+    parentAudit?: ParentAuditAssessment;
+    parentCalibration?: ParentCalibrationSettings;
   } = {}
 ): TriangulatedAssessmentResult {
   const weights = options.customWeights || DEFAULT_TRIANGULATION_WEIGHTS;
   const wordCount = options.childUtteranceWordCount ?? 20;
+  const parentCalibration = options.parentCalibration || DEFAULT_PARENT_CALIBRATION;
+  const parentAudit = options.parentAudit;
 
   // 1. Ekstraksi Skor Empiris (Lab Simulasi)
   let empiricalScore = 0.5; // fallback netral jika belum ada tes lab
@@ -99,37 +125,58 @@ export function triangulateEvidence(
     transferScore = transfer.transferScore;
   }
 
-  // 3. Ekstraksi Skor Feynman Sensor (AI Dialog)
-  let feynmanScore = 0.5;
+  // 3. Ekstraksi Skor Dialog & Penalaran Verbal: Fusi Human-in-the-Loop (Pakar Manusia / Ortu vs AI)
+  let rawAiScore = 0.5;
   let isAiNoiseSuspect = false;
   let discrepancyNote: string | undefined;
 
   if (feynman) {
-    feynmanScore = (feynman.conceptualUnderstanding * 0.5) + (feynman.causalReasoning * 0.5);
+    rawAiScore = (feynman.conceptualUnderstanding * 0.5) + (feynman.causalReasoning * 0.5);
 
     // Filter A: Deteksi kalimat terlalu singkat (terlalu sedikit data untuk analisis bahasa bermakna)
     if (wordCount < DISCREPANCY_THRESHOLDS.MIN_WORD_COUNT_FOR_AI) {
       isAiNoiseSuspect = true;
       discrepancyNote = `Kalimat anak terlalu singkat (${wordCount} kata). AI diagnosis diragukan karena kurangnya konteks linguistik.`;
-      feynmanScore = empiricalScore; // Downweight: ikuti bukti empiris
+      rawAiScore = empiricalScore; // Downweight: ikuti bukti empiris
     }
 
     // Filter B: Diskrepansi "Buzzword Dropping / Hafalan Semu"
     // AI memberi nilai tinggi (> 0.8), tapi di simulasi empiris anak gagal manipulasi (< 0.45)
-    if (feynmanScore >= 0.80 && empirical && empiricalScore < 0.45) {
+    if (rawAiScore >= 0.80 && empirical && empiricalScore < 0.45) {
       isAiNoiseSuspect = true;
-      discrepancyNote = `Terdeteksi diskrepansi: AI mendeteksi pemahaman verbal (${(feynmanScore * 100).toFixed(0)}%), namun manipulasi empiris di lab gagal (${(empiricalScore * 100).toFixed(0)}%). Kemungkinan pengucapan istilah (buzzwords) tanpa intuisi kausal.`;
+      discrepancyNote = `Terdeteksi diskrepansi: AI mendeteksi pemahaman verbal (${(rawAiScore * 100).toFixed(0)}%), namun manipulasi empiris di lab gagal (${(empiricalScore * 100).toFixed(0)}%). Kemungkinan pengucapan istilah (buzzwords) tanpa intuisi kausal.`;
       // Redam skor AI agar tidak mencemari model
-      feynmanScore = empiricalScore + 0.1;
+      rawAiScore = empiricalScore + 0.1;
     }
 
     // Filter C: Diskrepansi "Anak Paham tapi Typo / Canggung Mengetik"
     // AI memberi nilai rendah (< 0.4), tapi di simulasi empiris anak sempurna (0.95)
-    if (feynmanScore < 0.40 && empirical && empiricalScore >= 0.85) {
-      discrepancyNote = `Anak mahir secara empiris (${(empiricalScore * 100).toFixed(0)}%), namun penjelasan verbalnya minim (${(feynmanScore * 100).toFixed(0)}%). Skor tidak diturunkan secara drastis demi keadilan kognitif.`;
-      feynmanScore = Math.max(feynmanScore, 0.65);
+    if (rawAiScore < 0.40 && empirical && empiricalScore >= 0.85) {
+      discrepancyNote = `Anak mahir secara empiris (${(empiricalScore * 100).toFixed(0)}%), namun penjelasan verbalnya minim (${(rawAiScore * 100).toFixed(0)}%). Skor tidak diturunkan secara drastis demi keadilan kognitif.`;
+      rawAiScore = Math.max(rawAiScore, 0.65);
     }
   }
+
+  // Fusi Verbal: Integrasi Ground Truth Pakar Manusia (Orang Tua) vs AI
+  let fusedVerbalScore = rawAiScore;
+  let humanParentContribution = 0;
+  let aiVerbalContribution = rawAiScore;
+
+  if (parentAudit) {
+    // Ortu memberikan input evaluasi langsung (Human-in-the-Loop)
+    const pWeight = parentCalibration.parentWeight;
+    const aWeight = parentCalibration.aiWeight;
+
+    fusedVerbalScore = (parentAudit.parentScore * pWeight) + (rawAiScore * aWeight);
+    humanParentContribution = parentAudit.parentScore * pWeight;
+    aiVerbalContribution = rawAiScore * aWeight;
+
+    if (parentAudit.hasOverridden) {
+      discrepancyNote = `Audit Human-in-the-Loop diterapkan: Evaluasi Orang Tua (Bobot ${(pWeight * 100).toFixed(0)}%) diselaraskan dengan AI (Bobot ${(aWeight * 100).toFixed(0)}%).`;
+    }
+  }
+
+  const feynmanScore = fusedVerbalScore;
 
   // 4. Perhitungan Triangulasi Tertimbang (Weighted Multi-Modal Fusion)
   const compUnderstanding =
@@ -142,7 +189,7 @@ export function triangulateEvidence(
 
   // Confidence level
   let confidence: 'high' | 'medium' | 'low' = 'high';
-  if (isAiNoiseSuspect) {
+  if (isAiNoiseSuspect && (!parentAudit || parentCalibration.parentWeight < 0.5)) {
     confidence = 'low';
   } else if (!empirical || !transfer) {
     confidence = 'medium';
@@ -170,8 +217,10 @@ export function triangulateEvidence(
       transferContribution: Number((transferScore * weights.TRANSFER_CHALLENGE).toFixed(3)),
       feynmanWeight: weights.FEYNMAN_AI_DIALOG,
       feynmanContribution: Number((feynmanScore * weights.FEYNMAN_AI_DIALOG).toFixed(3)),
+      humanParentWeight: parentAudit ? parentCalibration.parentWeight : undefined,
+      humanParentContribution: parentAudit ? Number(humanParentContribution.toFixed(3)) : undefined,
     },
     recommendedMasteryDelta,
-    shouldUpdateLearnerModel: !isAiNoiseSuspect || (empirical !== undefined && empirical.taskCompleted),
+    shouldUpdateLearnerModel: !isAiNoiseSuspect || (empirical !== undefined && empirical.taskCompleted) || (parentAudit !== undefined && parentCalibration.parentWeight >= 0.5),
   };
 }

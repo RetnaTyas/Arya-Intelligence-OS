@@ -17,7 +17,7 @@ import {
   Brain,
   ListFilter,
 } from 'lucide-react';
-import { KnowledgeNode, LearnerNodeState } from '../types';
+import { KnowledgeNode, LearnerNodeState, EvidenceEntry } from '../types';
 import {
   evaluatePrerequisites,
   calculateDeterministicDecay,
@@ -28,10 +28,14 @@ import {
 } from '../engine/deterministicCore';
 import { CentralHypothesisTestHarness } from './CentralHypothesisTestHarness';
 import { NARROW_DOMAIN_MATH_NODES } from '../data/narrowMathDomain';
+import { ParentCalibrationSettings } from '../engine/evidenceTriangulation';
 
 interface DeterministicCoreInspectorProps {
   nodes: KnowledgeNode[];
   learnerNodes: Record<string, LearnerNodeState>;
+  evidenceLogs?: EvidenceEntry[];
+  parentCalibration?: ParentCalibrationSettings;
+  onUpdateParentCalibration?: (settings: ParentCalibrationSettings) => void;
   onSelectNode: (nodeId: string) => void;
   onLaunchSimulation: (simulationId: string) => void;
 }
@@ -39,6 +43,9 @@ interface DeterministicCoreInspectorProps {
 export const DeterministicCoreInspector: React.FC<DeterministicCoreInspectorProps> = ({
   nodes,
   learnerNodes,
+  evidenceLogs = [],
+  parentCalibration,
+  onUpdateParentCalibration,
   onSelectNode,
   onLaunchSimulation,
 }) => {
@@ -159,7 +166,14 @@ export const DeterministicCoreInspector: React.FC<DeterministicCoreInspectorProp
       </div>
 
       {/* Tab Tahap 2: Central Hypothesis Test Harness & Perturbation Layer 0-2 */}
-      {activeEngineTab === 'benchmark' && <CentralHypothesisTestHarness />}
+      {activeEngineTab === 'benchmark' && (
+        <CentralHypothesisTestHarness
+          parentCalibration={parentCalibration}
+          onUpdateParentCalibration={onUpdateParentCalibration}
+          evidenceLogs={evidenceLogs}
+          learnerNodes={learnerNodes}
+        />
+      )}
 
       {/* Tab Tahap 1: Koridor Domain Sempit (Pecahan s/d Persamaan) */}
       {activeEngineTab === 'narrow_domain' && (
