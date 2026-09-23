@@ -10,7 +10,12 @@ import {
   FlaskConical,
   Eye,
   Layers,
+  Activity,
+  ArrowRight,
 } from 'lucide-react';
+import { useLabTelemetry } from '../../engine/useLabTelemetry';
+import { deriveEmpiricalEvidenceFromTelemetry } from '../../engine/empiricalEvidenceDerivation';
+import { EmpiricalSimulationEvidence } from '../../engine/evidenceTriangulation';
 
 interface MaterialBlock {
   id: string;
@@ -73,12 +78,23 @@ const EXPERIMENT_BLOCKS: MaterialBlock[] = [
 
 interface DensityMassLabProps {
   onMasteryEvidence?: (concept: string, details: string) => void;
+  onEmpiricalEvidence?: (evidence: EmpiricalSimulationEvidence) => void;
 }
 
-export const DensityMassLab: React.FC<DensityMassLabProps> = ({ onMasteryEvidence }) => {
+export const DensityMassLab: React.FC<DensityMassLabProps> = ({
+  onMasteryEvidence,
+  onEmpiricalEvidence,
+}) => {
+  const telemetry = useLabTelemetry('density_mass');
+
   const [selectedBlockId, setSelectedBlockId] = useState<string>('giant-sponge');
   const [testedInWater, setTestedInWater] = useState<Record<string, boolean>>({});
   const [activeTab, setActiveTab] = useState<'tank' | 'scale' | 'microscope'>('tank');
+
+  // Predict-before-reveal state: child must guess before dropping
+  const [predictedBehavior, setPredictedBehavior] = useState<'floats' | 'sinks' | null>(null);
+  const [droppedInTank, setDroppedInTank] = useState<boolean>(false);
+  const [feedback, setFeedback] = useState<{ ok: boolean; message: string } | null>(null);
 
   const selectedBlock = EXPERIMENT_BLOCKS.find((b) => b.id === selectedBlockId) || EXPERIMENT_BLOCKS[0];
 
@@ -86,27 +102,65 @@ export const DensityMassLab: React.FC<DensityMassLabProps> = ({ onMasteryEvidenc
   const density = selectedBlock.mass / selectedBlock.volume;
   const waterDensity = 1.0; // g/cm³
 
-  // Floating behavior:
-  // density < 1.0 => Floats (percentage submerged = density * 100%)
-  // density === 1.0 => Neutral
-  // density > 1.0 => Sinks to bottom
+  // Floating physics:
   const floats = density < waterDensity;
   const submergedPercent = Math.min(100, Math.max(10, density * 100));
 
-  const handleDropIntoWater = (blockId: string) => {
+  const handleSelectBlock = (blockId: string) => {
     setSelectedBlockId(blockId);
-    setTestedInWater((prev) => {
-      const updated = { ...prev, [blockId]: true };
-      const testedCount = Object.keys(updated).length;
+    setDroppedInTank(false);
+    setPredictedBehavior(null);
+    setFeedback(null);
+    telemetry.recordParameterChange('selectedBlockId', blockId);
+  };
 
-      if (testedCount >= 3 && onMasteryEvidence) {
+  const handlePredictBehavior = (choice: 'floats' | 'sinks') => {
+    setPredictedBehavior(choice);
+    telemetry.recordParameterChange('predictedBehavior', choice);
+  };
+
+  const handleDropAndVerify = () => {
+    if (!predictedBehavior) return;
+
+    const actualFloats = density < waterDensity;
+    const isCorrect = (predictedBehavior === 'floats') === actualFloats;
+    const distance = isCorrect ? 0 : Math.min(1.0, Math.abs(density - waterDensity) / waterDensity);
+
+    telemetry.recordVerificationAttempt(isCorrect, distance);
+    setDroppedInTank(true);
+
+    const updatedTested = { ...testedInWater, [selectedBlock.id]: true };
+    setTestedInWater(updatedTested);
+
+    if (isCorrect) {
+      setFeedback({
+        ok: true,
+        message: `Prediksi Tepat! ${selectedBlock.name} (${density.toFixed(2)} g/cm³) ${
+          actualFloats ? 'terapung karena kerapatannya < 1.00 g/cm³' : 'tenggelam karena kerapatannya > 1.00 g/cm³'
+        }.`,
+      });
+    } else {
+      setFeedback({
+        ok: false,
+        message: `Ternyata berbeda! Walau ${selectedBlock.textureLabel}, kerapatannya adalah ${density.toFixed(2)} g/cm³ (air = 1.00 g/cm³). Maka benda ini ${
+          actualFloats ? 'terapung' : 'tenggelam'
+        }.`,
+      });
+    }
+
+    const testedCount = Object.keys(updatedTested).length;
+    if (testedCount >= 3) {
+      const session = telemetry.finalizeSession();
+      const evidence = deriveEmpiricalEvidenceFromTelemetry(session);
+      if (onEmpiricalEvidence) onEmpiricalEvidence(evidence);
+
+      if (onMasteryEvidence) {
         onMasteryEvidence(
           'Kerapatan Massa & Volume Fluida',
-          `Anak menguji ${testedCount} benda nyata (Spons, Besi, Kayu, Lilin) dan membuktikan secara empiris bahwa rasio massa/volume (kerapatan), bukan ukuran semata, yang menentukan terapung vs tenggelam.`
+          `Anak menguji ${testedCount} benda uji dengan prediksi kausal terverifikasi (Akurasi: ${(evidence.accuracyScore * 100).toFixed(0)}%, Presisi: ${(evidence.manipulationPrecision * 100).toFixed(0)}%).`
         );
       }
-      return updated;
-    });
+    }
   };
 
   return (
@@ -182,26 +236,36 @@ export const DensityMassLab: React.FC<DensityMassLabProps> = ({ onMasteryEvidenc
                 {/* Water Surface Wave Line */}
                 <div className="absolute top-8 left-0 right-0 h-1 bg-cyan-400/80 shadow-md shadow-cyan-400" />
                 <span className="absolute top-2 right-3 text-[10px] font-mono text-cyan-400">
-                  Permukaan Air
+                  Permukaan Air (ρ = 1.00 g/cm³)
                 </span>
 
                 {/* Submerged / Floating Object Display */}
-                <div
-                  className="w-full flex justify-center transition-all duration-700 ease-out"
-                  style={{
-                    transform: floats
-                      ? `translateY(-${Math.max(10, 110 - submergedPercent)}px)`
-                      : 'translateY(-10px)',
-                  }}
-                >
-                  <div className={`p-3 rounded-xl border ${selectedBlock.color} ${selectedBlock.border} shadow-2xl flex flex-col items-center max-w-[180px] text-center bg-slate-900/90`}>
-                    <span className="text-3xl">{selectedBlock.emoji}</span>
-                    <strong className="text-xs text-white mt-1">{selectedBlock.name}</strong>
-                    <span className="text-[10px] font-mono mt-0.5">
-                      ρ = {density.toFixed(2)} g/cm³
-                    </span>
+                {droppedInTank ? (
+                  <div
+                    className="w-full flex justify-center transition-all duration-700 ease-out"
+                    style={{
+                      transform: floats
+                        ? `translateY(-${Math.max(10, 110 - submergedPercent)}px)`
+                        : 'translateY(-10px)',
+                    }}
+                  >
+                    <div className={`p-3 rounded-xl border ${selectedBlock.color} ${selectedBlock.border} shadow-2xl flex flex-col items-center max-w-[180px] text-center bg-slate-900/90 animate-fade-in`}>
+                      <span className="text-3xl">{selectedBlock.emoji}</span>
+                      <strong className="text-xs text-white mt-1">{selectedBlock.name}</strong>
+                      <span className="text-[10px] font-mono mt-0.5">
+                        ρ = {density.toFixed(2)} g/cm³
+                      </span>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="absolute top-1 left-0 right-0 flex justify-center">
+                    <div className={`p-2 rounded-lg border ${selectedBlock.color} ${selectedBlock.border} bg-slate-950/90 flex items-center gap-2 shadow-lg`}>
+                      <span className="text-xl">{selectedBlock.emoji}</span>
+                      <span className="text-xs text-white font-bold">{selectedBlock.name}</span>
+                      <span className="text-[10px] text-amber-300 font-mono">[Di Meja]</span>
+                    </div>
+                  </div>
+                )}
 
                 {/* Tank Bottom Sediment */}
                 <div className="h-4 bg-slate-900/80 border-t border-cyan-800/40 flex items-center justify-center">
@@ -209,17 +273,88 @@ export const DensityMassLab: React.FC<DensityMassLabProps> = ({ onMasteryEvidenc
                 </div>
               </div>
 
-              <div className="text-[11px] text-slate-400 text-center">
-                {floats ? (
-                  <span className="text-emerald-300 font-medium">
-                    ✓ Karena kerapatan benda ({density.toFixed(2)}) &lt; kerapatan air (1.00), gaya apung air mampu menahan benda terapung!
-                  </span>
-                ) : (
-                  <span className="text-amber-300 font-medium">
-                    ⚠️ Karena kerapatan benda ({density.toFixed(2)}) &gt; kerapatan air (1.00), tarikan gravitasi mengalahkan gaya apung air, sehingga benda tenggelam!
-                  </span>
-                )}
-              </div>
+              {/* Predict-Before-Reveal Step */}
+              {!droppedInTank ? (
+                <div className="w-full max-w-md p-3 rounded-xl bg-slate-950 border border-indigo-500/40 space-y-2.5">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-bold text-indigo-300 flex items-center gap-1.5">
+                      <HelpCircle className="w-3.5 h-3.5" />
+                      <span>Prediksi Kausal Sebelum Dicelupkan:</span>
+                    </span>
+                    <span className="font-mono text-[11px] text-slate-400">
+                      Massa: {selectedBlock.mass}g | Vol: {selectedBlock.volume}cm³
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <button
+                      id="predict-floats-btn"
+                      type="button"
+                      onClick={() => handlePredictBehavior('floats')}
+                      className={`py-2 px-3 rounded-lg border font-semibold flex items-center justify-center gap-1.5 transition ${
+                        predictedBehavior === 'floats'
+                          ? 'bg-emerald-600 border-emerald-400 text-white shadow'
+                          : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                      }`}
+                    >
+                      <span>Akan Terapung</span>
+                    </button>
+                    <button
+                      id="predict-sinks-btn"
+                      type="button"
+                      onClick={() => handlePredictBehavior('sinks')}
+                      className={`py-2 px-3 rounded-lg border font-semibold flex items-center justify-center gap-1.5 transition ${
+                        predictedBehavior === 'sinks'
+                          ? 'bg-rose-600 border-rose-400 text-white shadow'
+                          : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                      }`}
+                    >
+                      <span>Akan Tenggelam</span>
+                    </button>
+                  </div>
+
+                  <button
+                    id="drop-into-water-btn"
+                    type="button"
+                    onClick={handleDropAndVerify}
+                    disabled={!predictedBehavior}
+                    className="w-full py-2 bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-bold text-xs rounded-lg transition disabled:opacity-40 flex items-center justify-center gap-2"
+                  >
+                    <span>Celupkan ke Air & Uji Prediksi</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="w-full max-w-md space-y-2">
+                  {feedback && (
+                    <div
+                      className={`p-3 rounded-xl border text-xs flex items-start gap-2 animate-fade-in ${
+                        feedback.ok
+                          ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-200'
+                          : 'bg-amber-950/40 border-amber-500/50 text-amber-200'
+                      }`}
+                    >
+                      {feedback.ok ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                      )}
+                      <span>{feedback.message}</span>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => {
+                      setDroppedInTank(false);
+                      setPredictedBehavior(null);
+                      setFeedback(null);
+                    }}
+                    className="w-full py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-semibold rounded-lg transition"
+                  >
+                    Uji Ulang / Angkat Objek
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -312,7 +447,9 @@ export const DensityMassLab: React.FC<DensityMassLabProps> = ({ onMasteryEvidenc
               return (
                 <button
                   key={block.id}
-                  onClick={() => handleDropIntoWater(block.id)}
+                  id={`select-block-${block.id}`}
+                  type="button"
+                  onClick={() => handleSelectBlock(block.id)}
                   className={`w-full p-3 rounded-xl border text-left transition flex items-center justify-between ${
                     isSelected
                       ? 'bg-slate-900 border-cyan-400 ring-1 ring-cyan-500/30'
@@ -326,7 +463,7 @@ export const DensityMassLab: React.FC<DensityMassLabProps> = ({ onMasteryEvidenc
                         <span>{block.name}</span>
                         {hasTested && (
                           <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-700">
-                            Diuji
+                            Terverifikasi
                           </span>
                         )}
                       </h5>
@@ -337,12 +474,20 @@ export const DensityMassLab: React.FC<DensityMassLabProps> = ({ onMasteryEvidenc
                   </div>
 
                   <div className="text-right font-mono text-xs">
-                    <span className={`font-bold block ${bDensity < 1 ? 'text-emerald-300' : 'text-amber-300'}`}>
-                      {bDensity < 1 ? 'Terapung' : 'Tenggelam'}
-                    </span>
-                    <span className="text-[10px] text-slate-400">
-                      {bDensity.toFixed(2)} g/cm³
-                    </span>
+                    {hasTested ? (
+                      <>
+                        <span className={`font-bold block ${bDensity < 1 ? 'text-emerald-300' : 'text-amber-300'}`}>
+                          {bDensity < 1 ? 'Terapung' : 'Tenggelam'}
+                        </span>
+                        <span className="text-[10px] text-slate-400">
+                          {bDensity.toFixed(2)} g/cm³
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-[11px] text-slate-500 italic block">
+                        ? Belum Diuji
+                      </span>
+                    )}
                   </div>
                 </button>
               );

@@ -9,13 +9,24 @@ import {
   HelpCircle,
   Play,
   FastForward,
+  Activity,
+  AlertCircle,
 } from 'lucide-react';
+import { useLabTelemetry } from '../../engine/useLabTelemetry';
+import { deriveEmpiricalEvidenceFromTelemetry } from '../../engine/empiricalEvidenceDerivation';
+import { EmpiricalSimulationEvidence } from '../../engine/evidenceTriangulation';
 
 interface BinarySearchComplexityLabProps {
   onMasteryEvidence?: (concept: string, details: string) => void;
+  onEmpiricalEvidence?: (evidence: EmpiricalSimulationEvidence) => void;
 }
 
-export const BinarySearchComplexityLab: React.FC<BinarySearchComplexityLabProps> = ({ onMasteryEvidence }) => {
+export const BinarySearchComplexityLab: React.FC<BinarySearchComplexityLabProps> = ({
+  onMasteryEvidence,
+  onEmpiricalEvidence,
+}) => {
+  const telemetry = useLabTelemetry('binary_search');
+
   const [targetNumber, setTargetNumber] = useState<number>(73);
   const [arraySize] = useState<number>(100);
 
@@ -26,10 +37,12 @@ export const BinarySearchComplexityLab: React.FC<BinarySearchComplexityLabProps>
   // Binary search state
   const [binaryLow, setBinaryLow] = useState<number>(1);
   const [binaryHigh, setBinaryHigh] = useState<number>(100);
-  const [binaryMid, setBinaryMid] = useState<number>(50);
   const [binaryStepCount, setBinaryStepCount] = useState<number>(0);
   const [binaryHistory, setBinaryHistory] = useState<{ step: number; low: number; mid: number; high: number; result: string }[]>([]);
   const [binaryFound, setBinaryFound] = useState<boolean>(false);
+  const [feedback, setFeedback] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const currentMid = Math.floor((binaryLow + binaryHigh) / 2);
 
   const resetSearches = (newTarget?: number) => {
     const t = newTarget !== undefined ? newTarget : targetNumber;
@@ -38,17 +51,39 @@ export const BinarySearchComplexityLab: React.FC<BinarySearchComplexityLabProps>
     setLinearFound(false);
     setBinaryLow(1);
     setBinaryHigh(100);
-    setBinaryMid(50);
     setBinaryStepCount(0);
     setBinaryHistory([]);
     setBinaryFound(false);
+    setFeedback(null);
+    telemetry.recordParameterChange('resetTarget', t);
   };
 
-  const handleStepBinarySearch = () => {
+  const handleDecision = (userChoice: 'cut_left' | 'match' | 'cut_right') => {
     if (binaryFound || binaryLow > binaryHigh) return;
 
-    const mid = Math.floor((binaryLow + binaryHigh) / 2);
-    setBinaryMid(mid);
+    const mid = currentMid;
+    const expectedChoice: 'cut_left' | 'match' | 'cut_right' =
+      targetNumber < mid ? 'cut_right' : targetNumber === mid ? 'match' : 'cut_left';
+
+    const isCorrect = userChoice === expectedChoice;
+    const distance = isCorrect ? 0 : 0.5;
+
+    telemetry.recordVerificationAttempt(isCorrect, distance);
+
+    if (!isCorrect) {
+      let explanation = '';
+      if (expectedChoice === 'cut_right') {
+        explanation = `Target (${targetNumber}) < Mid (${mid}). Seharusnya kamu memangkas separuh kanan [${mid}..${binaryHigh}]!`;
+      } else if (expectedChoice === 'cut_left') {
+        explanation = `Target (${targetNumber}) > Mid (${mid}). Seharusnya kamu memangkas separuh kiri [${binaryLow}..${mid}]!`;
+      } else {
+        explanation = `Target (${targetNumber}) persis sama dengan Mid (${mid})!`;
+      }
+      setFeedback({ ok: false, message: `Keputusan Kurang Tepat: ${explanation}` });
+      return;
+    }
+
+    // Correct decision made!
     const newStepCount = binaryStepCount + 1;
     setBinaryStepCount(newStepCount);
 
@@ -56,23 +91,40 @@ export const BinarySearchComplexityLab: React.FC<BinarySearchComplexityLabProps>
     let nextLow = binaryLow;
     let nextHigh = binaryHigh;
 
-    if (mid === targetNumber) {
+    if (expectedChoice === 'match') {
       result = 'Cocok! Target Ditemukan';
       setBinaryFound(true);
+      setFeedback({
+        ok: true,
+        message: `Target ${targetNumber} ditemukan sempurna di langkah ke-${newStepCount}!`,
+      });
+
+      const session = telemetry.finalizeSession();
+      const evidence = deriveEmpiricalEvidenceFromTelemetry(session);
+      if (onEmpiricalEvidence) onEmpiricalEvidence(evidence);
+
       if (onMasteryEvidence) {
         onMasteryEvidence(
           'Pencarian Biner & Kompleksitas Algoritma',
-          `Anak membuktikan keunggulan O(log N): Target ${targetNumber} ditemukan hanya dalam ${newStepCount} langkah biner berbanding ${targetNumber} langkah linier.`
+          `Anak memandu eliminasi biner mandiri: Target ${targetNumber} ditemukan dalam ${newStepCount} langkah biner terverifikasi (Akurasi: ${(evidence.accuracyScore * 100).toFixed(0)}%, Presisi: ${(evidence.manipulationPrecision * 100).toFixed(0)}%).`
         );
       }
-    } else if (mid < targetNumber) {
-      result = `${mid} < Target (Pangkas 50% Sisi Kiri: 1 s/d ${mid})`;
+    } else if (expectedChoice === 'cut_left') {
+      result = `${mid} < Target (Pangkas Kiri: ${binaryLow} s/d ${mid})`;
       nextLow = mid + 1;
       setBinaryLow(nextLow);
+      setFeedback({
+        ok: true,
+        message: `Tepat! Karena ${targetNumber} > ${mid}, kita buang 50% ruang kiri [${binaryLow}..${mid}].`,
+      });
     } else {
-      result = `${mid} > Target (Pangkas 50% Sisi Kanan: ${mid} s/d 100)`;
+      result = `${mid} > Target (Pangkas Kanan: ${mid} s/d ${binaryHigh})`;
       nextHigh = mid - 1;
       setBinaryHigh(nextHigh);
+      setFeedback({
+        ok: true,
+        message: `Tepat! Karena ${targetNumber} < ${mid}, kita buang 50% ruang kanan [${mid}..${binaryHigh}].`,
+      });
     }
 
     setBinaryHistory((prev) => [
@@ -97,7 +149,6 @@ export const BinarySearchComplexityLab: React.FC<BinarySearchComplexityLabProps>
       const m = Math.floor((l + r) / 2);
       if (m === targetNumber) {
         hist.push({ step: steps, low: l, mid: m, high: r, result: 'Cocok! Target Ditemukan' });
-        setBinaryMid(m);
         setBinaryFound(true);
         break;
       } else if (m < targetNumber) {
@@ -251,7 +302,7 @@ export const BinarySearchComplexityLab: React.FC<BinarySearchComplexityLabProps>
             <div className="flex justify-between text-xs">
               <span className="text-slate-400">Rentang Aktif Saat Ini:</span>
               <span className="font-mono text-cyan-300 font-bold">
-                [{binaryLow} s/d {binaryHigh}] ➔ Titik Tengah: {binaryMid}
+                [{binaryLow} s/d {binaryHigh}] ➔ Titik Tengah: {currentMid}
               </span>
             </div>
             <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800 relative">
@@ -265,23 +316,72 @@ export const BinarySearchComplexityLab: React.FC<BinarySearchComplexityLabProps>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={handleStepBinarySearch}
-              disabled={binaryFound}
-              className="py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-semibold shadow transition flex items-center justify-center gap-1.5"
+          {/* Interactive Divide-and-Conquer Decision Controls */}
+          {!binaryFound ? (
+            <div className="p-3 bg-slate-950/80 rounded-xl border border-emerald-500/30 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-emerald-300 font-bold">
+                  Bandingkan: Target ({targetNumber}) vs Mid ({currentMid})
+                </span>
+                <span className="text-[10px] text-slate-400 font-mono">Pilih Aksi Eliminasi:</span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-1.5 text-[11px]">
+                <button
+                  id="decision-cut-left-btn"
+                  type="button"
+                  onClick={() => handleDecision('cut_left')}
+                  className="py-2 px-1.5 bg-slate-900 hover:bg-emerald-950/80 border border-slate-700 hover:border-emerald-500 rounded-lg text-slate-200 text-center transition font-medium"
+                >
+                  <span className="block font-bold text-cyan-300">Pangkas Kiri</span>
+                  <span className="text-[9px] text-slate-400">Target &gt; Mid</span>
+                </button>
+
+                <button
+                  id="decision-match-btn"
+                  type="button"
+                  onClick={() => handleDecision('match')}
+                  className="py-2 px-1.5 bg-emerald-950/60 hover:bg-emerald-900/80 border border-emerald-500/50 rounded-lg text-emerald-200 text-center transition font-bold"
+                >
+                  <span className="block">Cocok!</span>
+                  <span className="text-[9px] text-emerald-300">Target == Mid</span>
+                </button>
+
+                <button
+                  id="decision-cut-right-btn"
+                  type="button"
+                  onClick={() => handleDecision('cut_right')}
+                  className="py-2 px-1.5 bg-slate-900 hover:bg-emerald-950/80 border border-slate-700 hover:border-emerald-500 rounded-lg text-slate-200 text-center transition font-medium"
+                >
+                  <span className="block font-bold text-cyan-300">Pangkas Kanan</span>
+                  <span className="text-[9px] text-slate-400">Target &lt; Mid</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="p-3 bg-emerald-950/40 border border-emerald-500/40 rounded-xl text-emerald-200 text-xs flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>Target {targetNumber} berhasil ditemukan dalam {binaryStepCount} langkah terverifikasi!</span>
+            </div>
+          )}
+
+          {/* Diagnostic Feedback */}
+          {feedback && (
+            <div
+              className={`p-2.5 rounded-lg border text-xs flex items-start gap-2 animate-fade-in ${
+                feedback.ok
+                  ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200'
+                  : 'bg-rose-950/40 border-rose-500/40 text-rose-200'
+              }`}
             >
-              <Play className="w-3.5 h-3.5" />
-              <span>Belah Titik Tengah</span>
-            </button>
-            <button
-              onClick={handleAutoRunAll}
-              className="py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition flex items-center justify-center gap-1.5"
-            >
-              <FastForward className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Bandingkan Seketika</span>
-            </button>
-          </div>
+              {feedback.ok ? (
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+              ) : (
+                <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0 mt-0.5" />
+              )}
+              <span>{feedback.message}</span>
+            </div>
+          )}
         </div>
       </div>
 

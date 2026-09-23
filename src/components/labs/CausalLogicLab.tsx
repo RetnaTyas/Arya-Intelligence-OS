@@ -38,12 +38,31 @@ export const CausalLogicLab: React.FC<CausalLogicLabProps> = ({
   const [termB2, setTermB2] = useState<number>(5); // 7 + 5 = 12
   const [termC1, setTermC1] = useState<number>(3);
   const [termC2, setTermC2] = useState<number>(4); // multiplier or 3 * 4 = 12
+  const [transitiveFeedback, setTransitiveFeedback] = useState<{ ok: boolean; message: string } | null>(null);
   
   // Symmetry demo
   const [flippedSymmetry, setFlippedSymmetry] = useState<boolean>(false);
 
+  // Helper for generating dynamic transfer test instances (v2 architecture)
+  const generateRandomPair = () => {
+    const a = Math.floor(Math.random() * 8) + 2; // 2..9
+    const b = Math.floor(Math.random() * 8) + 2; // 2..9
+    return { a, b, sum: a + b };
+  };
+
+  // Transfer test states for Symmetric mode
+  const [transferPair, setTransferPair] = useState(() => generateRandomPair());
+  const [transferAnswer, setTransferAnswer] = useState<number | ''>('');
+  const [transferChecked, setTransferChecked] = useState<boolean>(false);
+  const [transferFeedback, setTransferFeedback] = useState<{ ok: boolean; message: string } | null>(null);
+
   // Invariant transformation operator
   const [invariantOp, setInvariantOp] = useState<number>(0); // e.g. +3 on both sides
+
+  // Predict-before-reveal states for Invariant mode
+  const [predictedResult, setPredictedResult] = useState<number | ''>('');
+  const [hasPredicted, setHasPredicted] = useState<boolean>(false);
+  const [predictionFeedback, setPredictionFeedback] = useState<{ ok: boolean; message: string } | null>(null);
 
   const [hasVerifiedTransitive, setHasVerifiedTransitive] = useState<boolean>(false);
   const [hasVerifiedSymmetric, setHasVerifiedSymmetric] = useState<boolean>(false);
@@ -66,47 +85,101 @@ export const CausalLogicLab: React.FC<CausalLogicLabProps> = ({
 
     if (isCorrect) {
       setHasVerifiedTransitive(true);
-      const session = telemetry.getCurrentSession();
+      setTransitiveFeedback({
+        ok: true,
+        message: `Rantai transitif terbukti valid! Wadah A (${weightA}) = Wadah B (${weightB}) = Wadah C (${weightC}). Maka A = C mutlak!`,
+      });
+      const session = telemetry.finalizeSession();
       const evidence = deriveEmpiricalEvidenceFromTelemetry(session);
       if (onEmpiricalEvidence) onEmpiricalEvidence(evidence);
 
       onMasteryEvidence(
-        `Membuktikan sifat transitif relasional kesetaraan: Karena Wadah A (nilai ${weightA}) identik dengan Wadah B (${termB1} + ${termB2}), dan Wadah B identik dengan Wadah C (${termC1} × ${termC2}), maka secara mutlak Wadah A identik dengan Wadah C tanpa kalkulasi ulang.`
+        `Membuktikan sifat transitif relasional kesetaraan: Karena Wadah A (nilai ${weightA}) identik dengan Wadah B (${termB1} + ${termB2}), dan Wadah B identik dengan Wadah C (${termC1} × ${termC2}), maka secara mutlak Wadah A identik dengan Wadah C tanpa kalkulasi ulang (Akurasi: ${(evidence.accuracyScore * 100).toFixed(0)}%, Presisi: ${(evidence.manipulationPrecision * 100).toFixed(0)}%).`
       );
+    } else {
+      setTransitiveFeedback({
+        ok: false,
+        message: `Rantai kesetaraan belum terhubung sempurna. Pastikan A = B (${weightA} vs ${weightB}) DAN B = C (${weightB} vs ${weightC}) sebelum menyimpulkan A = C.`,
+      });
     }
   };
 
   const handleFlipSymmetry = () => {
-    setFlippedSymmetry((prev) => !prev);
-    telemetry.recordVerificationAttempt(true, 0);
+    const nextFlipped = !flippedSymmetry;
+    setFlippedSymmetry(nextFlipped);
+    // Demonstrasi murni — TIDAK lagi dicatat sebagai verification_attempt.
+    // Dicatat sebagai parameter_change untuk analisis keterlibatan eksplorasi:
+    telemetry.recordParameterChange('symmetry_flip_toggle', nextFlipped);
+  };
 
-    if (!hasVerifiedSymmetric) {
+  const handleCheckTransfer = () => {
+    if (transferAnswer === '') return;
+    const isCorrect = Number(transferAnswer) === transferPair.sum;
+    const distance = Math.min(
+      1,
+      Math.abs(Number(transferAnswer) - transferPair.sum) / Math.max(1, transferPair.sum)
+    );
+    telemetry.recordVerificationAttempt(isCorrect, distance);
+    setTransferChecked(true);
+
+    if (isCorrect) {
       setHasVerifiedSymmetric(true);
-      const session = telemetry.getCurrentSession();
+      setTransferFeedback({
+        ok: true,
+        message: `Tepat sekali! Membalik posisi ruas (${transferPair.sum} = ${transferPair.a} + ${transferPair.b}) mempertahankan kesetaraan secara absolut.`,
+      });
+      const session = telemetry.finalizeSession();
       const evidence = deriveEmpiricalEvidenceFromTelemetry(session);
       if (onEmpiricalEvidence) onEmpiricalEvidence(evidence);
-
       onMasteryEvidence(
-        'Memverifikasi sifat simetris kesetaraan: Membalik posisi ruas (A = B menjadi B = A) mempertahankan nilai kebenaran logika secara absolut.'
+        `Memverifikasi transfer sifat simetri pada kasus baru (${transferPair.a} + ${transferPair.b} = ${transferPair.sum}) tanpa dituntun contoh sebelumnya (Akurasi: ${(evidence.accuracyScore * 100).toFixed(0)}%, Presisi: ${(evidence.manipulationPrecision * 100).toFixed(0)}%).`
       );
+    } else {
+      setTransferFeedback({
+        ok: false,
+        message: `Jawabanmu ${transferAnswer} belum setara dengan ${transferPair.a} + ${transferPair.b} (${transferPair.sum}). Diberikan ronde baru dengan angka berbeda!`,
+      });
+      // Beri ronde baru dengan angka berbeda supaya tidak bisa dihafal
+      setTransferPair(generateRandomPair());
+      setTransferAnswer('');
     }
   };
 
   const handleApplyInvariant = (delta: number) => {
     const nextVal = invariantOp + delta;
     setInvariantOp(nextVal);
+    setHasPredicted(false); // wajib prediksi ulang sebelum hasil baru terungkap
+    setPredictionFeedback(null);
     telemetry.recordParameterChange('invariantOp', nextVal);
-    telemetry.recordVerificationAttempt(true, 0);
+  };
 
-    if (!hasVerifiedInvariant && nextVal !== 0) {
+  const handleCheckPrediction = () => {
+    if (predictedResult === '') return;
+    const actual = 8 + invariantOp;
+    const error = Math.abs(Number(predictedResult) - actual);
+    const distance = Math.min(1, error / Math.max(1, Math.abs(actual)));
+    const isCorrect = Number(predictedResult) === actual;
+
+    telemetry.recordVerificationAttempt(isCorrect, distance);
+    setHasPredicted(true);
+
+    if (isCorrect) {
       setHasVerifiedInvariant(true);
-      const session = telemetry.getCurrentSession();
+      setPredictionFeedback({
+        ok: true,
+        message: `Luar biasa! Prediksimu (${predictedResult}) terbukti persis sama dengan hasil neraca (${actual}).`,
+      });
+      const session = telemetry.finalizeSession();
       const evidence = deriveEmpiricalEvidenceFromTelemetry(session);
       if (onEmpiricalEvidence) onEmpiricalEvidence(evidence);
-
       onMasteryEvidence(
-        `Membuktikan invarian kesetaraan: Menambahkan operasi identik (${nextVal > 0 ? `+${nextVal}` : nextVal}) di kedua ruas mempertahankan keseimbangan neraca secara simultan.`
+        `Membuktikan invarian kesetaraan dengan memprediksi hasil (${actual}) sebelum sistem menampilkannya (Akurasi: ${(evidence.accuracyScore * 100).toFixed(0)}%, Presisi: ${(evidence.manipulationPrecision * 100).toFixed(0)}%).`
       );
+    } else {
+      setPredictionFeedback({
+        ok: false,
+        message: `Prediksimu ${predictedResult} belum tepat. Perhatikan operasi di kedua ruas: 8 ${invariantOp >= 0 ? `+ ${invariantOp}` : `- ${Math.abs(invariantOp)}`} = ${actual}.`,
+      });
     }
   };
 
@@ -253,7 +326,7 @@ export const CausalLogicLab: React.FC<CausalLogicLabProps> = ({
             </div>
 
             {/* Logical Deduction Box */}
-            <div className="p-3.5 bg-slate-950 rounded-xl border border-slate-800 text-xs flex items-center justify-between">
+            <div className="p-3.5 bg-slate-950 rounded-xl border border-slate-800 text-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
               <div>
                 <span className="text-slate-400 block text-[10px] uppercase font-mono">Kesimpulan Logika:</span>
                 <span className="font-mono text-cyan-300 font-bold">
@@ -261,13 +334,31 @@ export const CausalLogicLab: React.FC<CausalLogicLabProps> = ({
                 </span>
               </div>
               <button
+                id="test-transitive-btn"
                 onClick={handleTestTransitive}
-                disabled={!isABEqual || !isBCEqual}
-                className="px-4 py-2 bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-semibold rounded-lg shadow transition disabled:opacity-40"
+                className="w-full md:w-auto px-4 py-2 bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-semibold rounded-lg shadow transition active:scale-95"
               >
-                Kirim Bukti Penalaran
+                Uji Rantai Kesetaraan
               </button>
             </div>
+
+            {/* Transitive Feedback */}
+            {transitiveFeedback && (
+              <div
+                className={`p-3 rounded-xl border text-xs flex items-start gap-2 animate-fade-in ${
+                  transitiveFeedback.ok
+                    ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-200'
+                    : 'bg-rose-950/40 border-rose-500/50 text-rose-200'
+                }`}
+              >
+                {transitiveFeedback.ok ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                ) : (
+                  <Activity className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                )}
+                <span>{transitiveFeedback.message}</span>
+              </div>
+            )}
           </div>
 
           {/* Controls for Adjusting Terms */}
@@ -288,7 +379,11 @@ export const CausalLogicLab: React.FC<CausalLogicLabProps> = ({
                   min="6"
                   max="24"
                   value={weightA}
-                  onChange={(e) => setWeightA(parseInt(e.target.value))}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    setWeightA(val);
+                    telemetry.recordParameterChange('weightA', val);
+                  }}
                   className="w-full accent-cyan-400"
                 />
               </div>
@@ -304,7 +399,11 @@ export const CausalLogicLab: React.FC<CausalLogicLabProps> = ({
                     min="1"
                     max="15"
                     value={termB1}
-                    onChange={(e) => setTermB1(parseInt(e.target.value))}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value);
+                      setTermB1(val);
+                      telemetry.recordParameterChange('termB1', val);
+                    }}
                     className="w-full accent-indigo-400"
                   />
                   <input
@@ -312,7 +411,11 @@ export const CausalLogicLab: React.FC<CausalLogicLabProps> = ({
                     min="1"
                     max="15"
                     value={termB2}
-                    onChange={(e) => setTermB2(parseInt(e.target.value))}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value);
+                      setTermB2(val);
+                      telemetry.recordParameterChange('termB2', val);
+                    }}
                     className="w-full accent-indigo-400"
                   />
                 </div>
@@ -329,7 +432,11 @@ export const CausalLogicLab: React.FC<CausalLogicLabProps> = ({
                     min="1"
                     max="8"
                     value={termC1}
-                    onChange={(e) => setTermC1(parseInt(e.target.value))}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value);
+                      setTermC1(val);
+                      telemetry.recordParameterChange('termC1', val);
+                    }}
                     className="w-full accent-purple-400"
                   />
                   <input
@@ -337,7 +444,11 @@ export const CausalLogicLab: React.FC<CausalLogicLabProps> = ({
                     min="1"
                     max="8"
                     value={termC2}
-                    onChange={(e) => setTermC2(parseInt(e.target.value))}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value);
+                      setTermC2(val);
+                      telemetry.recordParameterChange('termC2', val);
+                    }}
                     className="w-full accent-purple-400"
                   />
                 </div>
@@ -347,7 +458,7 @@ export const CausalLogicLab: React.FC<CausalLogicLabProps> = ({
             {hasVerifiedTransitive && (
               <div className="p-3 bg-emerald-950/40 border border-emerald-500/40 rounded-xl text-emerald-200 text-xs flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Bukti Penalaran Tersimpan ke Evidence Log!</span>
+                <span>Bukti Penalaran Transitif Tersimpan ke Telemetri!</span>
               </div>
             )}
           </div>
@@ -364,6 +475,7 @@ export const CausalLogicLab: React.FC<CausalLogicLabProps> = ({
             </p>
           </div>
 
+          {/* Pure Visual Demonstration (Eksplorasi) */}
           <div className="flex flex-col md:flex-row items-center justify-center gap-6 py-6">
             <div className={`p-6 rounded-2xl border text-center transition-all min-w-[200px] ${
               flippedSymmetry ? 'bg-indigo-950/60 border-indigo-500/60' : 'bg-cyan-950/60 border-cyan-500/60'
@@ -377,6 +489,8 @@ export const CausalLogicLab: React.FC<CausalLogicLabProps> = ({
             <div className="flex flex-col items-center">
               <span className="text-2xl font-bold text-teal-400">=</span>
               <button
+                id="flip-symmetry-btn"
+                type="button"
                 onClick={handleFlipSymmetry}
                 className="mt-3 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition border border-slate-700 shadow"
               >
@@ -395,11 +509,64 @@ export const CausalLogicLab: React.FC<CausalLogicLabProps> = ({
             </div>
           </div>
 
-          <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 max-w-xl mx-auto text-xs text-center space-y-1">
-            <strong className="text-emerald-300 block">Status Kebenaran Proposisi:</strong>
+          <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 max-w-xl mx-auto text-xs text-center">
             <span className="text-slate-300">
-              Kedua pernyataan sama-sama bernilai <strong className="text-emerald-400 font-mono">BENAR (TRUE)</strong>. Hubungan relasional tidak terpengaruh oleh orientasi spasial kiri atau kanan.
+              Demonstrasi: Hubungan relasional tidak terpengaruh oleh orientasi spasial kiri atau kanan.
             </span>
+          </div>
+
+          {/* Genuine Transfer Test (Layer 5 Verify: Instance Baru yang Bisa Salah) */}
+          <div className="max-w-xl mx-auto p-5 bg-indigo-950/30 border border-indigo-500/40 rounded-2xl space-y-3.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-indigo-400" />
+                <h5 className="text-xs font-bold text-white uppercase tracking-wider">
+                  Uji Transfer Simetri (Kasus Baru Tanpa Panduan)
+                </h5>
+              </div>
+              <span className="text-[11px] font-mono text-cyan-300">Ronde Acak</span>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Jika diketahui <span className="font-mono text-amber-300 font-bold">{transferPair.a} + {transferPair.b} = {transferPair.sum}</span>, berapa nilai ruas kanan jika posisinya dibalik menjadi <span className="font-mono text-cyan-300 font-bold">{transferPair.sum} = ?</span>
+            </p>
+
+            <div className="flex items-center gap-2">
+              <input
+                id="transfer-answer-input"
+                type="number"
+                placeholder="Tulis nilainya..."
+                value={transferAnswer}
+                onChange={(e) => setTransferAnswer(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
+                className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs font-mono font-bold text-white focus:outline-none focus:border-indigo-400"
+              />
+              <button
+                id="check-transfer-btn"
+                type="button"
+                onClick={handleCheckTransfer}
+                disabled={transferAnswer === ''}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-lg transition disabled:opacity-40"
+              >
+                Cek Jawaban
+              </button>
+            </div>
+
+            {transferFeedback && (
+              <div
+                className={`p-3 rounded-xl border text-xs flex items-start gap-2 animate-fade-in ${
+                  transferFeedback.ok
+                    ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-200'
+                    : 'bg-rose-950/40 border-rose-500/50 text-rose-200'
+                }`}
+              >
+                {transferFeedback.ok ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                ) : (
+                  <Activity className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                )}
+                <span>{transferFeedback.message}</span>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -410,49 +577,117 @@ export const CausalLogicLab: React.FC<CausalLogicLabProps> = ({
           <div className="max-w-xl mx-auto text-center space-y-2">
             <h4 className="text-base font-bold text-white">Invariansi Kesetaraan terhadap Operasi Bersama</h4>
             <p className="text-xs text-slate-300">
-              Jika sebuah persamaan ditransformasikan dengan menambahkan, mengurangkan, atau mengalikan kuantitas yang sama persis di kedua sisi, nilai kebenarannya tidak pernah berubah.
+              Jika sebuah persamaan ditransformasikan dengan menambahkan atau mengurangkan kuantitas yang sama persis di kedua sisi, nilai kebenarannya tidak pernah berubah.
             </p>
           </div>
 
-          {/* Interactive Balance Simulation */}
-          <div className="max-w-2xl mx-auto p-6 bg-slate-950 rounded-2xl border border-slate-800 space-y-4">
+          {/* Interactive Balance Simulation (Predict-Before-Reveal) */}
+          <div className="max-w-2xl mx-auto p-6 bg-slate-950 rounded-2xl border border-slate-800 space-y-5">
             <div className="flex justify-between items-center text-xs font-mono">
               <div className="p-3 bg-slate-900 rounded-lg border border-slate-800 text-center flex-1 mr-2">
                 <span className="text-slate-400 block text-[10px]">Ruas Kiri:</span>
-                <span className="text-xl font-bold text-cyan-300 font-mono">
-                  8 {invariantOp !== 0 && (invariantOp > 0 ? `+ ${invariantOp}` : `- ${Math.abs(invariantOp)}`)} = {8 + invariantOp}
-                </span>
+                <div className="text-base font-bold text-cyan-300 font-mono mt-1">
+                  8 {invariantOp !== 0 && (invariantOp > 0 ? `+ ${invariantOp}` : `- ${Math.abs(invariantOp)}`)} ={' '}
+                  {hasPredicted ? (
+                    <span className="text-emerald-300">{8 + invariantOp}</span>
+                  ) : (
+                    <span className="text-amber-300 italic text-xs">[Terkunci: Prediksi Dulu]</span>
+                  )}
+                </div>
               </div>
 
               <span className="text-xl font-bold text-teal-400 px-3">=</span>
 
               <div className="p-3 bg-slate-900 rounded-lg border border-slate-800 text-center flex-1 ml-2">
                 <span className="text-slate-400 block text-[10px]">Ruas Kanan:</span>
-                <span className="text-xl font-bold text-indigo-300 font-mono">
-                  (5 + 3) {invariantOp !== 0 && (invariantOp > 0 ? `+ ${invariantOp}` : `- ${Math.abs(invariantOp)}`)} = {8 + invariantOp}
-                </span>
+                <div className="text-base font-bold text-indigo-300 font-mono mt-1">
+                  (5 + 3) {invariantOp !== 0 && (invariantOp > 0 ? `+ ${invariantOp}` : `- ${Math.abs(invariantOp)}`)} ={' '}
+                  {hasPredicted ? (
+                    <span className="text-emerald-300">{8 + invariantOp}</span>
+                  ) : (
+                    <span className="text-amber-300 italic text-xs">[Terkunci: Prediksi Dulu]</span>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-center gap-2 pt-2">
+            {/* Invariant Operation Exploratory Controls */}
+            <div className="flex items-center justify-center gap-2 pt-1">
               <button
+                id="invariant-minus-2-btn"
+                type="button"
                 onClick={() => handleApplyInvariant(-2)}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 text-xs font-mono"
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 text-xs font-mono transition"
               >
                 Kurangi 2 dari Kedua Sisi
               </button>
               <button
-                onClick={() => setInvariantOp(0)}
-                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded text-slate-400 text-xs font-mono"
+                id="invariant-reset-btn"
+                type="button"
+                onClick={() => handleApplyInvariant(-invariantOp)}
+                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded text-slate-400 text-xs font-mono transition"
               >
                 Reset (0)
               </button>
               <button
+                id="invariant-plus-5-btn"
+                type="button"
                 onClick={() => handleApplyInvariant(5)}
-                className="px-3 py-1.5 bg-cyan-900/60 hover:bg-cyan-800/60 border border-cyan-500/40 rounded text-cyan-200 text-xs font-mono font-bold"
+                className="px-3 py-1.5 bg-cyan-900/60 hover:bg-cyan-800/60 border border-cyan-500/40 rounded text-cyan-200 text-xs font-mono font-bold transition"
               >
                 Tambah 5 ke Kedua Sisi
               </button>
+            </div>
+
+            {/* Predict-Before-Reveal Verification Step */}
+            <div className="p-4 bg-indigo-950/30 border border-indigo-500/30 rounded-xl space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-indigo-200">
+                  Uji Prediksi Kausal (Predict-Before-Reveal):
+                </span>
+                <span className="text-[11px] font-mono text-slate-400">
+                  Operasi aktif: {invariantOp >= 0 ? `+${invariantOp}` : invariantOp}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-300">
+                Sebelum sistem membuka hasil timbangan, menurutmu berapa nilai akhir kedua ruas setelah operasi ini?
+              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  id="predicted-result-input"
+                  type="number"
+                  placeholder="Hasil prediksimu..."
+                  value={predictedResult}
+                  onChange={(e) => setPredictedResult(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
+                  className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs font-mono font-bold text-white focus:outline-none focus:border-cyan-400"
+                />
+                <button
+                  id="check-prediction-btn"
+                  type="button"
+                  onClick={handleCheckPrediction}
+                  disabled={predictedResult === ''}
+                  className="px-4 py-2 bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-bold text-xs rounded-lg transition disabled:opacity-40"
+                >
+                  Cek Prediksi
+                </button>
+              </div>
+
+              {predictionFeedback && (
+                <div
+                  className={`p-3 rounded-xl border text-xs flex items-start gap-2 animate-fade-in ${
+                    predictionFeedback.ok
+                      ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-200'
+                      : 'bg-rose-950/40 border-rose-500/50 text-rose-200'
+                  }`}
+                >
+                  {predictionFeedback.ok ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  ) : (
+                    <Activity className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                  )}
+                  <span>{predictionFeedback.message}</span>
+                </div>
+              )}
             </div>
           </div>
         </div>

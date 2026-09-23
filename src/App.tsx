@@ -65,7 +65,94 @@ export default function App() {
   const [pendingEmpiricalEvidence, setPendingEmpiricalEvidence] = useState<Record<string, EmpiricalSimulationEvidence>>({});
 
   const handleEmpiricalEvidence = (simulationId: string, evidence: EmpiricalSimulationEvidence) => {
+    // 1. Store in pending map (available for multi-modal Feynman triangulation)
     setPendingEmpiricalEvidence((prev) => ({ ...prev, [simulationId]: evidence }));
+
+    // 2. Identify the target KnowledgeNode in the graph
+    const matchedNode =
+      knowledgeNodes.find((n) => n.activeSimulationId === simulationId || n.id.includes(simulationId)) ||
+      selectedNode;
+
+    if (!matchedNode) return;
+
+    // 3. Deterministic Mastery Calculation based on real empirical telemetry:
+    // - Accuracy score (0..1)
+    // - Manipulation precision (0..1)
+    // - Penalty if trial & error guesswork was detected
+    const discount = evidence.isTrialAndErrorGuesswork ? 0.5 : 1.0;
+    const accuracyGain = (evidence.accuracyScore * 0.18) * discount;
+    const precisionGain = (evidence.manipulationPrecision * 0.12) * discount;
+
+    const confidence: 'high' | 'medium' | 'low' =
+      evidence.accuracyScore >= 0.75 && !evidence.isTrialAndErrorGuesswork
+        ? 'high'
+        : evidence.accuracyScore >= 0.5
+        ? 'medium'
+        : 'low';
+
+    // 4. Update Learner State with deterministic mastery gating
+    setLearnerNodes((prev) => {
+      const current = prev[matchedNode.id] || {
+        nodeId: matchedNode.id,
+        mastery: {
+          recognition: 0.8,
+          recall: 0.7,
+          understanding: 0.7,
+          application: 0.6,
+          transfer: 0.5,
+          explanation: 0.5,
+          creation: 0.3,
+        },
+        decayRate: 0.02,
+        confidence: 'medium',
+        evidenceCount: 2,
+        lastInteracted: new Date().toISOString(),
+        activeMisconceptions: [],
+      };
+
+      const gatedMastery = applyMasteryGating(current.mastery, {
+        application: (current.mastery.application || 0.5) + accuracyGain,
+        transfer: (current.mastery.transfer || 0.4) + precisionGain,
+        understanding: (current.mastery.understanding || 0.6) + (accuracyGain * 0.8),
+      });
+
+      return {
+        ...prev,
+        [matchedNode.id]: {
+          ...current,
+          mastery: gatedMastery,
+          confidence,
+          evidenceCount: (current.evidenceCount ?? 0) + 1,
+          lastInteracted: new Date().toISOString(),
+        },
+      };
+    });
+
+    // 5. Append to immutable Evidence Log
+    const newEntry: EvidenceEntry = {
+      id: `ev-emp-${simulationId}-${Date.now()}`,
+      timestamp: new Date().toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' }),
+      conceptId: matchedNode.id,
+      conceptName: matchedNode.name,
+      actions: [
+        {
+          actionType: 'solve_challenge',
+          description: `Telemetri Empiris Lab: ${evidence.trialCount} kali uji coba, Akurasi: ${(evidence.accuracyScore * 100).toFixed(0)}%, Presisi: ${(evidence.manipulationPrecision * 100).toFixed(0)}%. ${
+            evidence.isTrialAndErrorGuesswork
+              ? 'Terdeteksi pola tebak-acak (penalti diterapkan pada akselerasi mastery).'
+              : 'Eksplorasi sistematis terverifikasi.'
+          }`,
+          timestamp: new Date().toISOString(),
+        },
+      ],
+      confidence,
+      retentionStatus: 'verified_transfer',
+      notes: `Bukti empiris langsung dari interaksi anak pada simulasi ${simulationId}.`,
+    };
+
+    setEvidenceLogs((prev) => [newEntry, ...prev]);
+    setKnowledgeStability((prev) => Math.min(99, prev + 1));
+    showToast(`✓ Telemetri Empiris ${matchedNode.name}: Akurasi ${(evidence.accuracyScore * 100).toFixed(0)}% terintegrasi ke State Anak!`);
   };
 
   // IndexedDB Storage & Quota State

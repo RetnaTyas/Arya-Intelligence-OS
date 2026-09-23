@@ -775,6 +775,7 @@ export const LabHub: React.FC<LabHubProps> = ({
         {activeLabId === 'density_mass' && (
           <DensityMassLab
             onMasteryEvidence={(concept, details) => onMasteryEvidence(concept, details)}
+            onEmpiricalEvidence={(ev) => onEmpiricalEvidence?.('density_mass', ev)}
           />
         )}
 
@@ -820,6 +821,7 @@ export const LabHub: React.FC<LabHubProps> = ({
         {activeLabId === 'binary_search_complexity' && (
           <BinarySearchComplexityLab
             onMasteryEvidence={(concept, details) => onMasteryEvidence(concept, details)}
+            onEmpiricalEvidence={(ev) => onEmpiricalEvidence?.('binary_search', ev)}
           />
         )}
       </div>
