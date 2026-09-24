@@ -27,6 +27,7 @@ import {
   RecommendedExperience,
 } from '../engine/deterministicCore';
 import { CentralHypothesisTestHarness } from './CentralHypothesisTestHarness';
+import { EpistemicAutomatedTester } from './EpistemicAutomatedTester';
 import { NARROW_DOMAIN_MATH_NODES } from '../data/narrowMathDomain';
 import { ParentCalibrationSettings } from '../engine/evidenceTriangulation';
 
@@ -38,6 +39,8 @@ interface DeterministicCoreInspectorProps {
   onUpdateParentCalibration?: (settings: ParentCalibrationSettings) => void;
   onSelectNode: (nodeId: string) => void;
   onLaunchSimulation: (simulationId: string) => void;
+  onNavigateToStealthProject?: (labId: string) => void;
+  onApplyStealthResolution?: (nodeId: string) => void;
 }
 
 export const DeterministicCoreInspector: React.FC<DeterministicCoreInspectorProps> = ({
@@ -48,10 +51,12 @@ export const DeterministicCoreInspector: React.FC<DeterministicCoreInspectorProp
   onUpdateParentCalibration,
   onSelectNode,
   onLaunchSimulation,
+  onNavigateToStealthProject,
+  onApplyStealthResolution,
 }) => {
   const [selectedNodeId, setSelectedNodeId] = useState<string>('node-symbolic-algebra');
   const [simulatedDaysElapsed, setSimulatedDaysElapsed] = useState<number>(28);
-  const [activeEngineTab, setActiveEngineTab] = useState<'queue' | 'prereq' | 'decay' | 'debt' | 'benchmark' | 'narrow_domain'>('benchmark');
+  const [activeEngineTab, setActiveEngineTab] = useState<'queue' | 'prereq' | 'decay' | 'debt' | 'benchmark' | 'narrow_domain' | 'automated_tester'>('automated_tester');
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId) || nodes[0];
   const selectedState = learnerNodes[selectedNode.id];
@@ -97,6 +102,18 @@ export const DeterministicCoreInspector: React.FC<DeterministicCoreInspectorProp
 
           {/* Sub-Tab Navigation */}
           <div className="flex flex-wrap gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800 self-start md:self-auto">
+            <button
+              id="engine-tab-automated-tester"
+              onClick={() => setActiveEngineTab('automated_tester')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1.5 ${
+                activeEngineTab === 'automated_tester'
+                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold shadow'
+                  : 'text-emerald-300 hover:text-white'
+              }`}
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Tester Khusus & Aksi Otomatis (17 Kasus)</span>
+            </button>
             <button
               id="engine-tab-benchmark"
               onClick={() => setActiveEngineTab('benchmark')}
@@ -164,6 +181,16 @@ export const DeterministicCoreInspector: React.FC<DeterministicCoreInspectorProp
           </div>
         </div>
       </div>
+
+      {/* Tab Tester Khusus Epistemik & Aksi Otomatis (17 Kasus) */}
+      {activeEngineTab === 'automated_tester' && (
+        <EpistemicAutomatedTester
+          nodes={nodes}
+          learnerNodes={learnerNodes}
+          onNavigateToStealthProject={onNavigateToStealthProject}
+          onApplyStealthResolution={onApplyStealthResolution}
+        />
+      )}
 
       {/* Tab Tahap 2: Central Hypothesis Test Harness & Perturbation Layer 0-2 */}
       {activeEngineTab === 'benchmark' && (

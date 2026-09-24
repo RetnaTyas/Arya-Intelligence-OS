@@ -765,6 +765,7 @@ export default function App() {
                   setChildTab('graph');
                 }}
                 onEmpiricalEvidence={handleEmpiricalEvidence}
+                criticalDebt={criticalDebt}
               />
             )}
 
@@ -851,6 +852,14 @@ export default function App() {
                   setCurrentView('child');
                   setChildTab('labs');
                   setActiveLabId(simId as any);
+                }}
+                onNavigateToStealthProject={(labId) => {
+                  setCurrentView('child');
+                  setChildTab('labs');
+                  setActiveLabId(labId as any);
+                }}
+                onApplyStealthResolution={() => {
+                  handleStealthRemediationResolved();
                 }}
               />
             ) : (

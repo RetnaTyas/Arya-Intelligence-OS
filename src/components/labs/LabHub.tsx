@@ -86,6 +86,7 @@ interface LabHubProps {
   onFeynmanDiagnosed?: (result: FeynmanDiagnosisResult, explanation: string) => void;
   onNavigateToGraph?: (nodeId: string) => void;
   onEmpiricalEvidence?: (simulationId: string, evidence: EmpiricalSimulationEvidence) => void;
+  criticalDebt?: 'LOW' | 'MEDIUM' | 'HIGH';
 }
 
 export const LabHub: React.FC<LabHubProps> = ({
@@ -96,6 +97,7 @@ export const LabHub: React.FC<LabHubProps> = ({
   onFeynmanDiagnosed,
   onNavigateToGraph,
   onEmpiricalEvidence,
+  criticalDebt = 'LOW',
 }) => {
   const [selectedDomain, setSelectedDomain] = useState<DomainFilter>('Semua');
   const [selectedAge, setSelectedAge] = useState<AgeFilter>('Semua');
@@ -526,6 +528,37 @@ export const LabHub: React.FC<LabHubProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* Automated Stealth Repair Dispatch Alert (Tahap 4 Kontrak Peta Jalan) */}
+      {criticalDebt === 'HIGH' && activeLabId !== 'submarine_project' && (
+        <div className="bg-gradient-to-r from-amber-950/60 via-slate-900 to-amber-950/40 border border-amber-500/50 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg animate-fade-in">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0">
+              <Compass className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded bg-amber-500/30 text-amber-200 border border-amber-500/40">
+                  ⚡ Aksi Otomatis Sistem
+                </span>
+                <span className="text-xs font-bold text-white">
+                  Pengalihan Proyek Rekayasa (Stealth Insertion)
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 mt-1">
+                Terdeteksi peluruhan memori pada konsep prasyarat aljabar & keseimbangan. Sistem deterministik secara otomatis menyisipkan tantangan lapangan tanpa remedial terpisah.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => onSelectLab('submarine_project')}
+            className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md flex items-center justify-center gap-2 shrink-0 transition"
+          >
+            <span>Buka Misi Kapal Selam Nautica</span>
+            <Sparkles className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Domain & Age Navigation Filter Bar */}
       <div className="bg-[#0c101c] p-4 rounded-2xl border border-slate-800 space-y-3.5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">

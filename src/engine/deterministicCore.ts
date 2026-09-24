@@ -361,3 +361,110 @@ export function selectNextBestExperience(
   // Sort descending by deterministic priority score
   return recommendations.sort((a, b) => b.priorityScore - a.priorityScore);
 }
+
+// 7. Automated Stealth Repair Loop Dispatcher & Resolution (Tahap 4 Kontrak Peta Jalan)
+export interface AutomatedStealthRepairAction {
+  actionRequired: boolean;
+  targetNodeId: string | null;
+  targetNodeName: string | null;
+  domain: string | null;
+  decayRate: number;
+  debtRiskScore: number;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH';
+  targetLabId: string;
+  simulationId?: string;
+  rationale: string;
+  pedagogicalDirectives: {
+    stealthContext: string;
+    targetVariables: string[];
+    successCriteria: string;
+  };
+}
+
+export function getAutomatedStealthRepairAction(
+  nodes: KnowledgeNode[],
+  learnerStates: Record<string, LearnerNodeState>
+): AutomatedStealthRepairAction {
+  let worstBottleneck: {
+    node: KnowledgeNode;
+    state: LearnerNodeState;
+    debt: EpistemicDebtAssessment;
+  } | null = null;
+
+  for (const node of nodes) {
+    const state = learnerStates[node.id];
+    if (!state) continue;
+    const debt = calculateDeterministicEpistemicDebt(node, state);
+    if (debt.isBottleneck || debt.severity === 'HIGH' || debt.recommendedAction === 'STEALTH_INSERTION') {
+      if (!worstBottleneck || debt.debtRiskScore > worstBottleneck.debt.debtRiskScore) {
+        worstBottleneck = { node, state, debt };
+      }
+    }
+  }
+
+  if (!worstBottleneck) {
+    return {
+      actionRequired: false,
+      targetNodeId: null,
+      targetNodeName: null,
+      domain: null,
+      decayRate: 0,
+      debtRiskScore: 0,
+      severity: 'LOW',
+      targetLabId: 'buoyancy',
+      rationale: 'Kondisi epistemik stabil. Tidak ada akumulasi utang epistemik kritis yang memicu intervensi stealth.',
+      pedagogicalDirectives: {
+        stealthContext: 'Eksplorasi Normal',
+        targetVariables: [],
+        successCriteria: 'Standar penguasaan berlanjut.',
+      },
+    };
+  }
+
+  const { node, state, debt } = worstBottleneck;
+  let targetLabId = 'submarine_project';
+  if (node.id === 'node-symbolic-algebra' || node.domain === 'Matematika') {
+    targetLabId = 'submarine_project';
+  } else if (node.domain === 'Komputasi') {
+    targetLabId = 'computational_algorithm';
+  } else if (node.domain === 'Logika & Kausal') {
+    targetLabId = 'causal_logic';
+  }
+
+  return {
+    actionRequired: true,
+    targetNodeId: node.id,
+    targetNodeName: node.name,
+    domain: node.domain,
+    decayRate: state.decayRate ?? 0,
+    debtRiskScore: debt.debtRiskScore,
+    severity: debt.severity,
+    targetLabId,
+    simulationId: node.activeSimulationId || 'sim-submarine-ballast',
+    rationale: `Deteksi Utang Epistemik Kritis: Konsep "${node.name}" mengalami peluruhan ${(state.decayRate * 100).toFixed(0)}% dengan centrality tinggi (${node.centrality}). Sistem deterministik secara otomatis memicu pengalihan aksi stealth insertion tanpa label remedial terpisah.`,
+    pedagogicalDirectives: {
+      stealthContext: 'Misi Rekayasa Lapangan Nautica: Kontrol Kerapatan Tangki Ballast',
+      targetVariables: ['Massa Balast (W_ballast)', 'Gaya Apung Netral (F_b)', 'Persamaan Keseimbangan Dua Sisi'],
+      successCriteria: 'Pencapaian melayang netral di kedalaman 100m membuktikan rekonsolidasi transfer aljabar dan konsep gaya tanpa stres evaluasi.',
+    },
+  };
+}
+
+export function applyStealthRepairResolution(
+  currentState: LearnerNodeState
+): LearnerNodeState {
+  return {
+    ...currentState,
+    decayRate: 0.0,
+    isBottleneck: false,
+    mastery: {
+      ...currentState.mastery,
+      application: Math.max(currentState.mastery.application, 0.88),
+      transfer: Math.max(currentState.mastery.transfer, 0.85),
+      understanding: Math.max(currentState.mastery.understanding, 0.85),
+    },
+    evidenceCount: (currentState.evidenceCount ?? 0) + 1,
+    lastInteracted: new Date().toISOString(),
+  };
+}
+
