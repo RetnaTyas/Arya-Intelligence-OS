@@ -10,6 +10,7 @@ import {
   Zap,
   Layers,
 } from 'lucide-react';
+import { playChime, playTick } from '../../engine/labMotionFX';
 
 interface EnergyConservationLabProps {
   onMasteryEvidence: (details: string) => void;
@@ -85,12 +86,14 @@ export const EnergyConservationLab: React.FC<EnergyConservationLabProps> = ({ on
 
   const handleVerifyConservation = () => {
     setHasRecordedEvidence(true);
+    playChime(true);
     onMasteryEvidence(
       `Membuktikan Hukum Kekekalan Energi Mekanik: Di setiap titik lintasan (posisi ${trackPosition.toFixed(0)}%), jumlah total energi (Potensial ${Math.round(currentPotentialEnergy)} J + Kinetik ${Math.round(currentKineticEnergy)} J + Termal/Gesek ${Math.round(frictionLoss)} J) bernilai persis konstan sebesar ${Math.round(initialPotentialEnergy)} J, membuktikan bahwa energi bertransformasi tanpa pernah musnah.`
     );
   };
 
   const handleReset = () => {
+    playTick();
     setIsPlaying(false);
     setTrackPosition(0);
   };
@@ -258,7 +261,10 @@ export const EnergyConservationLab: React.FC<EnergyConservationLabProps> = ({ on
           {/* Action buttons */}
           <div className="flex gap-2">
             <button
-              onClick={() => setIsPlaying(!isPlaying)}
+              onClick={() => {
+                playTick();
+                setIsPlaying(!isPlaying);
+              }}
               className={`flex-1 py-2.5 px-4 rounded-lg font-semibold text-xs flex items-center justify-center gap-2 transition ${
                 isPlaying
                   ? 'bg-amber-600 hover:bg-amber-500 text-white'
@@ -295,7 +301,10 @@ export const EnergyConservationLab: React.FC<EnergyConservationLabProps> = ({ on
                 min="10"
                 max="25"
                 value={initialHeight}
-                onChange={(e) => setInitialHeight(parseInt(e.target.value))}
+                onChange={(e) => {
+                  playTick();
+                  setInitialHeight(parseInt(e.target.value));
+                }}
                 disabled={isPlaying}
                 className="w-full accent-emerald-400"
               />
@@ -312,7 +321,10 @@ export const EnergyConservationLab: React.FC<EnergyConservationLabProps> = ({ on
                 max="500"
                 step="25"
                 value={cartMass}
-                onChange={(e) => setCartMass(parseInt(e.target.value))}
+                onChange={(e) => {
+                  playTick();
+                  setCartMass(parseInt(e.target.value));
+                }}
                 disabled={isPlaying}
                 className="w-full accent-cyan-400"
               />
@@ -325,7 +337,10 @@ export const EnergyConservationLab: React.FC<EnergyConservationLabProps> = ({ on
                 <span className="text-[10px] text-slate-400">Konversi ke energi panas termal</span>
               </div>
               <button
-                onClick={() => setHasFriction(!hasFriction)}
+                onClick={() => {
+                  playTick();
+                  setHasFriction(!hasFriction);
+                }}
                 className={`px-3 py-1 rounded text-xs font-semibold transition ${
                   hasFriction
                     ? 'bg-amber-500 text-slate-950 font-bold'
@@ -348,6 +363,7 @@ export const EnergyConservationLab: React.FC<EnergyConservationLabProps> = ({ on
                 max="100"
                 value={trackPosition}
                 onChange={(e) => {
+                  playTick();
                   setIsPlaying(false);
                   setTrackPosition(parseInt(e.target.value));
                 }}

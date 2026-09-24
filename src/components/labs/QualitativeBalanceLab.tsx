@@ -10,6 +10,7 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react';
+import { useSpringValue, playChime, playTick } from '../../engine/labMotionFX';
 
 interface ItemType {
   id: string;
@@ -43,7 +44,12 @@ export const QualitativeBalanceLab: React.FC<QualitativeBalanceLabProps> = ({ on
 
   // Tilt angle calculation: -15 to +15 degrees
   const weightDiff = rightWeight - leftWeight;
-  const tiltDeg = Math.max(-14, Math.min(14, weightDiff * 3.5));
+  const targetTiltDeg = Math.max(-14, Math.min(14, weightDiff * 3.5));
+
+  const { value: springTilt, kick: kickTilt } = useSpringValue(targetTiltDeg, {
+    stiffness: 90,
+    damping: 9,
+  });
 
   const challenges = [
     {
@@ -72,6 +78,8 @@ export const QualitativeBalanceLab: React.FC<QualitativeBalanceLabProps> = ({ on
   ];
 
   const handleAddItem = (pan: 'left' | 'right', item: ItemType) => {
+    playTick();
+    kickTilt(pan === 'left' ? -7 : 7);
     if (pan === 'left') {
       if (leftPan.length >= 6) return;
       setLeftPan([...leftPan, item]);
@@ -83,6 +91,8 @@ export const QualitativeBalanceLab: React.FC<QualitativeBalanceLabProps> = ({ on
   };
 
   const handleRemoveItem = (pan: 'left' | 'right', index: number) => {
+    playTick();
+    kickTilt(pan === 'left' ? 5 : -5);
     if (pan === 'left') {
       const next = [...leftPan];
       next.splice(index, 1);
@@ -117,6 +127,7 @@ export const QualitativeBalanceLab: React.FC<QualitativeBalanceLabProps> = ({ on
 
     if (satisfied && !challengeResolved) {
       setChallengeResolved(true);
+      playChime(true);
       if (onMasteryEvidence) {
         onMasteryEvidence(
           'Timbangan Kualitatif & Perbandingan Berat',
@@ -127,6 +138,7 @@ export const QualitativeBalanceLab: React.FC<QualitativeBalanceLabProps> = ({ on
   };
 
   const handleReset = () => {
+    playTick();
     setLeftPan([]);
     setRightPan([]);
     setChallengeResolved(false);
@@ -229,20 +241,20 @@ export const QualitativeBalanceLab: React.FC<QualitativeBalanceLabProps> = ({ on
             <div className="absolute -top-[52px] -left-2 w-4 h-4 rounded-full bg-purple-400 shadow-md shadow-purple-500/50" />
           </div>
 
-          {/* Rotating Beam with dynamic tilt */}
+          {/* Rotating Beam with dynamic spring-damper tilt */}
           <div
-            className="w-full max-w-md h-3.5 bg-gradient-to-r from-slate-600 via-slate-400 to-slate-600 rounded-full absolute top-1 shadow-md transition-transform duration-500 ease-out origin-center flex justify-between items-center px-4"
-            style={{ transform: `rotate(${tiltDeg}deg)` }}
+            className="w-full max-w-md h-3.5 bg-gradient-to-r from-slate-600 via-slate-400 to-slate-600 rounded-full absolute top-1 shadow-md origin-center flex justify-between items-center px-4"
+            style={{ transform: `rotate(${springTilt}deg)` }}
           >
             {/* Center Axis Pin */}
             <div className="absolute left-1/2 -top-1.5 -translate-x-1/2 w-6 h-6 rounded-full bg-slate-900 border-2 border-purple-400 flex items-center justify-center">
               <div className="w-1.5 h-1.5 rounded-full bg-purple-300" />
             </div>
 
-            {/* Left Suspension Cable & Pan */}
+            {/* Left Suspension Cable & Pan (stays vertical under gravity) */}
             <div
-              className="absolute left-4 top-2 flex flex-col items-center origin-top transition-transform duration-500 ease-out"
-              style={{ transform: `rotate(${-tiltDeg}deg)` }}
+              className="absolute left-4 top-2 flex flex-col items-center origin-top"
+              style={{ transform: `rotate(${-springTilt}deg)` }}
             >
               {/* String */}
               <div className="w-0.5 h-14 bg-slate-500" />
@@ -270,10 +282,10 @@ export const QualitativeBalanceLab: React.FC<QualitativeBalanceLabProps> = ({ on
               </span>
             </div>
 
-            {/* Right Suspension Cable & Pan */}
+            {/* Right Suspension Cable & Pan (stays vertical under gravity) */}
             <div
-              className="absolute right-4 top-2 flex flex-col items-center origin-top transition-transform duration-500 ease-out"
-              style={{ transform: `rotate(${-tiltDeg}deg)` }}
+              className="absolute right-4 top-2 flex flex-col items-center origin-top"
+              style={{ transform: `rotate(${-springTilt}deg)` }}
             >
               {/* String */}
               <div className="w-0.5 h-14 bg-slate-500" />

@@ -16,6 +16,8 @@ import {
 import { useLabTelemetry } from '../../engine/useLabTelemetry';
 import { deriveEmpiricalEvidenceFromTelemetry } from '../../engine/empiricalEvidenceDerivation';
 import { EmpiricalSimulationEvidence } from '../../engine/evidenceTriangulation';
+import { useSpringValue, playSplash, playChime, playTick } from '../../engine/labMotionFX';
+import { WaterSurfaceFX } from './WaterSurfaceFX';
 
 interface MaterialBlock {
   id: string;
@@ -106,16 +108,35 @@ export const DensityMassLab: React.FC<DensityMassLabProps> = ({
   const floats = density < waterDensity;
   const submergedPercent = Math.min(100, Math.max(10, density * 100));
 
+  // Splash and spring physics
+  const [splashTrigger, setSplashTrigger] = useState(0);
+  const targetY = droppedInTank
+    ? (floats ? -Math.max(10, 110 - submergedPercent) : -10)
+    : -170;
+
+  const { value: springY, kick: kickY } = useSpringValue(targetY, {
+    stiffness: 85,
+    damping: floats ? 8 : 14,
+  });
+
+  const triggerSplash = () => {
+    setSplashTrigger((n) => n + 1);
+    kickY(floats ? 25 : 55);
+    playSplash();
+  };
+
   const handleSelectBlock = (blockId: string) => {
     setSelectedBlockId(blockId);
     setDroppedInTank(false);
     setPredictedBehavior(null);
     setFeedback(null);
+    playTick();
     telemetry.recordParameterChange('selectedBlockId', blockId);
   };
 
   const handlePredictBehavior = (choice: 'floats' | 'sinks') => {
     setPredictedBehavior(choice);
+    playTick();
     telemetry.recordParameterChange('predictedBehavior', choice);
   };
 
@@ -128,6 +149,8 @@ export const DensityMassLab: React.FC<DensityMassLabProps> = ({
 
     telemetry.recordVerificationAttempt(isCorrect, distance);
     setDroppedInTank(true);
+    triggerSplash();
+    playChime(isCorrect);
 
     const updatedTested = { ...testedInWater, [selectedBlock.id]: true };
     setTestedInWater(updatedTested);
@@ -188,7 +211,7 @@ export const DensityMassLab: React.FC<DensityMassLabProps> = ({
         {/* Mode Selector */}
         <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-800 self-start md:self-auto text-xs">
           <button
-            onClick={() => setActiveTab('tank')}
+            onClick={() => { playTick(); setActiveTab('tank'); }}
             className={`px-3 py-1.5 rounded-lg font-medium transition ${
               activeTab === 'tank' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
             }`}
@@ -196,7 +219,7 @@ export const DensityMassLab: React.FC<DensityMassLabProps> = ({
             Tangki Air Akuarium
           </button>
           <button
-            onClick={() => setActiveTab('scale')}
+            onClick={() => { playTick(); setActiveTab('scale'); }}
             className={`px-3 py-1.5 rounded-lg font-medium transition ${
               activeTab === 'scale' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
             }`}
@@ -204,7 +227,7 @@ export const DensityMassLab: React.FC<DensityMassLabProps> = ({
             Timbangan & Gelas Ukur
           </button>
           <button
-            onClick={() => setActiveTab('microscope')}
+            onClick={() => { playTick(); setActiveTab('microscope'); }}
             className={`px-3 py-1.5 rounded-lg font-medium transition ${
               activeTab === 'microscope' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
             }`}
@@ -232,24 +255,28 @@ export const DensityMassLab: React.FC<DensityMassLabProps> = ({
               </div>
 
               {/* Water Tank Box */}
-              <div className="w-full max-w-md h-56 bg-gradient-to-b from-cyan-950/40 via-cyan-900/30 to-blue-950/60 border-2 border-cyan-500/40 rounded-b-2xl relative my-3 overflow-hidden shadow-2xl flex flex-col justify-end">
-                {/* Water Surface Wave Line */}
-                <div className="absolute top-8 left-0 right-0 h-1 bg-cyan-400/80 shadow-md shadow-cyan-400" />
-                <span className="absolute top-2 right-3 text-[10px] font-mono text-cyan-400">
+              <div className="w-full max-w-md h-56 bg-slate-950/70 border-2 border-cyan-500/40 rounded-b-2xl relative my-3 overflow-hidden shadow-2xl flex flex-col justify-end">
+                {/* Real-time animated water surface with waves and ripples */}
+                <WaterSurfaceFX
+                  levelPercent={80}
+                  splashTrigger={splashTrigger}
+                  colorFrom="#0e7490"
+                  colorTo="#22d3ee"
+                />
+
+                <span className="absolute top-2 right-3 text-[10px] font-mono text-cyan-400 z-10">
                   Permukaan Air (ρ = 1.00 g/cm³)
                 </span>
 
-                {/* Submerged / Floating Object Display */}
+                {/* Submerged / Floating Object Display with Spring Damping Motion */}
                 {droppedInTank ? (
                   <div
-                    className="w-full flex justify-center transition-all duration-700 ease-out"
+                    className="w-full flex justify-center z-20 pointer-events-none"
                     style={{
-                      transform: floats
-                        ? `translateY(-${Math.max(10, 110 - submergedPercent)}px)`
-                        : 'translateY(-10px)',
+                      transform: `translateY(${springY}px)`,
                     }}
                   >
-                    <div className={`p-3 rounded-xl border ${selectedBlock.color} ${selectedBlock.border} shadow-2xl flex flex-col items-center max-w-[180px] text-center bg-slate-900/90 animate-fade-in`}>
+                    <div className={`p-3 rounded-xl border ${selectedBlock.color} ${selectedBlock.border} shadow-2xl flex flex-col items-center max-w-[180px] text-center bg-slate-900/90 pointer-events-auto`}>
                       <span className="text-3xl">{selectedBlock.emoji}</span>
                       <strong className="text-xs text-white mt-1">{selectedBlock.name}</strong>
                       <span className="text-[10px] font-mono mt-0.5">
@@ -258,7 +285,7 @@ export const DensityMassLab: React.FC<DensityMassLabProps> = ({
                     </div>
                   </div>
                 ) : (
-                  <div className="absolute top-1 left-0 right-0 flex justify-center">
+                  <div className="absolute top-1 left-0 right-0 flex justify-center z-20">
                     <div className={`p-2 rounded-lg border ${selectedBlock.color} ${selectedBlock.border} bg-slate-950/90 flex items-center gap-2 shadow-lg`}>
                       <span className="text-xl">{selectedBlock.emoji}</span>
                       <span className="text-xs text-white font-bold">{selectedBlock.name}</span>
@@ -268,7 +295,7 @@ export const DensityMassLab: React.FC<DensityMassLabProps> = ({
                 )}
 
                 {/* Tank Bottom Sediment */}
-                <div className="h-4 bg-slate-900/80 border-t border-cyan-800/40 flex items-center justify-center">
+                <div className="h-4 bg-slate-900/80 border-t border-cyan-800/40 flex items-center justify-center z-10">
                   <span className="text-[9px] text-slate-500 font-mono">Dasar Bejana Kaca</span>
                 </div>
               </div>

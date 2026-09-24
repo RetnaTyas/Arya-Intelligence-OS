@@ -15,6 +15,7 @@ import {
 import { useLabTelemetry } from '../../engine/useLabTelemetry';
 import { deriveEmpiricalEvidenceFromTelemetry } from '../../engine/empiricalEvidenceDerivation';
 import { EmpiricalSimulationEvidence } from '../../engine/evidenceTriangulation';
+import { playChime, playTick } from '../../engine/labMotionFX';
 
 interface BinarySearchComplexityLabProps {
   onMasteryEvidence?: (concept: string, details: string) => void;
@@ -45,6 +46,7 @@ export const BinarySearchComplexityLab: React.FC<BinarySearchComplexityLabProps>
   const currentMid = Math.floor((binaryLow + binaryHigh) / 2);
 
   const resetSearches = (newTarget?: number) => {
+    playTick();
     const t = newTarget !== undefined ? newTarget : targetNumber;
     setTargetNumber(t);
     setLinearStep(0);
@@ -71,6 +73,7 @@ export const BinarySearchComplexityLab: React.FC<BinarySearchComplexityLabProps>
     telemetry.recordVerificationAttempt(isCorrect, distance);
 
     if (!isCorrect) {
+      playChime(false);
       let explanation = '';
       if (expectedChoice === 'cut_right') {
         explanation = `Target (${targetNumber}) < Mid (${mid}). Seharusnya kamu memangkas separuh kanan [${mid}..${binaryHigh}]!`;
@@ -92,6 +95,7 @@ export const BinarySearchComplexityLab: React.FC<BinarySearchComplexityLabProps>
     let nextHigh = binaryHigh;
 
     if (expectedChoice === 'match') {
+      playChime(true);
       result = 'Cocok! Target Ditemukan';
       setBinaryFound(true);
       setFeedback({
@@ -110,6 +114,7 @@ export const BinarySearchComplexityLab: React.FC<BinarySearchComplexityLabProps>
         );
       }
     } else if (expectedChoice === 'cut_left') {
+      playTick();
       result = `${mid} < Target (Pangkas Kiri: ${binaryLow} s/d ${mid})`;
       nextLow = mid + 1;
       setBinaryLow(nextLow);
@@ -118,6 +123,7 @@ export const BinarySearchComplexityLab: React.FC<BinarySearchComplexityLabProps>
         message: `Tepat! Karena ${targetNumber} > ${mid}, kita buang 50% ruang kiri [${binaryLow}..${mid}].`,
       });
     } else {
+      playTick();
       result = `${mid} > Target (Pangkas Kanan: ${mid} s/d ${binaryHigh})`;
       nextHigh = mid - 1;
       setBinaryHigh(nextHigh);
@@ -134,6 +140,7 @@ export const BinarySearchComplexityLab: React.FC<BinarySearchComplexityLabProps>
   };
 
   const handleAutoRunAll = () => {
+    playChime(true);
     // Linear is guaranteed to take targetNumber steps
     setLinearStep(targetNumber);
     setLinearFound(true);
@@ -269,6 +276,7 @@ export const BinarySearchComplexityLab: React.FC<BinarySearchComplexityLabProps>
 
           <button
             onClick={() => {
+              playTick();
               if (linearStep < targetNumber) {
                 const next = linearStep + 1;
                 setLinearStep(next);

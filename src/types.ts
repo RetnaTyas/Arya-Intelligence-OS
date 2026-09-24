@@ -1,6 +1,56 @@
 export type ExplanationLevel = 'concrete' | 'visual' | 'symbolic' | 'formal';
 export type MasteryEvidenceType = 'solve' | 'explain' | 'predict' | 'transfer' | 'create';
 export type AgeBracket = '1-3' | '4-6' | '7-9' | '10-12';
+export type CognitiveTier = 'tier-1' | 'tier-2' | 'tier-3' | 'tier-4';
+
+export interface CognitiveTierMeta {
+  id: AgeBracket;
+  tier: CognitiveTier;
+  code: string;
+  name: string;
+  tagline: string;
+  description: string;
+  piagetStage: string;
+}
+
+export const COGNITIVE_TIERS: Record<AgeBracket, CognitiveTierMeta> = {
+  '1-3': {
+    id: '1-3',
+    tier: 'tier-1',
+    code: 'Tier I',
+    name: 'Sensori-Motorik & Enaktif',
+    tagline: 'Eksplorasi Kinestetik & Permanensi Objek',
+    description: 'Pemahaman fisik berakar dari tindakan sensorik langsung: sentuhan, hilangnya benda di balik layar, aksi-reaksi instan tanpa abstraksi simbolik.',
+    piagetStage: 'Sensori-Motorik (Enactive)',
+  },
+  '4-6': {
+    id: '4-6',
+    tier: 'tier-2',
+    code: 'Tier II',
+    name: 'Pra-Operasional & Ikonik',
+    tagline: 'Representasi Visual & Penalaran Spasial Intuitif',
+    description: 'Eksplorasi pola mental, perbandingan visual, dan analogi spasial konkret sebelum pengenalan rumus formal.',
+    piagetStage: 'Pra-Operasional (Iconic)',
+  },
+  '7-9': {
+    id: '7-9',
+    tier: 'tier-3',
+    code: 'Tier III',
+    name: 'Operasional Konkret',
+    tagline: 'Konservasi Invarian & Pemodelan Relasional',
+    description: 'Penalaran logis pada objek konkret: kekekalan volume, neraca seimbang, dan model batang relasional.',
+    piagetStage: 'Operasional Konkret (Relational)',
+  },
+  '10-12': {
+    id: '10-12',
+    tier: 'tier-4',
+    code: 'Tier IV',
+    name: 'Operasional Formal & Komputasional',
+    tagline: 'Penalaran Hipotesis-Deduktif & Algoritma',
+    description: 'Manipulasi variabel abstrak, kerapatan massa jenis hidrostatik, kekekalan energi mekanik, dan kompleksitas pencarian data.',
+    piagetStage: 'Operasional Formal (Formal-Abstract)',
+  },
+};
 
 export interface KnowledgeNode {
   id: string;

@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Compass, CheckCircle2, ShieldAlert, ArrowDown, Droplets, Gauge, Sparkles, Activity } from 'lucide-react';
+import { useSpringValue, playSplash, playChime, playTick } from '../../engine/labMotionFX';
+import { WaterSurfaceFX } from './WaterSurfaceFX';
 
 interface SubmarineProjectLabProps {
   onStealthResolved: () => void;
@@ -33,10 +35,26 @@ export const SubmarineProjectLab: React.FC<SubmarineProjectLabProps> = ({ onStea
     ? Math.min(200, targetDepth + Math.abs(netBuoyantDiff) * 0.15)
     : Math.max(0, targetDepth - netBuoyantDiff * 0.15);
 
+  const [splashTrigger, setSplashTrigger] = useState<number>(0);
+  const targetSubmarineTop = Math.min(85, Math.max(10, (calculatedDepth / 200) * 80 + 10));
+
+  const { value: submarineTop, kick: kickSub } = useSpringValue(targetSubmarineTop, {
+    stiffness: 45,
+    damping: 9,
+  });
+
+  const triggerSplash = () => {
+    setSplashTrigger((n) => n + 1);
+    kickSub(isTooHeavy ? 15 : isTooLight ? -15 : 6);
+    playSplash();
+  };
+
   const handleTestDive = () => {
     setIsDiving(true);
+    triggerSplash();
     setTimeout(() => {
       setIsDiving(false);
+      playChime(isNeutral);
       if (isNeutral) {
         setDiveCompleted(true);
         onStealthResolved();
@@ -82,18 +100,28 @@ export const SubmarineProjectLab: React.FC<SubmarineProjectLabProps> = ({ onStea
 
           {/* Ocean Water Column with Depth Gradients */}
           <div className="relative flex-1 ml-14 my-2 border border-slate-800/80 rounded-lg overflow-hidden bg-gradient-to-b from-sky-950/40 via-teal-950/60 to-slate-950 flex items-center justify-center">
+            {/* Real animated water surface waves at 0m */}
+            <div className="absolute top-0 inset-x-0 h-14 pointer-events-none z-10 overflow-hidden">
+              <WaterSurfaceFX
+                levelPercent={100}
+                splashTrigger={splashTrigger}
+                colorFrom="#0369a1"
+                colorTo="#38bdf8"
+              />
+            </div>
+
             {/* Target Depth Line Marker */}
-            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-0.5 border-b-2 border-dashed border-teal-400/50 flex justify-end pr-3">
+            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-0.5 border-b-2 border-dashed border-teal-400/50 flex justify-end pr-3 z-10">
               <span className="text-[10px] font-mono text-teal-300 bg-teal-950/80 px-1.5 py-0.5 rounded border border-teal-500/40">
                 Zona Netral 100m
               </span>
             </div>
 
-            {/* Submarine Sprite */}
+            {/* Submarine Sprite with Mass-Spring-Damper Physics */}
             <div
-              className="absolute left-1/2 -translate-x-1/2 transition-all duration-700 ease-out z-20 flex flex-col items-center"
+              className="absolute left-1/2 -translate-x-1/2 z-20 flex flex-col items-center pointer-events-none"
               style={{
-                top: `${Math.min(85, Math.max(10, (calculatedDepth / 200) * 80 + 10))}%`,
+                top: `${submarineTop}%`,
               }}
             >
               <div className="relative">
@@ -203,7 +231,10 @@ export const SubmarineProjectLab: React.FC<SubmarineProjectLabProps> = ({ onStea
                 max="800"
                 step="25"
                 value={ballastWaterVolume}
-                onChange={(e) => setBallastWaterVolume(parseInt(e.target.value))}
+                onChange={(e) => {
+                  playTick();
+                  setBallastWaterVolume(parseInt(e.target.value));
+                }}
                 className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-teal-400"
               />
               <div className="flex justify-between text-[10px] text-slate-500 font-mono mt-1">
@@ -216,19 +247,28 @@ export const SubmarineProjectLab: React.FC<SubmarineProjectLabProps> = ({ onStea
             {/* Quick Action buttons */}
             <div className="grid grid-cols-3 gap-2 text-xs font-mono">
               <button
-                onClick={() => setBallastWaterVolume(450)}
+                onClick={() => {
+                  playTick();
+                  setBallastWaterVolume(450);
+                }}
                 className="py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded text-slate-300 transition"
               >
                 450 m³
               </button>
               <button
-                onClick={() => setBallastWaterVolume(600)}
+                onClick={() => {
+                  playTick();
+                  setBallastWaterVolume(600);
+                }}
                 className="py-1.5 bg-teal-950/60 hover:bg-teal-900/60 border border-teal-500/40 rounded text-teal-200 font-bold transition"
               >
                 600 m³ (Pilihan Solusi)
               </button>
               <button
-                onClick={() => setBallastWaterVolume(750)}
+                onClick={() => {
+                  playTick();
+                  setBallastWaterVolume(750);
+                }}
                 className="py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded text-slate-300 transition"
               >
                 750 m³
