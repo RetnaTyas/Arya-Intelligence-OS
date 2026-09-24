@@ -619,7 +619,10 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
 
                         <div className="pt-2 border-t border-slate-800/80 space-y-1 text-[10px]">
                           <div className="text-slate-400">
-                            Target: <span className="text-slate-300">{selectedItem.perturbations.layer0.expectedHasMisconception ? 'Miskonsepsi' : 'Valid'} [{Math.round(selectedItem.perturbations.layer0.expectedScoreRange[0]*100)}-{Math.round(selectedItem.perturbations.layer0.expectedScoreRange[1]*100)}%]</span>
+                            Target: <span className="text-slate-300">
+                              {selectedItem.perturbations.layer0.expectedHasMisconception ? 'Miskonsepsi' : 'Valid'}
+                              {selectedItem.perturbations.layer0.expectedScoreRange ? ` [${Math.round(selectedItem.perturbations.layer0.expectedScoreRange[0]*100)}-${Math.round(selectedItem.perturbations.layer0.expectedScoreRange[1]*100)}%]` : ''}
+                            </span>
                           </div>
                           {selRes && (
                             <div className="text-slate-400">
@@ -656,7 +659,10 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
 
                         <div className="pt-2 border-t border-slate-800/80 space-y-1 text-[10px]">
                           <div className="text-slate-400">
-                            Target: <span className="text-slate-300">{selectedItem.perturbations.layer1.expectedHasMisconception ? 'Miskonsepsi' : 'Valid'} [{Math.round(selectedItem.perturbations.layer1.expectedScoreRange[0]*100)}-{Math.round(selectedItem.perturbations.layer1.expectedScoreRange[1]*100)}%]</span>
+                            Target: <span className="text-slate-300">
+                              {selectedItem.perturbations.layer1.expectedHasMisconception ? 'Miskonsepsi' : 'Valid'}
+                              {selectedItem.perturbations.layer1.expectedScoreRange ? ` [${Math.round(selectedItem.perturbations.layer1.expectedScoreRange[0]*100)}-${Math.round(selectedItem.perturbations.layer1.expectedScoreRange[1]*100)}%]` : ''}
+                            </span>
                           </div>
                           {selRes && (
                             <div className="text-slate-400">
@@ -698,7 +704,10 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
 
                         <div className="pt-2 border-t border-slate-800/80 space-y-1 text-[10px]">
                           <div className="text-slate-400">
-                            Target: <span className="text-slate-300">{selectedItem.perturbations.layer2.expectedHasMisconception ? 'Miskonsepsi' : 'Valid'} [{Math.round(selectedItem.perturbations.layer2.expectedScoreRange[0]*100)}-{Math.round(selectedItem.perturbations.layer2.expectedScoreRange[1]*100)}%]</span>
+                            Target: <span className="text-slate-300">
+                              {selectedItem.perturbations.layer2.expectedHasMisconception ? 'Miskonsepsi' : 'Valid'}
+                              {selectedItem.perturbations.layer2.expectedScoreRange ? ` [${Math.round(selectedItem.perturbations.layer2.expectedScoreRange[0]*100)}-${Math.round(selectedItem.perturbations.layer2.expectedScoreRange[1]*100)}%]` : ''}
+                            </span>
                           </div>
                           {selRes && (
                             <div className="text-slate-400">

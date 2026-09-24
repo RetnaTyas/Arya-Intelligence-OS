@@ -527,8 +527,15 @@ export function runAllEpistemicTests(): {
   return { total, passed, failed, results };
 }
 
-// Eksekusi jika dijalankan langsung via node / tsx
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Eksekusi jika dijalankan langsung via node / tsx di environment CLI
+const isNodeCLI =
+  typeof process !== 'undefined' &&
+  Boolean(process?.argv) &&
+  Array.isArray(process?.argv) &&
+  Boolean(process.argv[1]) &&
+  (import.meta.url === `file://${process.argv[1]}` || process.argv[1].endsWith('epistemic-os-tester.ts'));
+
+if (isNodeCLI) {
   console.log('\n=============================================================');
   console.log('  EPISTEMIC INTELLIGENCE OS - AUTOMATED SYSTEM TEST SUITE  ');
   console.log('=============================================================\n');
@@ -553,7 +560,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   console.log(`  HASIL AKHIR: ${outcome.passed} / ${outcome.total} Lolos (${((outcome.passed / outcome.total) * 100).toFixed(1)}%)`);
   if (outcome.failed > 0) {
     console.log(`  🔴 ${outcome.failed} PENGUJIAN GAGAL`);
-    process.exit(1);
+    if (typeof process !== 'undefined' && typeof process.exit === 'function') {
+      process.exit(1);
+    }
   } else {
     console.log('  🟢 SEMUA SISTEM VALID SECARA EMPIRIS & DETERMINISTIK');
     console.log('=============================================================\n');
