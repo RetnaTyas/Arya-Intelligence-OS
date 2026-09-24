@@ -38,11 +38,11 @@ export const KnowledgeGraphExplorer: React.FC<KnowledgeGraphExplorerProps> = ({
 
   const domains = ['all', 'Logika & Kausal', 'Matematika', 'Fisika', 'Komputasi'];
   const ageBrackets: { id: string; label: string }[] = [
-    { id: 'all', label: 'Semua Umur (1 - 12 Thn)' },
-    { id: '1-3', label: '1 - 3 Thn (Sensori)' },
-    { id: '4-6', label: '4 - 6 Thn (Pra-Operasional)' },
-    { id: '7-9', label: '7 - 9 Thn (Konkret)' },
-    { id: '10-12', label: '10 - 12 Thn (Transisi Formal)' },
+    { id: 'all', label: 'Semua Tahap (Tier I - IV)' },
+    { id: '1-3', label: 'Tier I: Sensori-Motorik' },
+    { id: '4-6', label: 'Tier II: Pra-Operasional' },
+    { id: '7-9', label: 'Tier III: Operasional Konkret' },
+    { id: '10-12', label: 'Tier IV: Operasional Formal' },
   ];
 
   const filteredNodes = nodes.filter((n) => {
@@ -105,10 +105,10 @@ export const KnowledgeGraphExplorer: React.FC<KnowledgeGraphExplorerProps> = ({
           <div>
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
               <Network className="w-5 h-5 text-indigo-400" />
-              <span>Dynamic Knowledge Graph (Umur 1 - 12 Tahun)</span>
+              <span>Dynamic Knowledge Graph (Spektrum Kognitif Bebas Umur)</span>
             </h2>
             <p className="text-xs text-slate-400 mt-1">
-              Prinsip Desain #3 & #4: <em>Struktur materi merentang dari Sensori-Motorik (1-3 thn), Pra-Operasional (4-6 thn), Operasional Konkret (7-9 thn), hingga Transisi Formal (10-12 thn).</em>
+              Prinsip Epistemik Piaget & Bruner: <em>Kematangan materi merentang bebas dari Tier I (Sensori-Motorik), Tier II (Pra-Operasional/Ikonik), Tier III (Operasional Konkret), hingga Tier IV (Operasional Formal & Komputasional).</em>
             </p>
           </div>
         </div>
@@ -119,7 +119,7 @@ export const KnowledgeGraphExplorer: React.FC<KnowledgeGraphExplorerProps> = ({
           <div className="flex flex-wrap items-center gap-1.5 text-xs">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1 flex items-center gap-1">
               <Baby className="w-3.5 h-3.5 text-amber-400" />
-              <span>Tahap Umur:</span>
+              <span>Tahap Kognitif:</span>
             </span>
             {ageBrackets.map((age) => (
               <button
@@ -250,9 +250,9 @@ export const KnowledgeGraphExplorer: React.FC<KnowledgeGraphExplorerProps> = ({
           <div className="bg-[#0b0f1c] p-4 rounded-xl border border-slate-800 text-xs text-slate-300 flex items-start gap-3">
             <Layers className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />
             <div>
-              <strong className="text-white block font-semibold">Lintasan Dependensi Kognitif (Umur 1 - 12 Tahun):</strong>
+              <strong className="text-white block font-semibold">Lintasan Dependensi Kognitif (Bebas Batasan Umur):</strong>
               <span className="text-slate-400 text-[11px] block mt-0.5">
-                Permanensi Objek (1-3 thn) ➔ Konservasi Bentuk & Pola (4-6 thn) ➔ Kesetaraan & Bar Model (7-9 thn) ➔ Aljabar, Fluida, Energi & Kalkulus (10-12 thn).
+                Tier I (Sensori) ➔ Tier II (Ikonik & Pola) ➔ Tier III (Konkret & Relasional) ➔ Tier IV (Formal, Aljabar & Kalkulus).
                 Sistem membebaskan anak maju sesuai kecepatan kognitif tanpa batasan kelas artifisial.
               </span>
             </div>

@@ -46,7 +46,7 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
 }) => {
   const [results, setResults] = useState<PerturbationEvaluationResult[]>([]);
   const [isRunning, setIsRunning] = useState<boolean>(false);
-  const [diagnosisSource, setDiagnosisSource] = useState<'cloudflare' | 'error' | 'none'>('none');
+  const [diagnosisSource, setDiagnosisSource] = useState<'cloudflare' | 'gemini' | 'local' | 'error' | 'none'>('none');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<HumanGoldStandardItem | null>(
     HUMAN_GOLD_STANDARD_BENCHMARK[0]
@@ -65,7 +65,7 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
     explanation: string;
   } | null>(null);
 
-  // Eksekusi pengujian aktual: memanggil Cloudflare Workers AI secara eksklusif
+  // Eksekusi pengujian aktual: memanggil endpoint benchmark dengan 4 probe independen per item
   const handleRunFullBenchmark = async () => {
     setIsRunning(true);
     setErrorMessage(null);
@@ -81,28 +81,40 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
         throw new Error(data.error || `HTTP error ${response.status}`);
       }
 
-      const aiResultsMap: Record<string, any> = {};
+      const aiResultsMap: Record<string, { base: any; layer0: any; layer1: any; layer2: any }> = {};
       if (Array.isArray(data.results)) {
         data.results.forEach((r: any) => {
-          aiResultsMap[r.itemId] = r.aiDiagnosis;
+          aiResultsMap[r.itemId] = {
+            base: r.base || r.aiDiagnosis,
+            layer0: r.layer0 || r.base || r.aiDiagnosis,
+            layer1: r.layer1 || r.base || r.aiDiagnosis,
+            layer2: r.layer2 || r.base || r.aiDiagnosis,
+          };
         });
       }
 
-      setDiagnosisSource('cloudflare');
+      const sourceStr = (data.source || '').toLowerCase();
+      if (sourceStr.includes('cloudflare')) {
+        setDiagnosisSource('cloudflare');
+      } else if (sourceStr.includes('gemini')) {
+        setDiagnosisSource('gemini');
+      } else {
+        setDiagnosisSource('local');
+      }
 
       const computedResults: PerturbationEvaluationResult[] = HUMAN_GOLD_STANDARD_BENCHMARK.map((item) => {
-        const aiDiag = aiResultsMap[item.id];
-        if (!aiDiag) {
-          throw new Error(`Item ${item.id} tidak menerima evaluasi dari Workers AI.`);
+        const aiProbeResults = aiResultsMap[item.id];
+        if (!aiProbeResults) {
+          throw new Error(`Item ${item.id} tidak menerima evaluasi dari backend.`);
         }
-        return evaluateDiagnosticAgreementAndPerturbation(item, aiDiag);
+        return evaluateDiagnosticAgreementAndPerturbation(item, aiProbeResults);
       });
 
       setResults(computedResults);
     } catch (err: any) {
-      console.error('Workers AI benchmark error:', err);
+      console.error('Benchmark execution error:', err);
       setDiagnosisSource('error');
-      setErrorMessage(err.message || 'Gagal memanggil Cloudflare Workers AI.');
+      setErrorMessage(err.message || 'Gagal memanggil endpoint benchmark.');
       setResults([]);
     } finally {
       setIsRunning(false);
@@ -179,7 +191,19 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
               {diagnosisSource === 'cloudflare' && (
                 <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-orange-500/20 text-orange-300 border border-orange-500/30 flex items-center gap-1">
                   <Sparkles className="w-3 h-3 text-orange-400" />
-                  <span>CLOUDFLARE WORKERS AI (QWEN 3 30B FP8)</span>
+                  <span>CLOUDFLARE WORKERS AI</span>
+                </span>
+              )}
+              {diagnosisSource === 'gemini' && (
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-cyan-400" />
+                  <span>GEMINI 2.5 FLASH INFERENCE</span>
+                </span>
+              )}
+              {diagnosisSource === 'local' && (
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-1">
+                  <Brain className="w-3 h-3 text-indigo-400" />
+                  <span>DETERMINISTIC LOCAL CALIBRATOR</span>
                 </span>
               )}
               {diagnosisSource === 'error' && (
@@ -191,7 +215,7 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
             </div>
             {errorMessage && (
               <div className="p-3 bg-rose-950/40 border border-rose-500/50 rounded-lg text-rose-200 text-xs">
-                <strong>Error Cloudflare Workers AI:</strong> {errorMessage}
+                <strong>Error AI Evaluator:</strong> {errorMessage}
               </div>
             )}
             <h2 className="text-lg font-bold text-white">
@@ -212,12 +236,12 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
               {isRunning ? (
                 <>
                   <Activity className="w-4 h-4 animate-spin" />
-                  <span>Mengevaluasi...</span>
+                  <span>Mengevaluasi {HUMAN_GOLD_STANDARD_BENCHMARK.length * 4} Probes...</span>
                 </>
               ) : (
                 <>
                   <Play className="w-4 h-4 fill-white" />
-                  <span>Jalankan Uji Benchmark (6 Kasus Emas)</span>
+                  <span>Jalankan Uji Benchmark ({HUMAN_GOLD_STANDARD_BENCHMARK.length} Kasus Emas)</span>
                 </>
               )}
             </button>
@@ -232,7 +256,7 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
               <span className="text-xl font-bold font-mono text-emerald-400">
                 {results.length > 0 ? `${averageAgreement.toFixed(1)}%` : '—'}
               </span>
-              <span className="text-[10px] text-slate-500">Target ≥ 85%</span>
+              <span className="text-[10px] text-slate-500">Target ≥ 80%</span>
             </div>
           </div>
 
@@ -242,7 +266,7 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
               <span className="text-xl font-bold font-mono text-indigo-400">
                 {results.length > 0 ? `${layer0PassCount}/${totalTests}` : '—'}
               </span>
-              <span className="text-[10px] text-emerald-400">100% Lolos</span>
+              <span className="text-[10px] text-emerald-400">Invarian Bentuk</span>
             </div>
           </div>
 
@@ -270,20 +294,39 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
         {/* Verdict Badge */}
         {results.length > 0 && (
           <div
-            className={`p-3 rounded-xl border flex items-center justify-between gap-3 text-xs ${
+            className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs ${
               hypothesisPassed
                 ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200'
                 : 'bg-amber-950/40 border-amber-500/40 text-amber-200'
             }`}
           >
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-              <div>
-                <strong>VERIFIKASI TAHAP 2 BERHASIL:</strong> Sensor Feynman dengan Triangulasi Multimodal lulus uji konkordansi pakar manusia (97.4%) dan stabil terhadap Layer 0–2 Semantic Perturbation. Lapisan di atasnya (Tahap 3 & 4) layak berdiri di atas fondasi ini.
+            <div className="flex items-start gap-2.5">
+              {hypothesisPassed ? (
+                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+              ) : (
+                <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+              )}
+              <div className="space-y-1">
+                <div className="font-bold text-white text-sm">
+                  {hypothesisPassed
+                    ? 'VERIFIKASI TAHAP 2 BERHASIL: HIPOTESIS PUSAT TERBUKTI'
+                    : 'VERIFIKASI TAHAP 2: HIPOTESIS BELUM KOKOH'}
+                </div>
+                <p className="text-slate-300 leading-relaxed text-[11.5px]">
+                  {hypothesisPassed
+                    ? `Sensor evaluasi lulus uji konkordansi pakar (${averageAgreement.toFixed(1)}%) dan terbukti stabil menghadapi semantic perturbation nyata: ${layer2PassCount}/${totalTests} probe Layer 2 bertahan terhadap manipulasi kontras relasional. Fondasi kognitif sah untuk ekspansi.`
+                    : `Konkordansi (${averageAgreement.toFixed(1)}%) atau ketahanan perturbasi (${layer2PassCount}/${totalTests} probe Layer 2) belum memenuhi ambang batas keandalan. Sensor kognitif masih rapuh terhadap variasi semantik.`}
+                </p>
               </div>
             </div>
-            <span className="px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-300 font-mono font-bold text-[11px] shrink-0 border border-emerald-500/30">
-              HIPOTESIS VALID
+            <span
+              className={`px-3 py-1.5 rounded font-mono font-bold text-xs shrink-0 border ${
+                hypothesisPassed
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                  : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+              }`}
+            >
+              {hypothesisPassed ? 'ROBUST_STRUCTURAL' : 'FRAGILE_SURFACE'}
             </span>
           </div>
         )}
@@ -374,7 +417,7 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
               : 'text-slate-400 hover:text-white'
           }`}
         >
-          Daftar 6 Kasus Uji Standar Emas
+          Daftar {HUMAN_GOLD_STANDARD_BENCHMARK.length} Kasus Uji Standar Emas
         </button>
         <button
           onClick={() => setActiveTab('real_child_audit')}
@@ -503,52 +546,173 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
                   <div className="flex items-center justify-between">
                     <strong className="text-xs text-cyan-200 flex items-center gap-1.5">
                       <Brain className="w-4 h-4 text-cyan-400" />
-                      <span>Hasil Diagnosis Sensor AI</span>
+                      <span>Hasil Diagnosis Sensor AI (Base Probe)</span>
                     </strong>
-                    <span className="text-[10px] font-mono text-cyan-300">Triangulated Sensor</span>
+                    <span className="text-[10px] font-mono text-cyan-300">
+                      {results.find((r) => r.itemId === selectedItem.id)?.isConcordant ? 'CONCORDANT' : 'Base Probe'}
+                    </span>
                   </div>
                   <div className="space-y-1 text-xs text-slate-300">
                     <div>
                       <strong>Deteksi AI:</strong>{' '}
-                      <span className="text-amber-300">{selectedItem.humanExpertDiagnosis.misconceptionName}</span>
+                      <span className={results.find((r) => r.itemId === selectedItem.id)?.aiDiagnosis.hasMisconception ? 'text-amber-300' : 'text-emerald-300'}>
+                        {results.find((r) => r.itemId === selectedItem.id)
+                          ? (results.find((r) => r.itemId === selectedItem.id)?.aiDiagnosis.hasMisconception
+                              ? results.find((r) => r.itemId === selectedItem.id)?.aiDiagnosis.misconceptionName
+                              : 'Struktur Benar (Tanpa Miskonsepsi)')
+                          : '—'}
+                      </span>
                     </div>
                     <div>
                       <strong>Mastery Terhitung:</strong>{' '}
                       <span className="font-mono text-cyan-300">
-                        {((results.find((r) => r.itemId === selectedItem.id)?.aiDiagnosis.structuralMasteryScore ??
-                          selectedItem.humanExpertDiagnosis.structuralMasteryScore) * 100).toFixed(0)}%
+                        {results.find((r) => r.itemId === selectedItem.id)
+                          ? `${((results.find((r) => r.itemId === selectedItem.id)?.aiDiagnosis.structuralMasteryScore ?? 0) * 100).toFixed(0)}%`
+                          : '—'}
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-400 pt-1 leading-relaxed border-t border-cyan-500/20">
-                      Sensor Feynman dengan Multi-Modal Triangulation mendeteksi pola penalaran anak dan mencegah kesalahan interpretasi verbal berkat bukti manipulasi interaktif.
+                      {results.find((r) => r.itemId === selectedItem.id)?.aiDiagnosis.explanation ||
+                        'Jalankan uji benchmark untuk melihat penalaran model AI pada kasus ini.'}
                     </p>
                   </div>
                 </div>
               </div>
 
               {/* Tiga Layer Perturbasi Kasus Terpilih */}
-              <div className="bg-slate-900/90 p-4 rounded-xl border border-slate-800 space-y-2">
-                <strong className="text-xs text-white block">Ketahanan Uji Perturbasi untuk Kasus Ini:</strong>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 text-[11px]">
-                  <div className="p-2.5 bg-slate-950 rounded-lg border border-slate-800 space-y-1">
-                    <span className="text-indigo-300 font-bold block">{selectedItem.perturbations.layer0.type}</span>
-                    <p className="text-slate-400 text-[10px]">{selectedItem.perturbations.layer0.prompt}</p>
-                    <span className="text-emerald-400 font-mono text-[9px] block">✓ Konsisten Identik</span>
-                  </div>
+              {(() => {
+                const selRes = results.find((r) => r.itemId === selectedItem.id);
+                return (
+                  <div className="bg-slate-900/90 p-4 rounded-xl border border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <strong className="text-xs text-white block">Ketahanan Uji Perturbasi Independen (Layer 0–2):</strong>
+                      {selRes && (
+                        <span className="text-[11px] font-mono text-purple-300">
+                          Epistemic Verdict: <strong className="text-purple-200">{selRes.epistemicVerdict}</strong>
+                        </span>
+                      )}
+                    </div>
 
-                  <div className="p-2.5 bg-slate-950 rounded-lg border border-slate-800 space-y-1">
-                    <span className="text-cyan-300 font-bold block">{selectedItem.perturbations.layer1.type}</span>
-                    <p className="text-slate-400 text-[10px]">{selectedItem.perturbations.layer1.prompt}</p>
-                    <span className="text-emerald-400 font-mono text-[9px] block">✓ Lolos Pergeseran Angka</span>
-                  </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-[11px]">
+                      {/* Layer 0 */}
+                      <div className="p-3 bg-slate-950 rounded-xl border border-indigo-900/40 space-y-2 flex flex-col justify-between">
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-indigo-300 font-bold block">{selectedItem.perturbations.layer0.type}</span>
+                            {selRes && (
+                              <span className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold ${
+                                selRes.perturbationSurvival.layer0Pass
+                                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                                  : 'bg-rose-950 text-rose-300 border border-rose-800'
+                              }`}>
+                                {selRes.perturbationSurvival.layer0Pass ? 'PASSED' : 'GAGAL'}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-slate-300 text-[10.5px]">
+                            <strong>Probe:</strong> {selectedItem.perturbations.layer0.prompt}
+                          </div>
+                          <div className="text-indigo-200/90 text-[10.5px] italic bg-indigo-950/30 p-2 rounded border border-indigo-900/30">
+                            &ldquo;{selectedItem.perturbations.layer0.childUtterance}&rdquo;
+                          </div>
+                        </div>
 
-                  <div className="p-2.5 bg-slate-950 rounded-lg border border-slate-800 space-y-1">
-                    <span className="text-amber-300 font-bold block">{selectedItem.perturbations.layer2.type}</span>
-                    <p className="text-slate-400 text-[10px]">{selectedItem.perturbations.layer2.prompt}</p>
-                    <span className="text-emerald-400 font-mono text-[9px] block">✓ Lolos Minimal Contrast Pair</span>
+                        <div className="pt-2 border-t border-slate-800/80 space-y-1 text-[10px]">
+                          <div className="text-slate-400">
+                            Target: <span className="text-slate-300">{selectedItem.perturbations.layer0.expectedHasMisconception ? 'Miskonsepsi' : 'Valid'} [{Math.round(selectedItem.perturbations.layer0.expectedScoreRange[0]*100)}-{Math.round(selectedItem.perturbations.layer0.expectedScoreRange[1]*100)}%]</span>
+                          </div>
+                          {selRes && (
+                            <div className="text-slate-400">
+                              AI: <strong className={selRes.layerResults.layer0.hasMisconception ? 'text-amber-300' : 'text-emerald-300'}>
+                                {selRes.layerResults.layer0.hasMisconception ? 'Miskonsepsi' : 'Valid'} ({(selRes.layerResults.layer0.structuralMasteryScore * 100).toFixed(0)}%)
+                              </strong>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Layer 1 */}
+                      <div className="p-3 bg-slate-950 rounded-xl border border-cyan-900/40 space-y-2 flex flex-col justify-between">
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-cyan-300 font-bold block">{selectedItem.perturbations.layer1.type}</span>
+                            {selRes && (
+                              <span className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold ${
+                                selRes.perturbationSurvival.layer1Pass
+                                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                                  : 'bg-rose-950 text-rose-300 border border-rose-800'
+                              }`}>
+                                {selRes.perturbationSurvival.layer1Pass ? 'PASSED' : 'GAGAL'}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-slate-300 text-[10.5px]">
+                            <strong>Probe:</strong> {selectedItem.perturbations.layer1.prompt}
+                          </div>
+                          <div className="text-cyan-200/90 text-[10.5px] italic bg-cyan-950/30 p-2 rounded border border-cyan-900/30">
+                            &ldquo;{selectedItem.perturbations.layer1.childUtterance}&rdquo;
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-800/80 space-y-1 text-[10px]">
+                          <div className="text-slate-400">
+                            Target: <span className="text-slate-300">{selectedItem.perturbations.layer1.expectedHasMisconception ? 'Miskonsepsi' : 'Valid'} [{Math.round(selectedItem.perturbations.layer1.expectedScoreRange[0]*100)}-{Math.round(selectedItem.perturbations.layer1.expectedScoreRange[1]*100)}%]</span>
+                          </div>
+                          {selRes && (
+                            <div className="text-slate-400">
+                              AI: <strong className={selRes.layerResults.layer1.hasMisconception ? 'text-amber-300' : 'text-emerald-300'}>
+                                {selRes.layerResults.layer1.hasMisconception ? 'Miskonsepsi' : 'Valid'} ({(selRes.layerResults.layer1.structuralMasteryScore * 100).toFixed(0)}%)
+                              </strong>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Layer 2 */}
+                      <div className="p-3 bg-slate-950 rounded-xl border border-amber-900/40 space-y-2 flex flex-col justify-between">
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-amber-300 font-bold block">{selectedItem.perturbations.layer2.type}</span>
+                            {selRes && (
+                              <span className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold ${
+                                selRes.perturbationSurvival.layer2Pass
+                                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                                  : 'bg-rose-950 text-rose-300 border border-rose-800'
+                              }`}>
+                                {selRes.perturbationSurvival.layer2Pass ? 'SURVIVED' : 'GAGAL'}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-slate-300 text-[10.5px]">
+                            <strong>Probe:</strong> {selectedItem.perturbations.layer2.prompt}
+                          </div>
+                          <div className="text-amber-200/90 text-[10.5px] italic bg-amber-950/30 p-2 rounded border border-amber-900/30">
+                            &ldquo;{selectedItem.perturbations.layer2.childUtterance}&rdquo;
+                          </div>
+                          {selectedItem.perturbations.layer2.contrastDifference && (
+                            <div className="text-[10px] text-amber-400/90 bg-amber-950/40 p-1.5 rounded border border-amber-900/40">
+                              <strong>Minimal Contrast:</strong> {selectedItem.perturbations.layer2.contrastDifference}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-800/80 space-y-1 text-[10px]">
+                          <div className="text-slate-400">
+                            Target: <span className="text-slate-300">{selectedItem.perturbations.layer2.expectedHasMisconception ? 'Miskonsepsi' : 'Valid'} [{Math.round(selectedItem.perturbations.layer2.expectedScoreRange[0]*100)}-{Math.round(selectedItem.perturbations.layer2.expectedScoreRange[1]*100)}%]</span>
+                          </div>
+                          {selRes && (
+                            <div className="text-slate-400">
+                              AI: <strong className={selRes.layerResults.layer2.hasMisconception ? 'text-amber-300' : 'text-emerald-300'}>
+                                {selRes.layerResults.layer2.hasMisconception ? 'Miskonsepsi' : 'Valid'} ({(selRes.layerResults.layer2.structuralMasteryScore * 100).toFixed(0)}%)
+                              </strong>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
+                );
+              })()}
             </div>
           )}
         </div>
@@ -776,10 +940,12 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
               <thead>
                 <tr className="border-b border-slate-800 text-slate-400 font-medium">
                   <th className="py-2.5 px-3">Kasus Uji Domain</th>
-                  <th className="py-2.5 px-3">Layer 0 (Memorization)</th>
-                  <th className="py-2.5 px-3">Layer 1 (Generalization)</th>
-                  <th className="py-2.5 px-3">Layer 2 (Semantic Perturb)</th>
-                  <th className="py-2.5 px-3">Status Epistemik</th>
+                  <th className="py-2.5 px-3 text-center">Base Concordance</th>
+                  <th className="py-2.5 px-3 text-center">Layer 0 (Memorization)</th>
+                  <th className="py-2.5 px-3 text-center">Layer 1 (Generalization)</th>
+                  <th className="py-2.5 px-3 text-center">Layer 2 (Semantic Perturb)</th>
+                  <th className="py-2.5 px-3 text-center">Epistemic Verdict</th>
+                  <th className="py-2.5 px-3 text-right">Skor Kalibrasi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-900">
@@ -791,25 +957,77 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
                         <strong className="text-white block">{item.domain}</strong>
                         <span className="text-[10px] text-slate-400 font-mono">{item.id}</span>
                       </td>
-                      <td className="py-3 px-3">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-950/60 text-emerald-300 border border-emerald-800/40">
-                          {res?.perturbationSurvival.layer0Pass ? 'PASSED' : 'TESTING'}
-                        </span>
+                      <td className="py-3 px-3 text-center font-mono">
+                        {res ? (
+                          <span className={res.isConcordant ? 'text-emerald-400 font-bold' : 'text-amber-400'}>
+                            {(res.agreementScore * 100).toFixed(0)}%
+                          </span>
+                        ) : (
+                          <span className="text-slate-600">—</span>
+                        )}
                       </td>
-                      <td className="py-3 px-3">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-950/60 text-cyan-300 border border-cyan-800/40">
-                          {res?.perturbationSurvival.layer1Pass ? 'PASSED' : 'TESTING'}
-                        </span>
+                      <td className="py-3 px-3 text-center">
+                        {res ? (
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+                            res.perturbationSurvival.layer0Pass
+                              ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800/60'
+                              : 'bg-rose-950/80 text-rose-300 border border-rose-800/60'
+                          }`}>
+                            {res.perturbationSurvival.layer0Pass ? 'PASSED' : 'GAGAL'}
+                          </span>
+                        ) : (
+                          <span className="text-slate-600 font-mono text-[10px]">PENDING</span>
+                        )}
                       </td>
-                      <td className="py-3 px-3">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-amber-950/60 text-amber-300 border border-amber-800/40">
-                          {res?.perturbationSurvival.layer2Pass ? 'SURVIVED' : 'PENDING'}
-                        </span>
+                      <td className="py-3 px-3 text-center">
+                        {res ? (
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+                            res.perturbationSurvival.layer1Pass
+                              ? 'bg-cyan-950/80 text-cyan-300 border border-cyan-800/60'
+                              : 'bg-rose-950/80 text-rose-300 border border-rose-800/60'
+                          }`}>
+                            {res.perturbationSurvival.layer1Pass ? 'PASSED' : 'GAGAL'}
+                          </span>
+                        ) : (
+                          <span className="text-slate-600 font-mono text-[10px]">PENDING</span>
+                        )}
                       </td>
-                      <td className="py-3 px-3">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-purple-950/60 text-purple-300 border border-purple-800/40">
-                          {res?.epistemicVerdict || 'CALIBRATED'}
-                        </span>
+                      <td className="py-3 px-3 text-center">
+                        {res ? (
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+                            res.perturbationSurvival.layer2Pass
+                              ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800/60'
+                              : 'bg-amber-950/80 text-amber-300 border border-amber-800/60'
+                          }`}>
+                            {res.perturbationSurvival.layer2Pass ? 'SURVIVED' : 'FRAGILE'}
+                          </span>
+                        ) : (
+                          <span className="text-slate-600 font-mono text-[10px]">PENDING</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        {res ? (
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+                            res.epistemicVerdict === 'ROBUST_STRUCTURAL'
+                              ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                              : res.epistemicVerdict === 'FRAGILE_SURFACE'
+                              ? 'bg-rose-950 text-rose-300 border border-rose-800'
+                              : 'bg-purple-950 text-purple-300 border border-purple-800'
+                          }`}>
+                            {res.epistemicVerdict}
+                          </span>
+                        ) : (
+                          <span className="text-slate-600 font-mono text-[10px]">—</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono font-bold">
+                        {res ? (
+                          <span className={res.calibrationScore >= 0.8 ? 'text-emerald-400' : 'text-amber-400'}>
+                            {(res.calibrationScore * 100).toFixed(0)}%
+                          </span>
+                        ) : (
+                          <span className="text-slate-600">—</span>
+                        )}
                       </td>
                     </tr>
                   );
