@@ -26,7 +26,7 @@ import {
 } from './types';
 
 import { triangulateEvidence, EmpiricalSimulationEvidence, ParentCalibrationSettings, DEFAULT_PARENT_CALIBRATION } from './engine/evidenceTriangulation';
-import { applyMasteryGating } from './engine/deterministicCore';
+import { applyMasteryGating, selectNextBestExperience, RecommendedExperience } from './engine/deterministicCore';
 import {
   loadInitialOSState,
   persistAllLearnerNodes,
@@ -60,6 +60,11 @@ export default function App() {
   const [activeTrajectory, setActiveTrajectory] = useState<ActiveTrajectory>(INITIAL_ACTIVE_TRAJECTORY);
   const [selectedNodeId, setSelectedNodeId] = useState<string>('node-buoyancy-archimedes');
   const [parentCalibration, setParentCalibration] = useState<ParentCalibrationSettings>(DEFAULT_PARENT_CALIBRATION);
+
+  // Single Source of Truth: Deterministic Queue for Child Graph & Recommendations
+  const recommendedQueue: RecommendedExperience[] = React.useMemo(() => {
+    return selectNextBestExperience(knowledgeNodes, learnerNodes);
+  }, [knowledgeNodes, learnerNodes]);
 
   const [knowledgeStability, setKnowledgeStability] = useState<number>(91);
   const [criticalDebt, setCriticalDebt] = useState<'LOW' | 'MEDIUM' | 'HIGH'>('LOW');
@@ -734,6 +739,7 @@ export default function App() {
               <KnowledgeGraphExplorer
                 nodes={knowledgeNodes}
                 learnerNodes={learnerNodes}
+                queue={recommendedQueue}
                 selectedNodeId={selectedNodeId}
                 onSelectNode={(id) => setSelectedNodeId(id)}
                 onLaunchSimulation={(simId) => {
