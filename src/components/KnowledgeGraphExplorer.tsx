@@ -130,15 +130,49 @@ export const KnowledgeGraphExplorer: React.FC<KnowledgeGraphExplorerProps> = ({
   // Lapis 1: "Sekarang" (Top 1-3 cards open by default)
   const topQueue = useMemo(() => filteredQueue.slice(0, 3), [filteredQueue]);
 
-  // Lapis 2: "Bisa Kamu Coba Juga" (Remaining queue items, collapsed by default)
-  const explorableQueue = useMemo(() => filteredQueue.slice(3), [filteredQueue]);
+  // Fallback for in-progress unlocked nodes not in visibleSet and not yet mastered (masteryAvg < 0.6)
+  // Ensures no unlocked node disappears into a black hole (Prinsip #4 & #12)
+  const otherUnlockedItems = useMemo(() => {
+    return nodes
+      .filter((node) => {
+        if (visibleSet.has(node.id)) return false;
+        const prereq = evaluatePrerequisites(node, nodes, learnerNodes);
+        if (!prereq.isUnlocked) return false;
+        const state = learnerNodes[node.id];
+        // If state exists and masteryAvg >= 0.6, it belongs to masteredNodes (Lapis 3)
+        if (state) {
+          const masteryAvg = Object.values(state.mastery).reduce((a, b) => a + b, 0) / 7;
+          if (masteryAvg >= 0.6) return false;
+        }
+        const matchesDomain = selectedDomain === 'all' || node.domain === selectedDomain;
+        const matchesAge = selectedAge === 'all' || node.ageBracket === selectedAge;
+        return matchesDomain && matchesAge;
+      })
+      .map((node) => ({
+        nodeId: node.id,
+        nodeName: node.name,
+        domain: node.domain,
+        type: 'FRONTIER_EXPLORATION' as const,
+        priorityScore: 50,
+        simulationId: node.activeSimulationId,
+        deterministicReason: 'Konsep terbuka siap dieksplorasi kembali.',
+        pedagogicalObjective: `Melanjutkan pemahaman untuk ${node.name}.`,
+      }));
+  }, [nodes, learnerNodes, visibleSet, selectedDomain, selectedAge]);
 
-  // Lapis 3: "Sudah Kamu Kuasai" (Unlocked & mastered nodes not in active queue, collapsed by default)
+  // Lapis 2: "Bisa Kamu Coba Juga" (Remaining queue items + in-progress unlocked nodes, collapsed by default)
+  const explorableQueue = useMemo(() => {
+    return [...filteredQueue.slice(3), ...otherUnlockedItems];
+  }, [filteredQueue, otherUnlockedItems]);
+
+  // Lapis 3: "Sudah Kamu Kuasai" (Unlocked & proven mastered nodes with masteryAvg >= 0.6, collapsed by default)
   const masteredNodes = useMemo(() => {
     return nodes.filter((node) => {
       if (visibleSet.has(node.id)) return false;
       const state = learnerNodes[node.id];
       if (!state) return false;
+      const masteryAvg = Object.values(state.mastery).reduce((a, b) => a + b, 0) / 7;
+      if (masteryAvg < 0.6) return false;
       const prereq = evaluatePrerequisites(node, nodes, learnerNodes);
       if (!prereq.isUnlocked) return false;
       const matchesDomain = selectedDomain === 'all' || node.domain === selectedDomain;
@@ -147,16 +181,14 @@ export const KnowledgeGraphExplorer: React.FC<KnowledgeGraphExplorerProps> = ({
     });
   }, [nodes, learnerNodes, visibleSet, selectedDomain, selectedAge]);
 
-  // 1-Hop Locked Boundary (Nodes that are locked, but 1 step away from unlocking)
+  // 1-Hop Locked Boundary (Nodes that are locked, but EXACTLY 1 prerequisite step away from unlocking)
   const oneHopLockedNodes = useMemo(() => {
     return nodes.filter((node) => {
       if (visibleSet.has(node.id)) return false;
       const prereq = evaluatePrerequisites(node, nodes, learnerNodes);
       if (prereq.isUnlocked) return false;
-      // 1-hop away: exactly 1 unmet prerequisite, or at least one prerequisite is already satisfied
-      const isOneHop =
-        prereq.unmetPrerequisites.length === 1 ||
-        node.prerequisites.some((pId) => !prereq.unmetPrerequisites.some((u) => u.nodeId === pId));
+      // Mathematically exact: exactly 1 unmet prerequisite remaining
+      const isOneHop = prereq.unmetPrerequisites.length === 1;
       const matchesDomain = selectedDomain === 'all' || node.domain === selectedDomain;
       const matchesAge = selectedAge === 'all' || node.ageBracket === selectedAge;
       return isOneHop && matchesDomain && matchesAge;
