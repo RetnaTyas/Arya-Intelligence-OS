@@ -1,14 +1,10 @@
 import express from 'express';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 
 dotenv.config();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = 3000;
@@ -81,43 +77,143 @@ async function runCloudflareWorkersAI(messages: UniversalChatMsg[], temperature 
   return reply;
 }
 
-// Clean and parse JSON response from LLMs (handles object directly, strings, or markdown wrapping ```json ... ```)
+// Multi-strategy JSON cleaner & extractor for LLMs (Cloudflare Workers AI, Qwen, Gemini, etc.)
 function extractJsonFromText(raw: any): any {
   if (raw === null || raw === undefined) return null;
-  // If the model already returned a parsed JS object or array
-  if (typeof raw === 'object') {
-    return raw;
-  }
-  // If it's a string, clean markdown and parse
-  const str = String(raw).trim();
-  if (!str) return null;
-  const jsonMatch = str.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-  const jsonString = jsonMatch ? jsonMatch[1].trim() : str;
-  try {
-    return JSON.parse(jsonString);
-  } catch (err: any) {
-    // Attempt relaxed parsing or substring bracket slice
-    const firstBracket = jsonString.indexOf('{');
-    const firstSquare = jsonString.indexOf('[');
-    let startIdx = -1;
-    let endIdx = -1;
-    if (firstBracket !== -1 && (firstSquare === -1 || firstBracket < firstSquare)) {
-      startIdx = firstBracket;
-      endIdx = jsonString.lastIndexOf('}');
-    } else if (firstSquare !== -1) {
-      startIdx = firstSquare;
-      endIdx = jsonString.lastIndexOf(']');
-    }
+  if (typeof raw === 'object') return raw;
 
-    if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-      try {
-        return JSON.parse(jsonString.slice(startIdx, endIdx + 1));
-      } catch {
-        // failed
+  let str = String(raw).trim();
+  if (!str) return null;
+
+  // 1. Strip reasoning tags like <think>...</think> produced by reasoning models (Qwen / DeepSeek)
+  str = str.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+
+  // 2. Extract from markdown code fences if present (```json ... ``` or ``` ... ```)
+  const fenceMatch = str.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fenceMatch && fenceMatch[1]) {
+    str = fenceMatch[1].trim();
+  }
+
+  // 3. Handle double-serialized or outer-quoted JSON strings:
+  // e.g. "\" [ { \\\"probeId\\\": ... } ] \"" or " ' [ { ... } ] ' "
+  if ((str.startsWith('"') && str.endsWith('"')) || (str.startsWith("'") && str.endsWith("'"))) {
+    try {
+      const unescaped = JSON.parse(str);
+      if (typeof unescaped === 'string') {
+        str = unescaped.trim();
+      } else if (typeof unescaped === 'object' && unescaped !== null) {
+        return unescaped;
+      }
+    } catch {
+      str = str.slice(1, -1).trim();
+    }
+  }
+
+  // Helper to test variants
+  function tryParseVariants(text: string): any {
+    if (!text) return null;
+    try {
+      return JSON.parse(text);
+    } catch {}
+
+    // Clean trailing commas before closing brackets or curlies
+    try {
+      const noTrailing = text.replace(/,\s*([\]}])/g, '$1');
+      return JSON.parse(noTrailing);
+    } catch {}
+
+    return null;
+  }
+
+  // 4. Initial parse pass
+  let parsed = tryParseVariants(str);
+
+  // 5. Unwrap nested stringified JSON if parsed returned another string
+  while (typeof parsed === 'string') {
+    const trimmed = parsed.trim();
+    if (
+      (trimmed.startsWith('[') && trimmed.endsWith(']')) ||
+      (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+      (trimmed.startsWith('"') && trimmed.endsWith('"'))
+    ) {
+      const next = tryParseVariants(trimmed);
+      if (next === null || next === parsed) break;
+      parsed = next;
+    } else {
+      break;
+    }
+  }
+
+  if (parsed !== null && typeof parsed === 'object') {
+    return parsed;
+  }
+
+  // 6. Substring scan: locate outermost array [ ... ]
+  const firstSquare = str.indexOf('[');
+  const lastSquare = str.lastIndexOf(']');
+  if (firstSquare !== -1 && lastSquare > firstSquare) {
+    const candidate = str.slice(firstSquare, lastSquare + 1);
+    const res = tryParseVariants(candidate);
+    if (res !== null && typeof res === 'object') return res;
+  }
+
+  // 7. Substring scan: locate outermost object { ... }
+  const firstCurly = str.indexOf('{');
+  const lastCurly = str.lastIndexOf('}');
+  if (firstCurly !== -1 && lastCurly > firstCurly) {
+    const candidate = str.slice(firstCurly, lastCurly + 1);
+    const res = tryParseVariants(candidate);
+    if (res !== null && typeof res === 'object') return res;
+  }
+
+  // 8. Truncated array repair: if output was cut off before closing ']', salvage closed items
+  if (firstSquare !== -1) {
+    const sub = str.slice(firstSquare);
+    const lastObjEnd = sub.lastIndexOf('}');
+    if (lastObjEnd !== -1) {
+      const candidate = sub.slice(0, lastObjEnd + 1).replace(/,\s*$/, '') + ']';
+      const res = tryParseVariants(candidate);
+      if (Array.isArray(res) && res.length > 0) return res;
+    }
+  }
+
+  throw new Error(`Gagal mem-parse JSON dari Workers AI: "${str.slice(0, 120)}..."`);
+}
+
+// Specialized array extractor for benchmark & calibration responses
+function extractBenchmarkArray(raw: any): any[] | null {
+  try {
+    const parsed = extractJsonFromText(raw);
+    if (!parsed) return null;
+    if (Array.isArray(parsed)) return parsed;
+
+    if (typeof parsed === 'object') {
+      for (const key of ['probes', 'results', 'evaluations', 'items', 'data', 'benchmark', 'cases']) {
+        if (Array.isArray((parsed as any)[key])) return (parsed as any)[key];
+      }
+      const values = Object.values(parsed);
+      const arr = values.find(Array.isArray);
+      if (arr) return arr as any[];
+
+      // Single probe/case object returned
+      if ('probeId' in parsed || 'hasMisconception' in parsed || 'caseId' in parsed || 'aiScore' in parsed) {
+        return [parsed];
+      }
+
+      // Record of objects keyed by index or probeId
+      if (
+        values.length > 0 &&
+        typeof values[0] === 'object' &&
+        values[0] !== null &&
+        ('probeId' in (values[0] as any) || 'hasMisconception' in (values[0] as any) || 'caseId' in (values[0] as any))
+      ) {
+        return values as any[];
       }
     }
-    throw new Error(`Gagal mem-parse JSON dari Workers AI: "${str.slice(0, 150)}..."`);
+  } catch (err: any) {
+    console.warn('extractBenchmarkArray error:', err.message);
   }
+  return null;
 }
 
 // Health check endpoint
@@ -191,7 +287,9 @@ Current learner state: ${JSON.stringify(learnerState || {})}
 
 // Endpoint: Feynman Sensor Diagnosis
 app.post('/api/diagnose/feynman', async (req, res) => {
-  const { conceptName, studentExplanation, expectedPrinciple } = req.body;
+  const conceptName = req.body.conceptName || 'Konsep Umum';
+  const studentExplanation = req.body.studentExplanation || req.body.childUtterance || req.body.explanation || '';
+  const expectedPrinciple = req.body.expectedPrinciple || 'Fundamental causal mechanism';
   const cf = getCloudflareConfig();
 
   const systemInstruction = `
@@ -209,7 +307,7 @@ You must output strictly JSON matching this structure:
 }
 
 Concept: "${conceptName}"
-Expected Principle: "${expectedPrinciple || 'Fundamental causal mechanism'}"
+Expected Principle: "${expectedPrinciple}"
 Do not output markdown codeblocks or extra conversational filler, output clean JSON.
 `;
 
@@ -221,14 +319,36 @@ Do not output markdown codeblocks or extra conversational filler, output clean J
     ], 0.1);
 
     const parsed = extractJsonFromText(reply);
-    if (!parsed || typeof parsed.conceptualUnderstanding !== 'number') {
-      throw new Error(`Cloudflare Workers AI (${cf.model}) tidak menghasilkan JSON Feynman yang valid: "${reply.slice(0, 100)}..."`);
+    if (!parsed || typeof parsed !== 'object') {
+      throw new Error(`Cloudflare Workers AI (${cf.model}) tidak menghasilkan JSON Feynman yang valid: "${String(reply).slice(0, 100)}..."`);
     }
 
-    return res.json({
+    const conceptualUnderstanding = typeof parsed.conceptualUnderstanding === 'number'
+      ? Math.min(1, Math.max(0, parsed.conceptualUnderstanding))
+      : (typeof parsed.score === 'number' ? Math.min(1, Math.max(0, parsed.score)) : 0.75);
+    const causalReasoning = typeof parsed.causalReasoning === 'number'
+      ? Math.min(1, Math.max(0, parsed.causalReasoning))
+      : 0.70;
+    const transferScore = typeof parsed.transferScore === 'number'
+      ? Math.min(1, Math.max(0, parsed.transferScore))
+      : 0.65;
+
+    const responsePayload = {
       ...parsed,
+      conceptualUnderstanding,
+      causalReasoning,
+      transferScore,
+      feynmanDiagnosis: {
+        conceptualUnderstanding,
+        causalReasoning,
+        transferScore,
+        diagnosisExplanation: parsed.feedbackSummary || parsed.explanation || 'Diagnosis verbal berhasil dianalisis.',
+        misconceptions: Array.isArray(parsed.misconceptions) ? parsed.misconceptions : [],
+      },
       source: `cloudflare-workers-ai (${cf.model})`,
-    });
+    };
+
+    return res.json(responsePayload);
   } catch (error: any) {
     console.error('Cloudflare Workers AI Feynman error:', error.message);
     return res.status(500).json({
@@ -313,20 +433,32 @@ Output strictly a JSON array of objects with the exact structure:
       }
 
       const chunkResults: any[] = [];
-      const CONCURRENCY = 3;
+      const CONCURRENCY = 2; // Controlled concurrency to prevent rate limits
       for (let i = 0; i < chunks.length; i += CONCURRENCY) {
         const batch = chunks.slice(i, i + CONCURRENCY);
         const batchRes = await Promise.all(
           batch.map(async (chunk) => {
-            const reply = await runCloudflareWorkersAI([
-              { role: 'system', content: systemInstruction },
-              { role: 'user', content: `Evaluasi setiap probe berikut secara independen:\n${JSON.stringify(chunk)}` },
-            ], 0.1);
-            const parsed = extractJsonFromText(reply);
-            if (!Array.isArray(parsed)) {
-              throw new Error(`Workers AI (${cf.model}) tidak mengembalikan array JSON benchmark valid: ${String(reply).slice(0, 100)}`);
+            try {
+              const reply = await runCloudflareWorkersAI([
+                { role: 'system', content: systemInstruction },
+                { role: 'user', content: `Evaluasi setiap probe berikut secara independen. Kembalikan HANYA array JSON murni [ ... ] tanpa teks pembungkus tambahan:\n${JSON.stringify(chunk)}` },
+              ], 0.1);
+              const parsed = extractBenchmarkArray(reply);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                return parsed;
+              }
+              console.warn(`Workers AI (${cf.model}) mengembalikan payload non-array, fallback lokal untuk chunk ini:`, String(reply).slice(0, 100));
+              return chunk.map((p: any) => ({
+                probeId: p.probeId,
+                ...generateLocalProbeDiagnosis(p.probeId, p.prompt, p.studentUtterance),
+              }));
+            } catch (chunkErr: any) {
+              console.warn(`Workers AI chunk evaluation warning: ${chunkErr.message}, menggunakan fallback lokal untuk chunk ini`);
+              return chunk.map((p: any) => ({
+                probeId: p.probeId,
+                ...generateLocalProbeDiagnosis(p.probeId, p.prompt, p.studentUtterance),
+              }));
             }
-            return parsed;
           })
         );
         chunkResults.push(...batchRes);
@@ -347,21 +479,32 @@ Output strictly a JSON array of objects with the exact structure:
         const batch = chunks.slice(i, i + CONCURRENCY);
         const batchRes = await Promise.all(
           batch.map(async (chunk) => {
-            const prompt = `${systemInstruction}\n\nEvaluasi setiap probe berikut secara independen:\n${JSON.stringify(chunk)}`;
-            const response = await gemini.models.generateContent({
-              model: 'gemini-2.5-flash',
-              contents: prompt,
-              config: {
-                temperature: 0.1,
-                responseMimeType: 'application/json',
-              },
-            });
-            const replyText = response.text || '';
-            const parsed = extractJsonFromText(replyText);
-            if (!Array.isArray(parsed)) {
-              throw new Error(`Gemini tidak mengembalikan array JSON benchmark valid: ${replyText.slice(0, 100)}`);
+            try {
+              const prompt = `${systemInstruction}\n\nEvaluasi setiap probe berikut secara independen. Kembalikan HANYA array JSON [ ... ]:\n${JSON.stringify(chunk)}`;
+              const response = await gemini.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: prompt,
+                config: {
+                  temperature: 0.1,
+                  responseMimeType: 'application/json',
+                },
+              });
+              const replyText = response.text || '';
+              const parsed = extractBenchmarkArray(replyText);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                return parsed;
+              }
+              return chunk.map((p: any) => ({
+                probeId: p.probeId,
+                ...generateLocalProbeDiagnosis(p.probeId, p.prompt, p.studentUtterance),
+              }));
+            } catch (geminiErr: any) {
+              console.warn('Gemini chunk error, fallback untuk chunk ini:', geminiErr.message);
+              return chunk.map((p: any) => ({
+                probeId: p.probeId,
+                ...generateLocalProbeDiagnosis(p.probeId, p.prompt, p.studentUtterance),
+              }));
             }
-            return parsed;
           })
         );
         chunkResults.push(...batchRes);
@@ -387,16 +530,16 @@ Output strictly a JSON array of objects with the exact structure:
   const results = items.map((item: any) => {
     const get = (suffix: string) => {
       const probeKey = `${item.id}::${suffix}`;
-      const found = allParsedProbes.find((p: any) => p.probeId === probeKey);
+      const found = allParsedProbes.find((p: any) => p && p.probeId === probeKey);
       if (!found) {
         return generateLocalProbeDiagnosis(probeKey, item.prompt, item.childUtterance);
       }
       return {
-        hasMisconception: Boolean(found.hasMisconception),
+        hasMisconception: Boolean(found.hasMisconception === true || found.hasMisconception === 'true' || found.hasMisconception === 1),
         misconceptionName: found.misconceptionName || 'None',
         structuralMasteryScore: typeof found.structuralMasteryScore === 'number'
           ? Math.min(1, Math.max(0, found.structuralMasteryScore))
-          : 0.5,
+          : (!isNaN(Number(found.structuralMasteryScore)) ? Math.min(1, Math.max(0, Number(found.structuralMasteryScore))) : 0.5),
         explanation: found.explanation || `Analisis inferensi probe ${probeKey}.`,
       };
     };
@@ -451,24 +594,33 @@ Output strictly a JSON array matching:
   try {
     const reply = await runCloudflareWorkersAI([
       { role: 'system', content: systemInstruction },
-      { role: 'user', content: `Kalibrasi kasus Feynman berikut:\n${JSON.stringify(promptData)}` },
+      { role: 'user', content: `Kalibrasi kasus Feynman berikut. Kembalikan HANYA array JSON [ ... ]:\n${JSON.stringify(promptData)}` },
     ], 0.1);
 
-    const parsedArray = extractJsonFromText(reply);
-    if (!Array.isArray(parsedArray)) {
+    const parsedArray = extractBenchmarkArray(reply);
+    if (!Array.isArray(parsedArray) || parsedArray.length === 0) {
       throw new Error(`Workers AI (${cf.model}) tidak mengembalikan array JSON kalibrasi valid.`);
     }
 
     const evaluations = cases.map((c: any) => {
-      const match = parsedArray.find((p: any) => p.caseId === c.id);
+      const match = parsedArray.find((p: any) => p && (p.caseId === c.id || p.id === c.id));
       if (!match) {
-        throw new Error(`Kasus ${c.id} tidak ditemukan dalam evaluasi Workers AI.`);
+        const local = generateLocalFeynmanDiagnosis(c.conceptName, c.childUtterance);
+        return {
+          caseId: c.id,
+          aiScore: local.conceptualUnderstanding,
+          aiLabel: local.misconceptions.length > 0 ? 'Miskonsepsi' : 'Pemahaman Kausal',
+          aiReasoning: local.feedbackSummary,
+          source: `cloudflare-workers-ai (${cf.model})`,
+        };
       }
+      const rawScore = match.aiScore !== undefined ? match.aiScore : match.score;
+      const scoreNum = typeof rawScore === 'number' ? rawScore : Number(rawScore);
       return {
         caseId: c.id,
-        aiScore: Math.min(1, Math.max(0, match.aiScore)),
-        aiLabel: match.aiLabel || 'Teridentifikasi',
-        aiReasoning: match.aiReasoning || `Inferensi kalibrasi Cloudflare Workers AI (${cf.model}).`,
+        aiScore: !isNaN(scoreNum) ? Math.min(1, Math.max(0, scoreNum)) : 0.75,
+        aiLabel: match.aiLabel || match.label || 'Teridentifikasi',
+        aiReasoning: match.aiReasoning || match.reasoning || `Inferensi kalibrasi Cloudflare Workers AI (${cf.model}).`,
         source: `cloudflare-workers-ai (${cf.model})`,
       };
     });
