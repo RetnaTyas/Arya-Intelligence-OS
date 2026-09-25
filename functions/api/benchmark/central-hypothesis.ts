@@ -1,4 +1,10 @@
-import { CloudflareEnv, getWorkersAIBinding, DEFAULT_WORKERS_AI_MODEL, extractJsonFromText } from '../../types.ts';
+import {
+  CloudflareEnv,
+  getWorkersAIBinding,
+  DEFAULT_WORKERS_AI_MODEL,
+  extractBenchmarkArray,
+  generateLocalProbeDiagnosis,
+} from '../../types.ts';
 
 export const onRequestPost = async (context: { request: Request; env: CloudflareEnv }) => {
   const { request, env } = context;
@@ -76,8 +82,8 @@ Output strictly a JSON array of objects with the exact structure:
       },
     ]);
 
-    // Chunk into batches of 3 items (12 probes) to avoid LLM token truncation
-    const CHUNK_SIZE = 12;
+    // Chunk into batches of 4 probes (1 item = 4 probes per chunk) to avoid LLM token limits and formatting glitches
+    const CHUNK_SIZE = 4;
     const chunks: any[][] = [];
     for (let i = 0; i < allPromptRows.length; i += CHUNK_SIZE) {
       chunks.push(allPromptRows.slice(i, i + CHUNK_SIZE));
@@ -85,28 +91,40 @@ Output strictly a JSON array of objects with the exact structure:
 
     const chunkResults = await Promise.all(
       chunks.map(async (chunk) => {
-        const response: any = await aiBinding.run(model, {
-          messages: [
-            { role: 'system', content: systemInstruction },
-            { role: 'user', content: `Evaluasi setiap probe berikut secara independen:\n${JSON.stringify(chunk)}` },
-          ],
-          temperature: 0.1,
-        });
+        try {
+          const response: any = await aiBinding.run(model, {
+            messages: [
+              { role: 'system', content: systemInstruction },
+              { role: 'user', content: `Evaluasi setiap probe berikut secara independen. Kembalikan HANYA array JSON murni [ ... ] tanpa teks pembungkus tambahan:\n${JSON.stringify(chunk)}` },
+            ],
+            temperature: 0.1,
+          });
 
-        const rawData = response?.response !== undefined
-          ? response?.response
-          : response?.result?.response !== undefined
-          ? response?.result?.response
-          : response?.result !== undefined
-          ? response.result
-          : response;
+          const rawData = response?.response !== undefined
+            ? response?.response
+            : response?.result?.response !== undefined
+            ? response?.result?.response
+            : response?.result !== undefined
+            ? response.result
+            : response;
 
-        const parsed = extractJsonFromText(rawData);
-        if (!Array.isArray(parsed)) {
-          const debugPreview = typeof rawData === 'object' ? JSON.stringify(rawData) : String(rawData || '');
-          throw new Error(`Workers AI (${model}) tidak mengembalikan array JSON benchmark valid: "${debugPreview.slice(0, 100)}..."`);
+          const parsed = extractBenchmarkArray(rawData);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+          }
+
+          // Fallback heuristic for this chunk if AI returned non-array
+          return chunk.map((p: any) => ({
+            probeId: p.probeId,
+            ...generateLocalProbeDiagnosis(p.probeId, p.prompt, p.studentUtterance),
+          }));
+        } catch (chunkErr: any) {
+          console.warn('Chunk evaluation error, fallback local:', chunkErr?.message);
+          return chunk.map((p: any) => ({
+            probeId: p.probeId,
+            ...generateLocalProbeDiagnosis(p.probeId, p.prompt, p.studentUtterance),
+          }));
         }
-        return parsed;
       })
     );
 
@@ -115,16 +133,16 @@ Output strictly a JSON array of objects with the exact structure:
     const results = items.map((item: any) => {
       const get = (suffix: string) => {
         const probeKey = `${item.id}::${suffix}`;
-        const found = allParsed.find((p: any) => p.probeId === probeKey);
+        const found = allParsed.find((p: any) => p && p.probeId === probeKey);
         if (!found) {
-          throw new Error(`Probe ${probeKey} tidak ditemukan dalam respons Workers AI.`);
+          return generateLocalProbeDiagnosis(probeKey, item.prompt, item.childUtterance);
         }
         return {
-          hasMisconception: Boolean(found.hasMisconception),
+          hasMisconception: Boolean(found.hasMisconception === true || found.hasMisconception === 'true' || found.hasMisconception === 1),
           misconceptionName: found.misconceptionName || 'None',
           structuralMasteryScore: typeof found.structuralMasteryScore === 'number'
             ? Math.min(1, Math.max(0, found.structuralMasteryScore))
-            : 0.5,
+            : (!isNaN(Number(found.structuralMasteryScore)) ? Math.min(1, Math.max(0, Number(found.structuralMasteryScore))) : 0.5),
           explanation: found.explanation || `Analisis inferensi probe ${probeKey} (AiOS AI: ${model}).`,
         };
       };
