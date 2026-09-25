@@ -631,11 +631,11 @@ Bagian ini sengaja jujur. Dokumen konsep yang tidak memuat kelemahannya sendiri 
 
 ## 12. Peta Jalan (Urutan Pembangunan)
 
-**Prinsip urutan:** data model dulu, antarmuka belakangan. Jangan mulai dari Open edX atau UI. MVP pertama boleh jelek secara visual.
+**Prinsip urutan:** skema dan antarmuka audit dibangun bersamaan — sebab *final power auditor tetap manusia*, dan manusia butuh medium visual untuk menghasilkan `humanExpertDiagnosis` serta menilai output AI (lihat 6.5, Bagian 12 Tahap 2). Yang ditunda bukan antarmuka, tapi **kemewahan produksi**: styling, efek visual/audio, dan perluasan ke domain atau modul baru. Bedakan dua jenis UI secara eksplisit — *UI instrumentasi audit* (form input, tampilan perbandingan diagnosis, dashboard skor) dibangun sejak Tahap 0/1 karena tanpanya Tahap 2 tidak bisa diuji sama sekali; *UI produksi* (polish visual, simulasi lab bernuansa tinggi, FX) ditunda sampai satu domain lolos gerbang Tahap 2 pada skala penuh. Jangan mulai dari Open edX. MVP pertama boleh jelek secara visual — "jelek" berarti *tidak dipoles*, bukan *tidak ada*.
 
 **Tahap 0 · Skema.** Rumuskan entitas graph, evidence, misconception, learner state (bagian 5.3).
 
-**Tahap 1 · Satu domain sempit.** Contoh: dari pecahan sampai persamaan, ±50-100 node. Satu pengguna pertama.
+**Tahap 1 · Satu domain sempit.** Contoh: dari pecahan sampai persamaan, ±50-100 node. Satu pengguna pertama. **Gerbang keluar Tahap 1 terukur dan mengikat**: jangan tambah domain baru (fisika, komputasi, dst.) atau lab baru di luar domain aktif sampai domain aktif mencapai ≥50 node *dan* lolos uji Tahap 2 (termasuk Layer 0–2 perturbation) pada skala itu — bukan pada sampel benchmark kecil. Modul lab di luar domain aktif yang sudah terlanjur dibangun boleh tetap ada sebagai eksperimen paralel, tapi harus ditandai eksplisit sebagai *out-of-sequence* di `KNOWN_ISSUES.md`, bukan diam-diam dianggap bagian dari jalur utama.
 
 **Tahap 2 · Uji hipotesis pusat.** *Apakah diagnosis miskonsepsi oleh AI cocok dengan penilaian manusia yang teliti?* Jika ya, lapisan di atasnya layak dibangun. Jika tidak, perbaiki sensor sebelum menambah fitur.
 

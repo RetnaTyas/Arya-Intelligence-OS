@@ -59,13 +59,24 @@ Audit independen terhadap implementasi kode menemukan kesenjangan struktural ant
 
 ---
 
+### 🟠 Temuan 5: Pelanggaran Gerbang Urutan Tahap 1 — Perluasan Domain Mendahului Saturasi (*Out-of-Sequence*)
+* **Status**: 🔴 **Belum Diremediasi** (berbeda dari Temuan 1–4 di atas, yang sudah tertutup)
+* **Kondisi Saat Ini**: `src/data/initialKnowledgeGraph.ts` berisi 34 node total, terbagi ke 4 domain (Matematika 9, Fisika 9, Logika & Kausal 8, Komputasi 8) — bukan satu domain dengan ±50-100 node sebagaimana disyaratkan Bagian 12 Tahap 1. Bersamaan dengan itu, `src/components/labs/` sudah berisi 15 modul lab yang dibangun penuh (mis. `BuoyancyLab.tsx`, `SubmarineProjectLab.tsx`, `BinarySearchComplexityLab.tsx`, `CalculusRateLab.tsx`) lintas keempat domain tersebut, lengkap dengan polish visual dan FX.
+* **Akar Masalah**: Frasa prinsip urutan lama ("data model dulu, antarmuka belakangan") ambigu dan tidak membedakan *UI instrumentasi audit* (prasyarat Tahap 2, boleh dibangun sejak awal) dari *UI produksi* (polish, FX, perluasan domain — seharusnya ditunda sampai Tahap 1 tuntas). Tidak ada gerbang keluar Tahap 1 yang terukur, sehingga tidak ada titik berhenti eksplisit sebelum domain baru mulai dikerjakan.
+* **Tindakan Perbaikan**:
+  1. Bagian 12 Prinsip Urutan direvisi untuk membedakan UI instrumentasi audit vs UI produksi secara eksplisit, dan menambahkan gerbang keluar Tahap 1 yang mengikat (≥50 node pada domain aktif + lolos uji Tahap 2 termasuk Layer 0–2 pada skala itu, bukan sampel benchmark kecil).
+  2. **Belum dikerjakan**: memperdalam satu domain (kandidat: pecahan, sudah punya cakupan `childUtterance` terbanyak di `centralHypothesisBenchmark.ts`) sampai ≥50 node dan lolos uji Tahap 2 pada skala penuh.
+  3. 15 modul lab di luar domain yang akan dipilih sebagai domain aktif tetap berjalan sebagai eksperimen paralel yang ditandai *out-of-sequence* oleh entri ini — bukan dianggap diam-diam sebagai bagian dari jalur utama Tahap 1–2.
+
+---
+
 ## 3. Komponen yang Terbukti Otentik (Non-Mock)
 
 Audit mengonfirmasi bahwa mesin logika inti tidak menggunakan angka statis palsu:
 - `src/engine/deterministicCore.ts`: Penentuan kelayakan prasyarat graf dan jalur belajar dihitung murni dari matriks penguasaan.
 - `src/engine/evidenceTriangulation.ts`: Bobot triangulasi 60% empiris lab / 25% uji transfer / 15% sensor kognitif dihitung secara matematis.
 - `src/engine/dynamicTelemetry.ts`: Peluruhan ingatan Ebbinghaus, skor stabilitas, dan rasio *Epistemic Debt* ($D = \sum (1 - M_i) \cdot W_i$) beroperasi dinamis atas IndexedDB dan telemetry aksi lab.
-- `src/engine/narrowMathDomain.ts`: Pemodelan domain sempit sesuai kriteria Tahap 1.
+- `src/data/narrowMathDomain.ts`: Pemodelan domain sempit sesuai kriteria Tahap 1. *(Path dikoreksi dari `src/engine/` — file sudah dipindah ke `src/data/` tapi referensi dokumen belum disinkronkan ulang.)*
 
 ---
 
