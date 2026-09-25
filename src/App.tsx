@@ -772,6 +772,9 @@ export default function App() {
                 }}
                 onEmpiricalEvidence={handleEmpiricalEvidence}
                 criticalDebt={criticalDebt}
+                queue={recommendedQueue}
+                learnerNodes={learnerNodes}
+                knowledgeNodes={knowledgeNodes}
               />
             )}
 

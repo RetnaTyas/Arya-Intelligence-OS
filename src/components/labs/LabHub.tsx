@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   FlaskConical,
   Scale,
@@ -12,6 +12,14 @@ import {
   Sparkles,
   Droplets,
   Puzzle,
+  Lock,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  ChevronRight,
+  Award,
+  BookOpen,
+  ArrowUpRight,
 } from 'lucide-react';
 import { BuoyancyLab } from './BuoyancyLab';
 import { BarModelAlgebraLab } from './BarModelAlgebraLab';
@@ -32,8 +40,9 @@ import { NumberLineLab } from './NumberLineLab';
 import { DensityMassLab } from './DensityMassLab';
 import { BinarySearchComplexityLab } from './BinarySearchComplexityLab';
 
-import { FeynmanDiagnosisResult } from '../../types';
+import { FeynmanDiagnosisResult, KnowledgeNode, LearnerNodeState } from '../../types';
 import { EmpiricalSimulationEvidence } from '../../engine/evidenceTriangulation';
+import { evaluatePrerequisites, RecommendedExperience } from '../../engine/deterministicCore';
 
 export type LabId =
   // Umur 1-3 Logika
@@ -87,6 +96,9 @@ interface LabHubProps {
   onNavigateToGraph?: (nodeId: string) => void;
   onEmpiricalEvidence?: (simulationId: string, evidence: EmpiricalSimulationEvidence) => void;
   criticalDebt?: 'LOW' | 'MEDIUM' | 'HIGH';
+  queue?: RecommendedExperience[];
+  learnerNodes?: Record<string, LearnerNodeState>;
+  knowledgeNodes?: KnowledgeNode[];
 }
 
 export const LabHub: React.FC<LabHubProps> = ({
@@ -98,9 +110,14 @@ export const LabHub: React.FC<LabHubProps> = ({
   onNavigateToGraph,
   onEmpiricalEvidence,
   criticalDebt = 'LOW',
+  queue = [],
+  learnerNodes = {},
+  knowledgeNodes = [],
 }) => {
   const [selectedDomain, setSelectedDomain] = useState<DomainFilter>('Semua');
   const [selectedAge, setSelectedAge] = useState<AgeFilter>('Semua');
+  const [showExplorableLabs, setShowExplorableLabs] = useState<boolean>(false);
+  const [showArchivedLabs, setShowArchivedLabs] = useState<boolean>(false);
 
   const labCatalogue = [
     // ----------------------------------------------------
@@ -526,41 +543,130 @@ export const LabHub: React.FC<LabHubProps> = ({
     return matchesDomain && matchesAge;
   });
 
+  const queueMap = useMemo(() => {
+    const map = new Map<string, RecommendedExperience>();
+    (queue || []).forEach((q) => {
+      map.set(q.nodeId, q);
+    });
+    return map;
+  }, [queue]);
+
+  const topQueueNodeIds = useMemo(() => {
+    return new Set((queue || []).slice(0, 3).map((q) => q.nodeId));
+  }, [queue]);
+
+  const allQueueNodeIds = useMemo(() => {
+    return new Set((queue || []).map((q) => q.nodeId));
+  }, [queue]);
+
+  // Categorize filtered catalogue into 3 Layers + Locked Silhouette
+  const { priorityLabs, explorableLabs, masteredLabs, lockedLabs } = useMemo(() => {
+    const pLabs: typeof labCatalogue = [];
+    const eLabs: typeof labCatalogue = [];
+    const mLabs: typeof labCatalogue = [];
+    const lLabs: typeof labCatalogue = [];
+
+    filteredCatalogue.forEach((lab) => {
+      const isCurrentlyActive = lab.id === activeLabId;
+      const isTopQueue = topQueueNodeIds.has(lab.nodeRef);
+      const isInQueue = allQueueNodeIds.has(lab.nodeRef);
+
+      // Check prerequisite if knowledgeNodes provided
+      const node = knowledgeNodes?.find((n) => n.id === lab.nodeRef);
+      const state = learnerNodes?.[lab.nodeRef];
+      const prereq = node && knowledgeNodes.length > 0 && Object.keys(learnerNodes).length > 0
+        ? evaluatePrerequisites(node, knowledgeNodes, learnerNodes)
+        : { isUnlocked: true };
+
+      if (!prereq.isUnlocked) {
+        lLabs.push(lab);
+        return;
+      }
+
+      if (isCurrentlyActive || isTopQueue) {
+        pLabs.push(lab);
+      } else if (isInQueue) {
+        eLabs.push(lab);
+      } else if (state && Object.values(state.mastery).reduce((a, b) => a + b, 0) / 7 >= 0.6) {
+        mLabs.push(lab);
+      } else {
+        eLabs.push(lab);
+      }
+    });
+
+    return {
+      priorityLabs: pLabs,
+      explorableLabs: eLabs,
+      masteredLabs: mLabs,
+      lockedLabs: lLabs,
+    };
+  }, [filteredCatalogue, activeLabId, topQueueNodeIds, allQueueNodeIds, knowledgeNodes, learnerNodes]);
+
+  // Child-friendly badge helper for recommendation types
+  const getQueueBadge = (nodeRef: string) => {
+    const rec = queueMap.get(nodeRef);
+    if (!rec) return null;
+    switch (rec.type) {
+      case 'BOTTLENECK_REPAIR':
+        return {
+          label: 'Yuk Kita Ingat Lagi!',
+          chip: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+        };
+      case 'FRONTIER_EXPLORATION':
+        return {
+          label: 'Dunia Baru!',
+          chip: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+        };
+      case 'TRANSFER_CONSOLIDATION':
+        return {
+          label: 'Tantangan Seru',
+          chip: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40',
+        };
+      case 'SPACED_RETRIEVAL':
+        return {
+          label: 'Segarkan Ingatan',
+          chip: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40',
+        };
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {/* Automated Stealth Repair Dispatch Alert (Tahap 4 Kontrak Peta Jalan) */}
+      {/* Child-Friendly Misi Petualangan Khusus (Zero-Shame Framing) */}
       {criticalDebt === 'HIGH' && activeLabId !== 'submarine_project' && (
-        <div className="bg-gradient-to-r from-amber-950/60 via-slate-900 to-amber-950/40 border border-amber-500/50 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg animate-fade-in">
+        <div className="bg-gradient-to-r from-amber-950/60 via-slate-900 to-amber-950/40 border border-amber-500/40 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg animate-fade-in">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0">
-              <Compass className="w-5 h-5" />
+            <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0">
+              <Sparkles className="w-5 h-5 text-amber-400" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded bg-amber-500/30 text-amber-200 border border-amber-500/40">
-                  ⚡ Aksi Otomatis Sistem
+                  🌟 Misi Petualangan Khusus
                 </span>
                 <span className="text-xs font-bold text-white">
-                  Pengalihan Proyek Rekayasa (Stealth Insertion)
+                  Tantangan Rahasia Kapal Selam Nautica!
                 </span>
               </div>
               <p className="text-xs text-slate-300 mt-1">
-                Terdeteksi peluruhan memori pada konsep prasyarat aljabar & keseimbangan. Sistem deterministik secara otomatis menyisipkan tantangan lapangan tanpa remedial terpisah.
+                Sebuah misi penting menunggumu di kedalaman laut 100 meter. Yuk bantu kendalikan tangki ballast untuk menemukan rahasia keseimbangan daya apung netral!
               </p>
             </div>
           </div>
           <button
             onClick={() => onSelectLab('submarine_project')}
-            className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md flex items-center justify-center gap-2 shrink-0 transition"
+            className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md flex items-center justify-center gap-2 shrink-0 transition cursor-pointer"
           >
-            <span>Buka Misi Kapal Selam Nautica</span>
+            <span>Buka Misi Kapal Selam ➔</span>
             <Sparkles className="w-3.5 h-3.5" />
           </button>
         </div>
       )}
 
       {/* Domain & Age Navigation Filter Bar */}
-      <div className="bg-[#0c101c] p-4 rounded-2xl border border-slate-800 space-y-3.5">
+      <div className="bg-[#0c101c] p-4 rounded-2xl border border-slate-800 space-y-3.5 shadow-lg">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           {/* Age Bracket Filter */}
           <div className="flex flex-wrap items-center gap-1.5 text-xs">
@@ -611,55 +717,313 @@ export const LabHub: React.FC<LabHubProps> = ({
           </div>
         </div>
 
-        {/* Quick Horizontal Carousel of Labs */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5 pt-2 border-t border-slate-800/80">
-          {filteredCatalogue.map((lab) => {
-            const Icon = lab.icon;
-            const isSelected = activeLabId === lab.id;
+        {/* ============================================================ */}
+        {/* LAPIS 1: LAB MISI SEKARANG (Default Terbuka, 1–3 Lab Fokus)   */}
+        {/* ============================================================ */}
+        <div className="pt-3 border-t border-slate-800/80 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                <Compass className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Sekarang · Lab Misi Utama</span>
+              </h3>
+            </div>
+            <span className="text-[10px] font-mono text-cyan-400/90 font-medium bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20">
+              {priorityLabs.length} Lab Fokus
+            </span>
+          </div>
 
-            return (
-              <button
-                key={lab.id}
-                onClick={() => onSelectLab(lab.id)}
-                className={`p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all ${
-                  isSelected
-                    ? 'bg-gradient-to-b from-slate-900 to-[#121629] border-cyan-400/80 ring-2 ring-cyan-500/20 shadow-lg'
-                    : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 hover:bg-slate-900/60'
-                }`}
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div
-                      className={`w-6 h-6 rounded-lg bg-gradient-to-tr ${lab.color} flex items-center justify-center text-white shadow`}
-                    >
-                      <Icon className="w-3.5 h-3.5" />
+          {priorityLabs.length === 0 ? (
+            <div className="p-4 rounded-xl border border-dashed border-slate-800 bg-[#0a0d18] text-center text-slate-400 text-xs">
+              Pilih lab dari daftar eksplorasi di bawah untuk mulai bereksperimen.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {priorityLabs.map((lab) => {
+                const Icon = lab.icon;
+                const isSelected = activeLabId === lab.id;
+                const queueBadge = getQueueBadge(lab.nodeRef);
+
+                return (
+                  <div
+                    key={lab.id}
+                    onClick={() => onSelectLab(lab.id)}
+                    className={`p-3.5 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-gradient-to-b from-slate-900 to-[#12182c] border-cyan-400/80 ring-2 ring-cyan-500/30 shadow-lg'
+                        : 'bg-[#0f1424] border-slate-800 hover:border-slate-700 hover:bg-[#12182c]'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-1 mb-2">
+                        <div className="flex items-center gap-1.5">
+                          <div
+                            className={`w-6 h-6 rounded-lg bg-gradient-to-tr ${lab.color} flex items-center justify-center text-white shadow`}
+                          >
+                            <Icon className="w-3.5 h-3.5" />
+                          </div>
+                          <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${lab.badgeBg}`}>
+                            {lab.domain}
+                          </span>
+                        </div>
+                        {queueBadge ? (
+                          <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full border ${queueBadge.chip}`}>
+                            {queueBadge.label}
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400">
+                            {lab.ageLabel}
+                          </span>
+                        )}
+                      </div>
+                      <h4 className="text-xs font-bold text-white leading-snug line-clamp-1">
+                        {lab.name}
+                      </h4>
+                      <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">
+                        {lab.description}
+                      </p>
                     </div>
-                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300">
-                      {lab.ageLabel}
-                    </span>
+
+                    <div className="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-between">
+                      {isSelected ? (
+                        <span className="text-[11px] text-cyan-400 font-bold flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
+                          <span>Sedang Aktif</span>
+                        </span>
+                      ) : (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelectLab(lab.id);
+                          }}
+                          className="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium flex items-center gap-1"
+                        >
+                          <span>Buka Lab</span>
+                          <ChevronRight className="w-3 h-3" />
+                        </button>
+                      )}
+
+                      {onNavigateToGraph && lab.nodeRef && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onNavigateToGraph(lab.nodeRef);
+                          }}
+                          className="text-[10px] text-slate-400 hover:text-slate-200 flex items-center gap-0.5 transition"
+                          title="Lihat simpul ini di Peta Petualangan"
+                        >
+                          <span>Peta Ilmu</span>
+                          <ArrowUpRight className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <h4 className="text-xs font-bold text-slate-200 line-clamp-1">
-                    {lab.name}
-                  </h4>
-                  <p className="text-[10px] text-slate-400 mt-1 line-clamp-2">
-                    {lab.description}
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* ============================================================ */}
+        {/* LAPIS 2: LAB PETUALANGAN LAINNYA (Collapsed by Default)       */}
+        {/* ============================================================ */}
+        {explorableLabs.length > 0 && (
+          <div className="pt-2 border-t border-slate-800/80">
+            <button
+              onClick={() => setShowExplorableLabs((prev) => !prev)}
+              className="w-full p-2.5 rounded-xl bg-slate-900/60 hover:bg-slate-900 flex items-center justify-between text-left transition border border-slate-800 group"
+            >
+              <div className="flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-indigo-400 group-hover:text-indigo-300 transition" />
+                <div>
+                  <span className="text-xs font-bold text-white">
+                    Bisa Kamu Coba Juga ({explorableLabs.length} lab terbuka)
+                  </span>
+                  <p className="text-[10px] text-slate-400">
+                    Eksperimen lain yang sudah siap untuk kamu coba kapan saja.
                   </p>
                 </div>
+              </div>
+              <div className="flex items-center gap-1 text-xs text-indigo-400 font-medium">
+                <span>{showExplorableLabs ? 'Sembunyikan' : 'Buka Pilihan'}</span>
+                {showExplorableLabs ? (
+                  <ChevronUp className="w-4 h-4" />
+                ) : (
+                  <ChevronDown className="w-4 h-4" />
+                )}
+              </div>
+            </button>
 
-                <div className="mt-2 pt-1.5 border-t border-slate-800/60 flex items-center justify-between">
-                  <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${lab.badgeBg}`}>
-                    {lab.domain}
+            {showExplorableLabs && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 pt-3 mt-1">
+                {explorableLabs.map((lab) => {
+                  const Icon = lab.icon;
+                  const isSelected = activeLabId === lab.id;
+
+                  return (
+                    <button
+                      key={lab.id}
+                      onClick={() => onSelectLab(lab.id)}
+                      className={`p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all ${
+                        isSelected
+                          ? 'bg-slate-900 border-cyan-400/80 ring-2 ring-cyan-500/20 shadow'
+                          : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 hover:bg-slate-900/60'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div
+                            className={`w-6 h-6 rounded-lg bg-gradient-to-tr ${lab.color} flex items-center justify-center text-white shadow`}
+                          >
+                            <Icon className="w-3.5 h-3.5" />
+                          </div>
+                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400">
+                            {lab.ageLabel}
+                          </span>
+                        </div>
+                        <h5 className="text-xs font-bold text-slate-200 line-clamp-1">
+                          {lab.name}
+                        </h5>
+                        <p className="text-[10px] text-slate-400 mt-0.5 line-clamp-2">
+                          {lab.description}
+                        </p>
+                      </div>
+
+                      <div className="mt-2 pt-1.5 border-t border-slate-800/60 flex items-center justify-between">
+                        <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${lab.badgeBg}`}>
+                          {lab.domain}
+                        </span>
+                        {isSelected && (
+                          <span className="text-[10px] text-cyan-400 font-bold">
+                            Aktif
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ============================================================ */}
+        {/* LAPIS 3: LAB YANG SUDAH KAMU KUASAI (Arsip Prestasi)         */}
+        {/* ============================================================ */}
+        {masteredLabs.length > 0 && (
+          <div className="pt-2 border-t border-slate-800/80">
+            <button
+              onClick={() => setShowArchivedLabs((prev) => !prev)}
+              className="w-full p-2.5 rounded-xl bg-emerald-950/20 hover:bg-emerald-950/30 flex items-center justify-between text-left transition border border-emerald-900/30 group"
+            >
+              <div className="flex items-center gap-2">
+                <Award className="w-4 h-4 text-emerald-400 group-hover:text-emerald-300 transition" />
+                <div>
+                  <span className="text-xs font-bold text-white">
+                    Sudah Kamu Kuasai ({masteredLabs.length} lab tuntas)
                   </span>
-                  {isSelected && (
-                    <span className="text-[10px] text-cyan-400 font-bold flex items-center gap-0.5">
-                      Aktif
-                    </span>
-                  )}
+                  <p className="text-[10px] text-slate-400">
+                    Eksperimen yang konsep dasarnya sudah kamu buktikan dengan sangat baik.
+                  </p>
                 </div>
-              </button>
-            );
-          })}
-        </div>
+              </div>
+              <div className="flex items-center gap-1 text-xs text-emerald-400 font-medium">
+                <span>{showArchivedLabs ? 'Sembunyikan' : 'Lihat Koleksi'}</span>
+                {showArchivedLabs ? (
+                  <ChevronUp className="w-4 h-4" />
+                ) : (
+                  <ChevronDown className="w-4 h-4" />
+                )}
+              </div>
+            </button>
+
+            {showArchivedLabs && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 pt-3 mt-1">
+                {masteredLabs.map((lab) => {
+                  const Icon = lab.icon;
+                  const isSelected = activeLabId === lab.id;
+
+                  return (
+                    <button
+                      key={lab.id}
+                      onClick={() => onSelectLab(lab.id)}
+                      className={`p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all ${
+                        isSelected
+                          ? 'bg-[#0e1828] border-emerald-500/80 ring-2 ring-emerald-500/20 shadow'
+                          : 'bg-[#09111c] border-emerald-900/30 hover:border-emerald-700/60'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div
+                            className={`w-6 h-6 rounded-lg bg-gradient-to-tr ${lab.color} flex items-center justify-center text-white shadow`}
+                          >
+                            <Icon className="w-3.5 h-3.5" />
+                          </div>
+                          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                            <CheckCircle2 className="w-2.5 h-2.5 text-emerald-400" />
+                            <span>Tuntas</span>
+                          </span>
+                        </div>
+                        <h5 className="text-xs font-bold text-slate-200 line-clamp-1">
+                          {lab.name}
+                        </h5>
+                        <p className="text-[10px] text-slate-400 mt-0.5 line-clamp-2">
+                          {lab.description}
+                        </p>
+                      </div>
+
+                      <div className="mt-2 pt-1.5 border-t border-emerald-900/40 flex items-center justify-between">
+                        <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${lab.badgeBg}`}>
+                          {lab.domain}
+                        </span>
+                        {isSelected && (
+                          <span className="text-[10px] text-emerald-400 font-bold">
+                            Aktif
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ============================================================ */}
+        {/* LAB TERKUNCI (Siluet 1-Langkah Lagi)                          */}
+        {/* ============================================================ */}
+        {lockedLabs.length > 0 && (
+          <div className="pt-2 border-t border-slate-800/80">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-2">
+              <Lock className="w-3.5 h-3.5 text-slate-500" />
+              <span className="font-bold uppercase tracking-wider text-[11px]">
+                Masa Depan · Lab Menunggumu ({lockedLabs.length} lab)
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+              {lockedLabs.map((lab) => (
+                <div
+                  key={lab.id}
+                  className="p-2.5 rounded-xl border border-dashed border-slate-800 bg-[#070a14]/60 opacity-60 flex items-center gap-2 cursor-not-allowed select-none"
+                  title={`Selesaikan prasyarat di Peta Petualangan untuk membuka lab ${lab.name}`}
+                >
+                  <Lock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                  <div className="min-w-0">
+                    <h5 className="text-[11px] font-semibold text-slate-400 truncate">
+                      {lab.name}
+                    </h5>
+                    <span className="text-[9px] text-slate-500">
+                      Terkunci · Kuasai prasyarat
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Active Lab Header & Navigation Link to Knowledge Graph */}
