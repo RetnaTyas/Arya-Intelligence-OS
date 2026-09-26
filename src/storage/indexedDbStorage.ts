@@ -129,24 +129,40 @@ export async function loadInitialOSState(): Promise<{
       };
     }
 
-    // Otherwise, first launch on this device: Seed initial baseline into IndexedDB
-    await seedBaselineData(db);
-
+    // First launch on this device: Start with a CLEAN, EMPTY profile.
+    // Tidak membingungkan pengguna dengan dataset contoh tiruan yang harus dihapus manual.
     return {
-      learnerNodes: INITIAL_LEARNER_NODES,
-      evidenceLogs: INITIAL_EVIDENCE_LOGS,
+      learnerNodes: {},
+      evidenceLogs: [],
       activeTrajectory: INITIAL_ACTIVE_TRAJECTORY,
       isFreshDB: true,
     };
   } catch (err) {
-    console.warn('Fallback ke in-memory state karena IndexedDB error:', err);
+    console.warn('Fallback ke clean in-memory state karena IndexedDB error:', err);
     return {
-      learnerNodes: INITIAL_LEARNER_NODES,
-      evidenceLogs: INITIAL_EVIDENCE_LOGS,
+      learnerNodes: {},
+      evidenceLogs: [],
       activeTrajectory: INITIAL_ACTIVE_TRAJECTORY,
       isFreshDB: false,
     };
   }
+}
+
+/**
+ * Seed initial baseline demo data into IndexedDB on explicit user request.
+ */
+export async function seedBaselineSampleDataset(): Promise<{
+  learnerNodes: Record<string, LearnerNodeState>;
+  evidenceLogs: EvidenceEntry[];
+  activeTrajectory: ActiveTrajectory;
+}> {
+  const db = await openOSDatabase();
+  await seedBaselineData(db);
+  return {
+    learnerNodes: INITIAL_LEARNER_NODES,
+    evidenceLogs: INITIAL_EVIDENCE_LOGS,
+    activeTrajectory: INITIAL_ACTIVE_TRAJECTORY,
+  };
 }
 
 /**

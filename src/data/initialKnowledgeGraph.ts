@@ -1,6 +1,7 @@
 import { KnowledgeNode } from '../types';
+import { NARROW_DOMAIN_MATH_NODES } from './narrowMathDomain';
 
-export const INITIAL_KNOWLEDGE_GRAPH: KnowledgeNode[] = [
+const BASE_KNOWLEDGE_GRAPH: KnowledgeNode[] = [
   // ==========================================
   // TAHAP 1: SENSORI-MOTORIK & PERMANENSI (UMUR 1 - 3 TAHUN)
   // ==========================================
@@ -1077,4 +1078,9 @@ export const INITIAL_KNOWLEDGE_GRAPH: KnowledgeNode[] = [
     futureRelevance: 0.99,
     activeSimulationId: 'binary_search_complexity',
   },
+];
+
+export const INITIAL_KNOWLEDGE_GRAPH: KnowledgeNode[] = [
+  ...BASE_KNOWLEDGE_GRAPH,
+  ...NARROW_DOMAIN_MATH_NODES,
 ];

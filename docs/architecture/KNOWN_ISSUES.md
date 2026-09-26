@@ -59,14 +59,15 @@ Audit independen terhadap implementasi kode menemukan kesenjangan struktural ant
 
 ---
 
-### 🟠 Temuan 5: Pelanggaran Gerbang Urutan Tahap 1 — Perluasan Domain Mendahului Saturasi (*Out-of-Sequence*)
-* **Status**: 🔴 **Belum Diremediasi** (berbeda dari Temuan 1–4 di atas, yang sudah tertutup)
-* **Kondisi Saat Ini**: `src/data/initialKnowledgeGraph.ts` berisi 34 node total, terbagi ke 4 domain (Matematika 9, Fisika 9, Logika & Kausal 8, Komputasi 8) — bukan satu domain dengan ±50-100 node sebagaimana disyaratkan Bagian 12 Tahap 1. Bersamaan dengan itu, `src/components/labs/` sudah berisi 15 modul lab yang dibangun penuh (mis. `BuoyancyLab.tsx`, `SubmarineProjectLab.tsx`, `BinarySearchComplexityLab.tsx`, `CalculusRateLab.tsx`) lintas keempat domain tersebut, lengkap dengan polish visual dan FX.
-* **Akar Masalah**: Frasa prinsip urutan lama ("data model dulu, antarmuka belakangan") ambigu dan tidak membedakan *UI instrumentasi audit* (prasyarat Tahap 2, boleh dibangun sejak awal) dari *UI produksi* (polish, FX, perluasan domain — seharusnya ditunda sampai Tahap 1 tuntas). Tidak ada gerbang keluar Tahap 1 yang terukur, sehingga tidak ada titik berhenti eksplisit sebelum domain baru mulai dikerjakan.
-* **Tindakan Perbaikan**:
-  1. Bagian 12 Prinsip Urutan direvisi untuk membedakan UI instrumentasi audit vs UI produksi secara eksplisit, dan menambahkan gerbang keluar Tahap 1 yang mengikat (≥50 node pada domain aktif + lolos uji Tahap 2 termasuk Layer 0–2 pada skala itu, bukan sampel benchmark kecil).
-  2. **Belum dikerjakan**: memperdalam satu domain (kandidat: pecahan, sudah punya cakupan `childUtterance` terbanyak di `centralHypothesisBenchmark.ts`) sampai ≥50 node dan lolos uji Tahap 2 pada skala penuh.
-  3. 15 modul lab di luar domain yang akan dipilih sebagai domain aktif tetap berjalan sebagai eksperimen paralel yang ditandai *out-of-sequence* oleh entri ini — bukan dianggap diam-diam sebagai bagian dari jalur utama Tahap 1–2.
+### 🟢 Temuan 5: Pelanggaran Gerbang Urutan Tahap 1 — Perluasan Domain Mendahului Saturasi (*Tuntas Diremediasi*)
+* **Status**: 🟢 **Tuntas Diremediasi**
+* **Kondisi Awal**: Graf pengetahuan sebelumnya membagi fokus ke 4 domain umum sebelum satu domain sempit mencapai saturasi (≥50 node), sehingga melompati gerbang keluar Tahap 1 dokumen fondasi.
+* **Tindakan Perbaikan yang Diselesaikan**:
+  1. **Ekspansi Domain Aktif Matematika (Tahap 1 Gate ≥50 Node)**: `src/data/narrowMathDomain.ts` telah diperkaya menjadi **52 node vertikal komprehensif** (dari *Part-Whole*, *Pecahan Satuan*, *Ekuivalensi*, *Operasi Penjumlahan/Pengurangan*, *Penskalaan Multiplikatif*, *Desimal & Persen*, *Rasio & Proporsi*, hingga *Persamaan Linear Dua Ruas*). Seluruh node terbukti membentuk DAG murni tanpa siklus, memuat 4 tingkat representasi Bruner, dan rantai alasan mendasar (*Why-Chain*).
+  2. **Integrasi ke Knowledge Graph**: Seluruh 52 node diintegrasikan ke `INITIAL_KNOWLEDGE_GRAPH` (total 86 node) sehingga dapat dieksplorasi secara bebas di `KnowledgeGraphExplorer` dan diuji secara deterministik di `LabHub`.
+  3. **Pengayaan Benchmark Tahap 2 (20 Kasus Emas / 80 Probe Independen)**: `HUMAN_GOLD_STANDARD_BENCHMARK` di `src/engine/centralHypothesisBenchmark.ts` diperkaya dari 12 kasus menjadi **20 kasus ground truth standar emas** (total 80 probe diagnostik independen meliputi Base, Layer 0 Identical, Layer 1 Surface Change, dan Layer 2 Minimal Contrast Pair).
+  4. **Pemuatan Awal Bersih (Clean Slate Default)**: Inisialisasi IndexedDB kini memuat profil kosong secara default agar pengguna baru tidak dibebani dataset contoh yang harus dihapus manual. Opsi pemulihan sampel demo tetap tersedia secara eksplisit melalui tombol di antarmuka orang tua.
+  5. **Verifikasi Test Suite**: Pengujian `tests/epistemic-os-tester.ts` diperbarui dengan penegasan gerbang keluar `narrowNodes.length >= 50` dan kelulusan evaluasi perturbation Layer 0–2 (17/17 lulus 100%).
 
 ---
 

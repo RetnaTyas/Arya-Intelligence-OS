@@ -155,10 +155,10 @@ function runSuite1() {
     }
   }
   assert(
-    narrowPrereqOk && narrowNodes.length >= 5,
+    narrowPrereqOk && narrowNodes.length >= 50,
     suite,
-    'Narrow Math Domain Schema Compliance',
-    `Domain sempit Matematika memuat ${narrowNodes.length} node terstruktur vertikal dengan prasyarat konsisten.`
+    'Narrow Math Domain Schema Compliance (Tahap 1 Gate >= 50 Nodes)',
+    `Domain sempit Matematika memuat ${narrowNodes.length} node terstruktur vertikal (>= 50 node) dengan prasyarat konsisten.`
   );
 }
 
@@ -181,10 +181,10 @@ function runSuite2() {
     }
   }
   assert(
-    validStructure && benchmarkItems.length === 12,
+    validStructure && benchmarkItems.length >= 20,
     suite,
     'Struktur 4-Probe Independen (Base, Layer 0, 1, 2)',
-    `Semua 12 item standar emas memiliki 4 ujaran anak independen & spesifikasi kontras semantik.`
+    `Semua ${benchmarkItems.length} item standar emas memiliki 4 ujaran anak independen (total ${benchmarkItems.length * 4} probe) & spesifikasi kontras semantik Layer 2.`
   );
 
   // 2.2 Uji Evaluasi Deterministik Agreement & Perturbation (Kasus Kontrol Positif)

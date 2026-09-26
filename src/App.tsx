@@ -37,6 +37,7 @@ import {
   importOSDatasetJSON,
   resetOSDatabase,
   clearAllOSData,
+  seedBaselineSampleDataset,
   persistParentCalibration,
   loadParentCalibration,
 } from './storage/indexedDbStorage';
@@ -52,11 +53,11 @@ export default function App() {
   const [activeLabId, setActiveLabId] = useState<LabId>('buoyancy');
   const [isDocOpen, setIsDocOpen] = useState<boolean>(false);
 
-  // Core OS State
+  // Core OS State (Default: Bersih/Kosong Profil pada penggunaan awal)
   const [knowledgeNodes] = useState<KnowledgeNode[]>(INITIAL_KNOWLEDGE_GRAPH);
-  const [learnerNodes, setLearnerNodes] = useState<Record<string, LearnerNodeState>>(INITIAL_LEARNER_NODES);
-  const [evidenceLogs, setEvidenceLogs] = useState<EvidenceEntry[]>(INITIAL_EVIDENCE_LOGS);
-  const [telemetry, setTelemetry] = useState<CognitiveDomainTelemetry[]>(INITIAL_COGNITIVE_TELEMETRY);
+  const [learnerNodes, setLearnerNodes] = useState<Record<string, LearnerNodeState>>({});
+  const [evidenceLogs, setEvidenceLogs] = useState<EvidenceEntry[]>([]);
+  const [telemetry, setTelemetry] = useState<CognitiveDomainTelemetry[]>([]);
   const [activeTrajectory, setActiveTrajectory] = useState<ActiveTrajectory>(INITIAL_ACTIVE_TRAJECTORY);
   const [selectedNodeId, setSelectedNodeId] = useState<string>('node-buoyancy-archimedes');
   const [parentCalibration, setParentCalibration] = useState<ParentCalibrationSettings>(DEFAULT_PARENT_CALIBRATION);
@@ -66,7 +67,7 @@ export default function App() {
     return selectNextBestExperience(knowledgeNodes, learnerNodes);
   }, [knowledgeNodes, learnerNodes]);
 
-  const [knowledgeStability, setKnowledgeStability] = useState<number>(91);
+  const [knowledgeStability, setKnowledgeStability] = useState<number>(0);
   const [criticalDebt, setCriticalDebt] = useState<'LOW' | 'MEDIUM' | 'HIGH'>('LOW');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -359,18 +360,26 @@ export default function App() {
     showToast('✓ Ground Truth Orang Tua berhasil diterapkan ke log bukti!');
   };
 
-  // Handler to reset IndexedDB to clean state
+  // Handler to load sample demo dataset on user request (Parent View)
   const handleResetDatabase = async () => {
     try {
-      await resetOSDatabase();
-      const loaded = await loadInitialOSState();
-      setLearnerNodes(loaded.learnerNodes);
-      setEvidenceLogs(loaded.evidenceLogs);
-      setActiveTrajectory(loaded.activeTrajectory);
-      showToast('Basis data IndexedDB berhasil dipulihkan ke sampel baseline demo!');
+      const demo = await seedBaselineSampleDataset();
+      setLearnerNodes(demo.learnerNodes);
+      setEvidenceLogs(demo.evidenceLogs);
+      setActiveTrajectory(demo.activeTrajectory);
+      const computed = computeRealTimeTelemetry(
+        knowledgeNodes,
+        demo.learnerNodes,
+        demo.evidenceLogs,
+        demo.activeTrajectory
+      );
+      setTelemetry(computed.telemetry);
+      setKnowledgeStability(computed.overallKnowledgeStability);
+      setCriticalDebt(computed.criticalDebt);
+      showToast('✓ Dataset Contoh Baseline Demo berhasil dimuat!');
     } catch (err) {
       console.error(err);
-      showToast('Gagal mereset basis data.');
+      showToast('Gagal memuat dataset demo.');
     }
   };
 
