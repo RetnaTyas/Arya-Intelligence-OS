@@ -4,6 +4,6 @@
   "main": "index.ts",
   "compatibility_date": "2026-09-26",
   "ai": {
-    "binding": "AI"
+    "binding": "AiOS AI"
   }
 }
