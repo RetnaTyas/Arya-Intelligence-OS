@@ -10,6 +10,8 @@
 
 Audit independen terhadap implementasi kode menemukan kesenjangan struktural antara klaim arsitektur (khususnya *Tahap 2 Peta Jalan: Validasi Hipotesis Pusat & Ketahanan Semantic Perturbation*) dengan eksekusi kode aktual. Beberapa komponen pembuktian sebelumnya beroperasi sebagai *epistemic theater* (simulasi hasil tetap di sisi klien) dan bukan pemanggilan inferensi sensorik nyata.
 
+**Pembaruan audit — fokus penutupan Gerbang Tahap 1 & Tahap 2.** Re-audit lanjutan (lihat Bagian 3, checklist kepatuhan) mengonfirmasi Temuan 1–5 di bawah sudah tuntas diremediasi pada level implementasi. Namun re-audit ini juga menemukan **dua celah baru yang belum tercatat sebelumnya** (Temuan 6 & 7): pelanggaran disiplin urutan Tahap 1 (ekspansi domain lab di luar domain aktif tanpa penandaan *out-of-sequence*) dan cakupan benchmark Tahap 2 yang belum merepresentasikan skala penuh domain 52-node. Kedua celah ini berarti **Tahap 1 dan Tahap 2 belum bisa dinyatakan tuntas** menurut definisi gerbangnya sendiri di `intelligence-os-foundation.md` Bagian 12, meskipun infrastruktur teknisnya sudah solid dan non-mock.
+
 ---
 
 ## 2. Rincian Temuan Kritis & Status Remediasi
@@ -82,7 +84,65 @@ Audit independen terhadap implementasi kode menemukan kesenjangan struktural ant
 
 ---
 
-## 3. Komponen yang Terbukti Otentik (Non-Mock)
+### 🔴 Temuan 6: Modul Lab di Luar Domain Aktif Sudah Dibangun & Aktif Tanpa Penandaan *Out-of-Sequence* (Pelanggaran Disiplin Urutan Tahap 1)
+* **Status**: 🔴 **Belum Diremediasi** (item terbuka)
+* **Kondisi**: `intelligence-os-foundation.md` Bagian 12 mensyaratkan secara eksplisit: *"jangan tambah domain baru (fisika, komputasi, dst.) atau lab baru di luar domain aktif sampai domain aktif mencapai ≥50 node dan lolos uji Tahap 2 ... Modul lab di luar domain aktif yang sudah terlanjur dibangun boleh tetap ada sebagai eksperimen paralel, tapi harus ditandai eksplisit sebagai out-of-sequence di KNOWN_ISSUES.md, bukan diam-diam dianggap bagian dari jalur utama."* Domain aktif Tahap 1 adalah matematika sempit (pecahan → persamaan linear, `narrowMathDomain.ts`). Namun `src/components/labs/LabHub.tsx` mengimpor dan merender aktif modul-modul berikut, yang berada di luar domain itu:
+  - **Fisika**: `BuoyancyLab`, `DensityMassLab`, `EnergyConservationLab`, `QualitativeBalanceLab`
+  - **Komputasi**: `BinarySearchComplexityLab`, `ComputationalAlgorithmLab`
+  - **Psikologi perkembangan / Piagetian**: `ObjectPermanenceLab`, `PiagetConservationLab`
+  - **Domain berdekatan tapi di luar cakupan gerbang ("pecahan → persamaan linear")**: `CausalLogicLab`, `CalculusRateLab`
+  Modul-modul ini bukan kode mati — semua di-*import* dan dipanggil aktif di `LabHub.tsx`, sehingga bisa diakses pengguna sebagai bagian dari alur utama, bukan sebagai eksperimen yang jelas dipisahkan.
+* **Akar Masalah**: Modul lab dibangun paralel dengan pembangunan domain matematika sempit, tanpa gerbang teknis atau dokumentasi yang mencegah/mencatat ekspansi domain sebelum Tahap 1 dinyatakan tuntas. Pelanggaran bersifat diam-diam (silent), persis pola yang diperingatkan Risiko #12 di `intelligence-os-foundation.md` Bagian 11 (scope creep epistemologis) — dalam hal ini bukan pada riset epistemik, tapi pada jumlah domain aktif.
+* **Dampak**: Tanpa penandaan eksplisit, status "Tahap 1 selesai" berisiko diklaim padahal disiplin urutan roadmap sudah dilanggar; investasi rekayasa berisiko tersebar ke banyak domain sebelum satu domain benar-benar tervalidasi di Tahap 2.
+* **Tindakan Perbaikan yang Diperlukan (belum dilaksanakan)**:
+  1. Tandai seluruh modul di atas sebagai *out-of-sequence experiment* — baik di dokumen ini maupun (disarankan) lewat penanda eksplisit di kode (mis. komentar header atau flag `isOutOfSequence: true` pada entri lab di `LabHub.tsx`) agar status ini tidak bergantung hanya pada dokumentasi yang bisa basi.
+  2. Putuskan secara sadar salah satu dari dua jalur: (a) biarkan modul ini tetap ada tapi disembunyikan dari alur utama pengguna sampai domain matematika lolos Gerbang Tahap 2 secara penuh, atau (b) definisikan ulang cakupan Tahap 1 secara eksplisit untuk turut memasukkan domain-domain ini — dengan konsekuensi gerbang ≥50 node dan uji Layer 0–2 juga harus dipenuhi untuk masing-masing domain tersebut.
+  3. Tidak menambah lab domain baru lagi sampai keputusan di atas diambil dan didokumentasikan.
+
+---
+
+### 🔴 Temuan 7: Cakupan Benchmark Tahap 2 Belum Merepresentasikan Skala Penuh Domain 52-Node
+* **Status**: 🔴 **Belum Diremediasi** (item terbuka)
+* **Kondisi**: Gerbang Tahap 2 di `intelligence-os-foundation.md` Bagian 12 mensyaratkan uji Layer 0–2 lolos *"pada skala itu — bukan pada sampel benchmark kecil."* `HUMAN_GOLD_STANDARD_BENCHMARK` di `src/engine/centralHypothesisBenchmark.ts` berisi 20 kasus (80 probe), namun seluruhnya hanya menyentuh 5 klaster konseptual (`bench-frac-*`, `bench-alg-*`, `bench-ratio-*`, `bench-dec-*`, `bench-pct-*`) dari domain sempit 52-node yang mencakup setidaknya 8 klaster (termasuk Part-Whole dasar, Ekuivalensi awal, Penskalaan Multiplikatif — lihat rincian klaster di Temuan 5). Sejumlah node tidak memiliki satu pun kasus benchmark yang mewakilinya.
+* **Akar Masalah**: 20 kasus dirancang sebagai bukti-konsep untuk struktur 4-probe independen (Base/Layer 0/1/2) dan arsitektur endpoint live-AI, bukan sebagai instrumen validasi kelolosan gerbang skala-penuh. Cakupan klaster tidak pernah dipetakan secara eksplisit terhadap 52 node domain sebelum diklaim "lolos Tahap 2" di Temuan 5.
+* **Dampak Tambahan (belum divalidasi)**: 20 kasus gold-standard ini ditulis oleh tim pengembang sendiri (sintetis), belum diverifikasi terhadap asesmen manusia riil pada anak sungguhan — sehingga Risiko #1 di `intelligence-os-foundation.md` Bagian 11 (*"reliabilitas Feynman Sensor adalah masalah riset terbuka ... uji akurasi diagnosis vs penilaian manusia sebelum membangun lapisan lain"*) secara substansi belum tersentuh, walau infrastruktur endpoint-nya sudah nyata.
+* **Tindakan Perbaikan yang Diperlukan (belum dilaksanakan)**:
+  1. Petakan eksplisit setiap dari 52 node ke minimal satu kasus benchmark; identifikasi dan tutup celah klaster yang saat ini nol representasi.
+  2. Definisikan secara eksplisit dan tertulis apa yang dihitung sebagai "skala penuh" untuk keperluan gerbang ini (mis. persentase node minimum bercakupan, jumlah probe minimum per klaster), agar klaim lolos/tidak lolos tidak subjektif.
+  3. Sebelum lanjut ke Tahap 3, jalankan minimal satu putaran validasi diagnosis-AI-vs-manusia pada data riil (bukan gold standard buatan sendiri) sesuai mitigasi Risiko #1.
+
+---
+
+## 3. Status Gerbang Tahap 1 & Tahap 2 (Checklist Kepatuhan Roadmap)
+
+> Rujukan kriteria: `intelligence-os-foundation.md` Bagian 12. Bagian ini menjawab langsung pertanyaan "apakah Tahap 1 dan Tahap 2 benar-benar selesai" per kriteria individual, bukan sebagai satu kesimpulan tunggal.
+
+### Gerbang Tahap 1 — Satu Domain Sempit
+
+| Kriteria Gerbang | Status | Bukti / Rujukan |
+|---|---|---|
+| Domain aktif mencapai ≥50 node | ✅ Lolos | `narrowMathDomain.ts` = 52 node; terintegrasi ke `INITIAL_KNOWLEDGE_GRAPH` (total 86 node); diverifikasi `tests/epistemic-os-tester.ts` Suite 1 |
+| DAG murni tanpa siklus, WhyChain lengkap di seluruh node | ✅ Lolos | Suite 1: 0 error prasyarat, 86/86 node ber-WhyChain, DAG acyclic terverifikasi |
+| Tidak menambah domain/lab baru di luar domain aktif sebelum gerbang lolos | 🔴 **Gagal** | Lihat Temuan 6 — 9 modul lab lintas-domain sudah dibangun dan aktif di `LabHub.tsx` |
+| Modul di luar domain yang terlanjur dibangun ditandai eksplisit *out-of-sequence* | 🔴 **Gagal (sampai revisi dokumen ini)** | Tidak ada penandaan sebelum Temuan 6 ditulis |
+
+**Kesimpulan Tahap 1**: **Belum benar-benar tuntas.** Kriteria ukuran & integritas graf lolos, tapi kriteria disiplin urutan roadmap dilanggar secara aktif dan sebelumnya tidak tercatat.
+
+### Gerbang Tahap 2 — Uji Hipotesis Pusat (Layer 0–2 Perturbation)
+
+| Kriteria Gerbang | Status | Bukti / Rujukan |
+|---|---|---|
+| Endpoint diagnosis AI nyata (bukan simulasi client-side) | ✅ Lolos | Temuan 1 & 2 |
+| Provenance/fallback badge jujur, tidak ada mislabeling sumber | ✅ Lolos | Temuan 4 |
+| Struktur 4-probe independen (Base, Layer 0, 1, 2) per kasus | ✅ Lolos | 20 kasus / 80 probe; `tests/epistemic-os-tester.ts` Suite 2 |
+| Diuji "pada skala itu" (skala domain 52-node), bukan sampel kecil | 🔴 **Gagal** | Lihat Temuan 7 — hanya 5 dari 8 klaster konseptual tercakup |
+| Diagnosis AI diverifikasi vs asesmen manusia riil (bukan gold-standard buatan sendiri) | ⚠️ **Belum diverifikasi** | Lihat Temuan 7 — Risiko #1 (`intelligence-os-foundation.md` Bagian 11) belum tersentuh data lapangan |
+
+**Kesimpulan Tahap 2**: **Solid secara infrastruktur, belum lolos secara substansi.** Rangkaian teknis (endpoint, provenance, struktur probe) sudah non-mock dan berfungsi, tapi cakupan skala dan validasi eksternal terhadap manusia riil — dua syarat eksplisit gerbang ini — masih kosong.
+
+---
+
+## 4. Komponen yang Terbukti Otentik (Non-Mock)
 
 Audit mengonfirmasi bahwa mesin logika inti tidak menggunakan angka statis palsu:
 - `src/engine/deterministicCore.ts`: Penentuan kelayakan prasyarat graf dan jalur belajar dihitung murni dari matriks penguasaan.
@@ -92,7 +152,7 @@ Audit mengonfirmasi bahwa mesin logika inti tidak menggunakan angka statis palsu
 
 ---
 
-## 4. Komitmen Rekayasa
+## 5. Komitmen Rekayasa
 
 Setiap metrik validasi yang ditampilkan pada dashboard pengujian harus dapat diaudit asal-usulnya:
 - Apakah berasal dari observasi empiris simulasi,
