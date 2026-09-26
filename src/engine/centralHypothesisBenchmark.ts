@@ -70,7 +70,17 @@ export interface PerturbationEvaluationResult {
   source?: string;
 }
 
-// 12 Kasus Uji Ground Truth Standar Emas Pakar Pendidikan Matematika
+// Re-export Matriks Benchmark Skala Penuh 52-Node & Grounding Literatur Empiris (Temuan 7)
+export {
+  FULL_SCALE_52_NODE_BENCHMARK,
+  CLUSTER_DEFINITIONS,
+  EMPIRICAL_LITERATURE_GROUNDING,
+  TAHAP2_FULL_SCALE_GATE_CRITERIA,
+  evaluateFullScaleDomainCoverage,
+} from './domain52BenchmarkMatrix';
+export type { ClusterBenchmarkCoverage, Domain52BenchmarkItem } from './domain52BenchmarkMatrix';
+
+// 20 Kasus Uji Ground Truth Standar Emas Pakar Pendidikan Matematika
 // Meliputi Pecahan, Rasio, Timbangan Aljabar, dan Kasus Kontrol Positif (anak yang benar-benar paham)
 export const HUMAN_GOLD_STANDARD_BENCHMARK: HumanGoldStandardItem[] = [
   // 1. Pecahan: Besar Nilai vs Penyebut (Miskonsepsi Transfer Bilangan Bulat)

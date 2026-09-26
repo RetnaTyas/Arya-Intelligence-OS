@@ -24,6 +24,9 @@ import {
   evaluateDiagnosticAgreementAndPerturbation,
   PerturbationEvaluationResult,
   HumanGoldStandardItem,
+  FULL_SCALE_52_NODE_BENCHMARK,
+  evaluateFullScaleDomainCoverage,
+  TAHAP2_FULL_SCALE_GATE_CRITERIA,
 } from '../engine/centralHypothesisBenchmark';
 import {
   ParentCalibrationSettings,
@@ -62,7 +65,8 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
   const [selectedItem, setSelectedItem] = useState<HumanGoldStandardItem | null>(
     HUMAN_GOLD_STANDARD_BENCHMARK[0]
   );
-  const [activeTab, setActiveTab] = useState<'overview' | 'real_child_audit' | 'perturbation_matrix'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'real_child_audit' | 'perturbation_matrix' | 'full_scale_matrix'>('overview');
+  const scaleAudit = React.useMemo(() => evaluateFullScaleDomainCoverage(), []);
 
   // Custom live audit sandbox state
   const [customConcept, setCustomConcept] = useState<string>('Gaya Apung & Archimedes');
@@ -555,6 +559,17 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
           }`}
         >
           Matriks Perturbasi (Layer 0, 1, 2)
+        </button>
+        <button
+          onClick={() => setActiveTab('full_scale_matrix')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1.5 ${
+            activeTab === 'full_scale_matrix'
+              ? 'bg-cyan-600 text-white font-bold'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <Award className="w-3.5 h-3.5 text-cyan-400" />
+          <span>Matriks Skala Penuh 52-Node & Literatur Empiris</span>
         </button>
       </div>
 
@@ -1241,6 +1256,122 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 4: Matriks Skala Penuh 52-Node & Grounding Literatur Empiris (Temuan 7) */}
+      {activeTab === 'full_scale_matrix' && (
+        <div className="space-y-4">
+          {/* Summary Box */}
+          <div className="bg-[#0e1428] border border-cyan-500/30 rounded-2xl p-4 shadow-lg space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-[10px] font-bold font-mono">
+                    GERBANG TAHAP 2
+                  </span>
+                  <h3 className="text-sm font-bold text-white">
+                    Matriks Validasi Skala Penuh 52-Node (Pecahan → Persamaan Linear)
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-300 mt-1">
+                  Memenuhi kriteria eksplisit Bagian 12: pengujian semantic perturbation (Layer 0–2) pada <strong>skala penuh</strong> domain sempit 52-node (8 klaster konseptual), bukan sampel kecil.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`px-3 py-1 rounded-xl text-xs font-bold font-mono border ${
+                  scaleAudit.gatePass
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                    : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                }`}>
+                  {scaleAudit.gatePass ? '✓ CAKUPAN 100% LOLOS GERBANG' : 'BELUM LOLOS'}
+                </span>
+              </div>
+            </div>
+
+            {/* Metrics Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                <span className="text-slate-400 block text-[11px]">Cakupan Simpul Domain</span>
+                <span className="text-lg font-bold font-mono text-emerald-400 mt-1 block">
+                  {scaleAudit.coveredNodesCount} / {scaleAudit.totalDomainNodes} Node ({scaleAudit.nodeCoveragePercent}%)
+                </span>
+                <span className="text-[10px] text-slate-500">Target: 100% (52 Node)</span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                <span className="text-slate-400 block text-[11px]">Cakupan Klaster</span>
+                <span className="text-lg font-bold font-mono text-cyan-400 mt-1 block">
+                  {scaleAudit.coveredClustersCount} / {scaleAudit.totalClusters} Klaster ({scaleAudit.clusterCoveragePercent}%)
+                </span>
+                <span className="text-[10px] text-slate-500">Target: 100% (8 Klaster)</span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                <span className="text-slate-400 block text-[11px]">Total Probe Uji</span>
+                <span className="text-lg font-bold font-mono text-purple-400 mt-1 block">
+                  {scaleAudit.totalProbes} Probes
+                </span>
+                <span className="text-[10px] text-slate-500">52 Kasus × 4 Probe (L0-L2)</span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                <span className="text-slate-400 block text-[11px]">Grounding Literatur</span>
+                <span className="text-lg font-bold font-mono text-amber-400 mt-1 block">
+                  8 Studi Empiris
+                </span>
+                <span className="text-[10px] text-slate-500">Mitigasi Risiko #1 (Anak Nyata)</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 8 Clusters Matrix Table */}
+          <div className="bg-[#0b0f1d] border border-slate-800 rounded-xl overflow-hidden shadow-md">
+            <div className="p-3 bg-slate-900/80 border-b border-slate-800 flex items-center justify-between">
+              <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Rincian Matriks 8 Klaster Konseptual & Landasan Empiris Lapangan</span>
+              </span>
+              <span className="text-[11px] font-mono text-slate-400">
+                8 Klaster Teruji Penuh
+              </span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-800 text-[11px] font-semibold text-slate-400 bg-slate-950/60">
+                    <th className="py-2.5 px-3">Klaster</th>
+                    <th className="py-2.5 px-3">Nama Klaster Konseptual</th>
+                    <th className="py-2.5 px-3 text-center">Node</th>
+                    <th className="py-2.5 px-3 text-center">Probe</th>
+                    <th className="py-2.5 px-3">Rujukan Riset Kognitif Anak Nyata (Risiko #1)</th>
+                    <th className="py-2.5 px-3">Miskonsepsi Kunci Tervalidasi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 font-mono text-[11px]">
+                  {scaleAudit.clusters.map((c) => (
+                    <tr key={c.clusterIndex} className="hover:bg-slate-900/40">
+                      <td className="py-2.5 px-3 font-bold text-cyan-400">
+                        Klaster {c.clusterIndex}
+                      </td>
+                      <td className="py-2.5 px-3 font-sans font-semibold text-slate-200">
+                        {c.clusterName}
+                      </td>
+                      <td className="py-2.5 px-3 text-center text-emerald-400 font-bold">
+                        {c.coveredNodes} / {c.totalNodes}
+                      </td>
+                      <td className="py-2.5 px-3 text-center text-purple-400 font-bold">
+                        {c.totalProbes}
+                      </td>
+                      <td className="py-2.5 px-3 font-sans text-slate-300 text-[10px]">
+                        <strong className="text-amber-300 block">{c.literatureReference}</strong>
+                      </td>
+                      <td className="py-2.5 px-3 font-sans text-slate-400 text-[10px] max-w-xs">
+                        {c.keyMisconceptionGrounded}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

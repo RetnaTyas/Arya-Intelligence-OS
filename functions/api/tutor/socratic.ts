@@ -3,6 +3,12 @@ import { CloudflareEnv, getWorkersAIBinding, DEFAULT_WORKERS_AI_MODEL } from '..
 export const onRequestPost = async (context: { request: Request; env: CloudflareEnv }) => {
   const { request, env } = context;
 
+  // 1. Service Binding Forwarding to arya-ai-gateway Worker
+  if (env.AI_GATEWAY && typeof env.AI_GATEWAY.fetch === 'function') {
+    return await env.AI_GATEWAY.fetch(request);
+  }
+
+  // 2. Direct Binding Fallback
   try {
     const body: any = await request.json();
     const { concept, studentMessage, history, learnerState } = body;

@@ -118,8 +118,50 @@ export const LabHub: React.FC<LabHubProps> = ({
   const [selectedAge, setSelectedAge] = useState<AgeFilter>('Semua');
   const [showExplorableLabs, setShowExplorableLabs] = useState<boolean>(false);
   const [showArchivedLabs, setShowArchivedLabs] = useState<boolean>(false);
+  const [roadmapFilter, setRoadmapFilter] = useState<'active_domain' | 'all'>('active_domain');
 
-  const labCatalogue = [
+  // Definisi eksplisit disiplin roadmap Tahap 1 (Sesuai KNOWN_ISSUES.md Temuan 6)
+  // Domain aktif Tahap 1: Koridor Matematika Sempit (Pecahan -> Persamaan Linear)
+  const ACTIVE_TAHAP1_LAB_IDS = new Set<LabId>([
+    'part_whole',
+    'number_line',
+    'bar_model',
+    'subitizing_quantity',
+    'size_comparison',
+    'tower_stacking',
+    'one_to_one',
+  ]);
+
+  const OUT_OF_SEQUENCE_REASONS: Partial<Record<LabId, string>> = {
+    buoyancy: 'Fisika Fluida & Gaya Apung (Di luar koridor pecahan -> linear)',
+    density_mass: 'Fisika Kerapatan Massa & Volume (Di luar koridor pecahan -> linear)',
+    energy_conservation: 'Fisika Mekanik & Kekekalan Energi (Di luar koridor pecahan -> linear)',
+    qualitative_balance: 'Fisika/Logika Neraca Kualitatif Awal (Di luar koridor pecahan -> linear)',
+    gravity_ramp: 'Fisika Gerak Bidang Miring (Eksperimen sensori paralel)',
+    heavy_light: 'Fisika Massa Komparatif (Eksperimen sensori paralel)',
+    sink_or_float: 'Fisika Terapung Fluida Awal (Eksperimen sensori paralel)',
+    magnetic_attraction: 'Fisika Gaya Magnetik (Eksperimen sensori paralel)',
+    bounce_elasticity: 'Fisika Elastisitas Benturan (Eksperimen sensori paralel)',
+    binary_search_complexity: 'Komputasi Kompleksitas O(log N) (Di luar koridor pecahan -> linear)',
+    computational_algorithm: 'Komputasi State Machine Mars Rover (Di luar koridor pecahan -> linear)',
+    spatial_sorting: 'Komputasi Bentuk Geometri Diskret (Eksperimen sensori paralel)',
+    color_grouping: 'Komputasi Klasifikasi Atribut Diskret (Eksperimen sensori paralel)',
+    step_sequence: 'Komputasi Urutan Algoritma Dini (Eksperimen sensori paralel)',
+    binary_switch: 'Komputasi Logika Biner 0/1 (Eksperimen sensori paralel)',
+    path_maze: 'Komputasi Traversal Lintasan (Eksperimen sensori paralel)',
+    pattern_sequence: 'Komputasi Siklus Pola Pengulangan (Eksperimen ikonik paralel)',
+    object_permanence: 'Psikologi Perkembangan / Sensori Permanensi Objek (Di luar koridor pecahan -> linear)',
+    action_reaction: 'Psikologi Perkembangan / Kausalitas Primer (Eksperimen sensori paralel)',
+    containment_relations: 'Psikologi Perkembangan / Relasi Spasial Wadah (Eksperimen sensori paralel)',
+    mirror_identity: 'Psikologi Perkembangan / Simetri Optik Diri (Eksperimen sensori paralel)',
+    domino_cascade: 'Psikologi Perkembangan / Rantai Kausal Domino (Eksperimen sensori paralel)',
+    piaget_conservation: 'Psikologi Perkembangan / Konservasi Volume Piaget (Di luar koridor pecahan -> linear)',
+    causal_logic: 'Logika & Kesetaraan Relasional Lanjut (Di luar koridor pecahan -> linear)',
+    calculus_rate: 'Matematika Kalkulus Laju Perubahan Lanjut (Di luar koridor pecahan -> linear)',
+    submarine_project: 'Rekayasa Ballast Sintesis Terpadu (Proyek paralel lintas-domain)',
+  };
+
+  const rawLabCatalogue = [
     // ----------------------------------------------------
     // Umur 1 - 3 Tahun: Sensori-Motorik & Permanensi
     // ----------------------------------------------------
@@ -537,11 +579,25 @@ export const LabHub: React.FC<LabHubProps> = ({
     },
   ];
 
-  const filteredCatalogue = labCatalogue.filter((item) => {
-    const matchesDomain = selectedDomain === 'Semua' || item.domain === selectedDomain;
-    const matchesAge = selectedAge === 'Semua' || item.ageBracket === selectedAge;
-    return matchesDomain && matchesAge;
-  });
+  const labCatalogue = useMemo(() => {
+    return rawLabCatalogue.map((item) => {
+      const isOutOfSeq = !ACTIVE_TAHAP1_LAB_IDS.has(item.id);
+      return {
+        ...item,
+        isOutOfSequence: isOutOfSeq,
+        outOfSequenceReason: OUT_OF_SEQUENCE_REASONS[item.id] || (isOutOfSeq ? 'Eksperimen paralel di luar domain aktif Tahap 1' : undefined),
+      };
+    });
+  }, []);
+
+  const filteredCatalogue = useMemo(() => {
+    return labCatalogue.filter((item) => {
+      const matchesRoadmap = roadmapFilter === 'all' || !item.isOutOfSequence;
+      const matchesDomain = selectedDomain === 'Semua' || item.domain === selectedDomain;
+      const matchesAge = selectedAge === 'Semua' || item.ageBracket === selectedAge;
+      return matchesRoadmap && matchesDomain && matchesAge;
+    });
+  }, [labCatalogue, roadmapFilter, selectedDomain, selectedAge]);
 
   const queueMap = useMemo(() => {
     const map = new Map<string, RecommendedExperience>();
@@ -667,6 +723,47 @@ export const LabHub: React.FC<LabHubProps> = ({
 
       {/* Domain & Age Navigation Filter Bar */}
       <div className="bg-[#0c101c] p-4 rounded-2xl border border-slate-800 space-y-3.5 shadow-lg">
+        {/* Roadmap Tahap 1 Discipline Selector */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-slate-800/80">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+              <Award className="w-4 h-4 text-cyan-400" />
+              <span>Cakupan Roadmap:</span>
+            </span>
+            <div className="inline-flex p-0.5 rounded-lg bg-slate-900 border border-slate-800 text-xs">
+              <button
+                onClick={() => setRoadmapFilter('active_domain')}
+                className={`px-3 py-1 rounded-md text-xs font-semibold transition ${
+                  roadmapFilter === 'active_domain'
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                🎯 Domain Aktif Tahap 1 (Pecahan → Linear)
+              </button>
+              <button
+                onClick={() => setRoadmapFilter('all')}
+                className={`px-3 py-1 rounded-md text-xs font-semibold transition ${
+                  roadmapFilter === 'all'
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                🧪 Semua Lab (+ Eksperimen Paralel)
+              </button>
+            </div>
+          </div>
+          {roadmapFilter === 'all' ? (
+            <span className="text-[11px] text-amber-400/90 bg-amber-500/10 px-2.5 py-0.5 rounded border border-amber-500/20">
+              ⚠️ Modul bertanda Out-of-Sequence adalah riset paralel di luar gerbang Tahap 1
+            </span>
+          ) : (
+            <span className="text-[11px] text-emerald-400/90 bg-emerald-500/10 px-2.5 py-0.5 rounded border border-emerald-500/20 font-mono">
+              ✓ Disiplin Ketat Tahap 1 Aktif
+            </span>
+          )}
+        </div>
+
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           {/* Age Bracket Filter */}
           <div className="flex flex-wrap items-center gap-1.5 text-xs">
@@ -776,6 +873,11 @@ export const LabHub: React.FC<LabHubProps> = ({
                             {lab.ageLabel}
                           </span>
                         )}
+                        {lab.isOutOfSequence && (
+                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                            ⚠️ Out-of-Sequence
+                          </span>
+                        )}
                       </div>
                       <h4 className="text-xs font-bold text-white leading-snug line-clamp-1">
                         {lab.name}
@@ -881,6 +983,11 @@ export const LabHub: React.FC<LabHubProps> = ({
                           <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400">
                             {lab.ageLabel}
                           </span>
+                          {lab.isOutOfSequence && (
+                            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                              ⚠️ Out-of-Sequence
+                            </span>
+                          )}
                         </div>
                         <h5 className="text-xs font-bold text-slate-200 line-clamp-1">
                           {lab.name}
@@ -1038,7 +1145,7 @@ export const LabHub: React.FC<LabHubProps> = ({
                 <Icon className="w-4 h-4" />
               </div>
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs font-bold text-white">{activeItem.name}</span>
                   <span className={`text-[10px] font-medium px-2 py-0.2 rounded ${activeItem.badgeBg}`}>
                     {activeItem.domain}
@@ -1046,9 +1153,17 @@ export const LabHub: React.FC<LabHubProps> = ({
                   <span className="text-[10px] font-mono text-slate-400">
                     {activeItem.ageLabel}
                   </span>
+                  {activeItem.isOutOfSequence && (
+                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                      ⚠️ Out-of-Sequence
+                    </span>
+                  )}
                 </div>
                 <span className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">
                   Simpul Terkait di Peta Ilmu: <strong className="text-slate-300 font-mono">{activeItem.nodeRef}</strong>
+                  {activeItem.isOutOfSequence && (
+                    <span className="text-amber-400/90 ml-2">({activeItem.outOfSequenceReason})</span>
+                  )}
                 </span>
               </div>
             </div>
@@ -1063,6 +1178,33 @@ export const LabHub: React.FC<LabHubProps> = ({
                 <span>Lihat di Peta Ilmu ➔</span>
               </button>
             )}
+          </div>
+        );
+      })()}
+
+      {/* Out-of-Sequence Explicit Notification Banner (Disiplin Roadmap Tahap 1) */}
+      {(() => {
+        const activeItem = labCatalogue.find((l) => l.id === activeLabId);
+        if (!activeItem?.isOutOfSequence) return null;
+        return (
+          <div className="p-3 bg-amber-950/40 border border-amber-500/40 rounded-xl flex items-center justify-between gap-3 text-xs text-amber-300 shadow">
+            <div className="flex items-center gap-2.5">
+              <span className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/30 font-bold font-mono text-[10px] shrink-0">
+                DISIPLIN TAHAP 1
+              </span>
+              <span>
+                <strong>⚠️ Eksperimen Riset Paralel:</strong> Modul <em>{activeItem.name}</em> berada di luar koridor domain aktif Tahap 1 (Pecahan → Persamaan Linear). Berdasarkan <code>KNOWN_ISSUES.md</code> Temuan 6, eksperimen ini <strong>tidak dihitung</strong> dalam pemenuhan Gerbang Keluar Tahap 1 & Tahap 2.
+              </span>
+            </div>
+            <button
+              onClick={() => {
+                onSelectLab('part_whole');
+                setRoadmapFilter('active_domain');
+              }}
+              className="px-2.5 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 text-[11px] font-semibold shrink-0 transition"
+            >
+              Ke Domain Utama ➔
+            </button>
           </div>
         );
       })()}

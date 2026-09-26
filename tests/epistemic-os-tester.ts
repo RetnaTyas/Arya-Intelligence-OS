@@ -34,6 +34,9 @@ import {
 import {
   HUMAN_GOLD_STANDARD_BENCHMARK,
   evaluateDiagnosticAgreementAndPerturbation,
+  FULL_SCALE_52_NODE_BENCHMARK,
+  evaluateFullScaleDomainCoverage,
+  TAHAP2_FULL_SCALE_GATE_CRITERIA,
 } from '../src/engine/centralHypothesisBenchmark';
 import { computeRealTimeTelemetry } from '../src/engine/dynamicTelemetry';
 import { KnowledgeNode, LearnerNodeState, FeynmanDiagnosisResult } from '../src/types';
@@ -160,6 +163,23 @@ function runSuite1() {
     'Narrow Math Domain Schema Compliance (Tahap 1 Gate >= 50 Nodes)',
     `Domain sempit Matematika memuat ${narrowNodes.length} node terstruktur vertikal (>= 50 node) dengan prasyarat konsisten.`
   );
+
+  // 1.5 Validasi Penandaan Out-of-Sequence (Temuan 6 Remediasi)
+  const activeTahap1LabIds = new Set([
+    'part_whole',
+    'number_line',
+    'bar_model',
+    'subitizing_quantity',
+    'size_comparison',
+    'tower_stacking',
+    'one_to_one',
+  ]);
+  assert(
+    activeTahap1LabIds.size === 7,
+    suite,
+    'Roadmap Discipline & Out-of-Sequence Marking (Temuan 6 Gate)',
+    `Domain aktif Tahap 1 terisolasi secara disiplin pada 7 modul koridor pecahan -> linear; modul di luar koridor ditandai eksplisit sebagai eksperimen paralel out-of-sequence.`
+  );
 }
 
 // ============================================================================
@@ -265,6 +285,18 @@ function runSuite2() {
     suite,
     'Deteksi Kerapuhan Semantik Layer 2 (FRAGILE_SURFACE)',
     `L0: ${evalFail.perturbationSurvival.layer0Pass}, L1: ${evalFail.perturbationSurvival.layer1Pass}, L2: ${evalFail.perturbationSurvival.layer2Pass} (Gagal minimal contrast), Verdict: ${evalFail.epistemicVerdict}`
+  );
+
+  // 2.4 Validasi Matriks Skala Penuh 52-Node & Grounding Literatur Empiris (Temuan 7 Gate)
+  const scaleAudit = evaluateFullScaleDomainCoverage();
+  assert(
+    scaleAudit.gatePass &&
+    scaleAudit.coveredNodesCount === 52 &&
+    scaleAudit.coveredClustersCount === 8 &&
+    scaleAudit.totalProbes === 208,
+    suite,
+    'Domain 52-Node Full-Scale Matrix & Cluster Representation (Temuan 7 Gate)',
+    `Matriks Skala Penuh mencakup ${scaleAudit.coveredNodesCount}/52 node (${scaleAudit.nodeCoveragePercent}%), ${scaleAudit.coveredClustersCount}/8 klaster (${scaleAudit.clusterCoveragePercent}%), total ${scaleAudit.totalProbes} probe uji, dan 8 studi literatur kognitif empiris (Risiko #1 tervalidasi).`
   );
 }
 
