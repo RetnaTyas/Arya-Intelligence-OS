@@ -33,6 +33,9 @@ interface BenchmarkCase {
     label: string;
     reasoning: string;
     misconceptionIdentified?: string;
+    usedFallback?: boolean;
+    source?: string;
+    fallbackReason?: string;
   };
 }
 
@@ -152,7 +155,18 @@ export const FeynmanCalibrationSuite: React.FC = () => {
   const [humanAuditMode, setHumanAuditMode] = useState<boolean>(true);
   const [overrideScores, setOverrideScores] = useState<Record<string, number>>({});
   const [calibrating, setCalibrating] = useState<boolean>(false);
-  const [calibrationSource, setCalibrationSource] = useState<'cloudflare' | 'error' | 'none'>('none');
+  const [calibrationSource, setCalibrationSource] = useState<'cloudflare' | 'gemini' | 'local' | 'hybrid' | 'error' | 'none'>('none');
+  const [fallbackStats, setFallbackStats] = useState<{
+    usedFallback: boolean;
+    fallbackCount: number;
+    totalCases: number;
+    rawSource: string;
+  }>({
+    usedFallback: false,
+    fallbackCount: 0,
+    totalCases: BENCHMARK_CASES.length,
+    rawSource: '',
+  });
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Compute aggregate statistics from dynamic cases & overrides
@@ -189,13 +203,38 @@ export const FeynmanCalibrationSuite: React.FC = () => {
         throw new Error(data.error || `HTTP error ${response.status}`);
       }
 
-      setCalibrationSource('cloudflare');
+      const totalExpected = BENCHMARK_CASES.length;
+      const isFallback = Boolean(data.usedFallback || (data.fallbackCount && data.fallbackCount > 0));
+      const fallbackCount = typeof data.fallbackCount === 'number'
+        ? data.fallbackCount
+        : (isFallback ? totalExpected : 0);
+      const rawSource = data.source || '';
+
+      setFallbackStats({
+        usedFallback: isFallback,
+        fallbackCount,
+        totalCases: totalExpected,
+        rawSource,
+      });
+
+      const sourceStr = rawSource.toLowerCase();
+      if (isFallback && fallbackCount >= totalExpected) {
+        setCalibrationSource('local');
+      } else if (isFallback && fallbackCount > 0) {
+        setCalibrationSource('hybrid');
+      } else if (sourceStr.includes('cloudflare')) {
+        setCalibrationSource('cloudflare');
+      } else if (sourceStr.includes('gemini')) {
+        setCalibrationSource('gemini');
+      } else {
+        setCalibrationSource('local');
+      }
 
       if (Array.isArray(data.evaluations)) {
         const updatedCases = cases.map((c) => {
           const evalMatch = data.evaluations.find((e: any) => e.caseId === c.id);
           if (!evalMatch) {
-            throw new Error(`Kasus ${c.id} tidak menerima evaluasi dari Workers AI.`);
+            throw new Error(`Kasus ${c.id} tidak menerima evaluasi dari backend.`);
           }
           return {
             ...c,
@@ -204,6 +243,9 @@ export const FeynmanCalibrationSuite: React.FC = () => {
               score: evalMatch.aiScore,
               label: evalMatch.aiLabel,
               reasoning: evalMatch.aiReasoning,
+              usedFallback: Boolean(evalMatch.usedFallback),
+              source: evalMatch.source || data.source,
+              fallbackReason: evalMatch.fallbackReason,
             },
           };
         });
@@ -215,9 +257,9 @@ export const FeynmanCalibrationSuite: React.FC = () => {
         }
       }
     } catch (err: any) {
-      console.error('Workers AI feynman suite error:', err);
+      console.error('Feynman suite calibration error:', err);
       setCalibrationSource('error');
-      setErrorMessage(err.message || 'Gagal memanggil Cloudflare Workers AI.');
+      setErrorMessage(err.message || 'Gagal memanggil endpoint evaluasi Feynman.');
     } finally {
       setCalibrating(false);
     }
@@ -244,7 +286,25 @@ export const FeynmanCalibrationSuite: React.FC = () => {
               {calibrationSource === 'cloudflare' && (
                 <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-orange-500/20 text-orange-300 border border-orange-500/30 flex items-center gap-1">
                   <Sparkles className="w-3 h-3 text-orange-400" />
-                  <span>CLOUDFLARE WORKERS AI (QWEN 3 30B FP8)</span>
+                  <span>CLOUDFLARE WORKERS AI</span>
+                </span>
+              )}
+              {calibrationSource === 'gemini' && (
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-cyan-400" />
+                  <span>GEMINI 2.5 FLASH INFERENCE</span>
+                </span>
+              )}
+              {calibrationSource === 'local' && (
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3 text-amber-400" />
+                  <span>DETERMINISTIC LOCAL HEURISTIC (FALLBACK)</span>
+                </span>
+              )}
+              {calibrationSource === 'hybrid' && (
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3 text-amber-400" />
+                  <span>HYBRID INFERENCE ({fallbackStats.totalCases - fallbackStats.fallbackCount} AI / {fallbackStats.fallbackCount} FALLBACK)</span>
                 </span>
               )}
               {calibrationSource === 'error' && (
@@ -362,9 +422,20 @@ export const FeynmanCalibrationSuite: React.FC = () => {
                     <span className="text-slate-400">
                       Pakar: <strong className="text-emerald-300">{(currentScore * 100).toFixed(0)}%</strong>
                     </span>
-                    <span className="text-slate-400">
-                      AI Feynman: <strong className="text-cyan-300">{(aiScore * 100).toFixed(0)}%</strong>
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {bCase.aiDiagnosis.usedFallback ? (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                          FALLBACK
+                        </span>
+                      ) : bCase.aiDiagnosis.source ? (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                          AI
+                        </span>
+                      ) : null}
+                      <span className="text-slate-400">
+                        AI Feynman: <strong className="text-cyan-300">{(aiScore * 100).toFixed(0)}%</strong>
+                      </span>
+                    </div>
                   </div>
                 </div>
               );
@@ -497,11 +568,26 @@ export const FeynmanCalibrationSuite: React.FC = () => {
                 <span className="flex items-center gap-1.5 text-xs font-bold text-cyan-300">
                   <Brain className="w-4 h-4" />
                   <span>AI Feynman Sensor</span>
+                  {selectedCase.aiDiagnosis.usedFallback ? (
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      FALLBACK LOKAL
+                    </span>
+                  ) : selectedCase.aiDiagnosis.source ? (
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                      INFERENSI AI
+                    </span>
+                  ) : null}
                 </span>
                 <span className="text-base font-mono font-extrabold text-cyan-400">
                   {(selectedCase.aiDiagnosis.score * 100).toFixed(0)}%
                 </span>
               </div>
+
+              {selectedCase.aiDiagnosis.fallbackReason && (
+                <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded text-[10px] text-amber-300">
+                  <strong>Catatan Integritas Sensor:</strong> {selectedCase.aiDiagnosis.fallbackReason}
+                </div>
+              )}
 
               <div className="text-xs font-semibold text-white">
                 {selectedCase.aiDiagnosis.label}

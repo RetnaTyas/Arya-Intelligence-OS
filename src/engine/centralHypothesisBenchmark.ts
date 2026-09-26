@@ -36,6 +36,9 @@ export interface DiagnosisShape {
   misconceptionName: string;
   structuralMasteryScore: number;
   explanation: string;
+  usedFallback?: boolean;
+  source?: string;
+  fallbackReason?: string;
 }
 
 export interface PerturbationEvaluationResult {
@@ -63,6 +66,8 @@ export interface PerturbationEvaluationResult {
   };
   epistemicVerdict: 'ROBUST_STRUCTURAL' | 'FRAGILE_SURFACE' | 'SUPERFICIALLY_FLUENT' | 'MISCONCEPTION_CONFIRMED';
   calibrationScore: number;
+  usedFallback?: boolean;
+  source?: string;
 }
 
 // 12 Kasus Uji Ground Truth Standar Emas Pakar Pendidikan Matematika
@@ -978,6 +983,14 @@ export function evaluateDiagnosticAgreementAndPerturbation(
     epistemicVerdict = 'FRAGILE_SURFACE';
   }
 
+  const usedFallback = Boolean(
+    aiResults.base.usedFallback ||
+    aiResults.layer0.usedFallback ||
+    aiResults.layer1.usedFallback ||
+    aiResults.layer2.usedFallback
+  );
+  const source = aiResults.base.source || (usedFallback ? 'deterministic-local-lookup' : undefined);
+
   return {
     itemId: benchmarkItem.id,
     domain: benchmarkItem.domain,
@@ -1003,5 +1016,7 @@ export function evaluateDiagnosticAgreementAndPerturbation(
     },
     epistemicVerdict,
     calibrationScore: Number((agreementScore * (layer2Pass ? 1.0 : 0.7)).toFixed(3)),
+    usedFallback,
+    source,
   };
 }

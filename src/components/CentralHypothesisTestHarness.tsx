@@ -46,7 +46,18 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
 }) => {
   const [results, setResults] = useState<PerturbationEvaluationResult[]>([]);
   const [isRunning, setIsRunning] = useState<boolean>(false);
-  const [diagnosisSource, setDiagnosisSource] = useState<'cloudflare' | 'gemini' | 'local' | 'error' | 'none'>('none');
+  const [diagnosisSource, setDiagnosisSource] = useState<'cloudflare' | 'gemini' | 'hybrid' | 'local' | 'error' | 'none'>('none');
+  const [fallbackStats, setFallbackStats] = useState<{
+    usedFallback: boolean;
+    fallbackCount: number;
+    totalProbes: number;
+    rawSource: string;
+  }>({
+    usedFallback: false,
+    fallbackCount: 0,
+    totalProbes: HUMAN_GOLD_STANDARD_BENCHMARK.length * 4,
+    rawSource: '',
+  });
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<HumanGoldStandardItem | null>(
     HUMAN_GOLD_STANDARD_BENCHMARK[0]
@@ -63,6 +74,9 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
     fusedScore: number;
     verdict: string;
     explanation: string;
+    usedFallback?: boolean;
+    source?: string;
+    fallbackReason?: string;
   } | null>(null);
 
   // Eksekusi pengujian aktual: memanggil endpoint benchmark dengan 4 probe independen per item
@@ -81,20 +95,26 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
         throw new Error(data.error || `HTTP error ${response.status}`);
       }
 
-      const aiResultsMap: Record<string, { base: any; layer0: any; layer1: any; layer2: any }> = {};
-      if (Array.isArray(data.results)) {
-        data.results.forEach((r: any) => {
-          aiResultsMap[r.itemId] = {
-            base: r.base || r.aiDiagnosis,
-            layer0: r.layer0 || r.base || r.aiDiagnosis,
-            layer1: r.layer1 || r.base || r.aiDiagnosis,
-            layer2: r.layer2 || r.base || r.aiDiagnosis,
-          };
-        });
-      }
+      const totalExpected = HUMAN_GOLD_STANDARD_BENCHMARK.length * 4;
+      const fallbackCount = typeof data.fallbackCount === 'number'
+        ? data.fallbackCount
+        : (data.usedFallback ? totalExpected : 0);
+      const totalProbes = typeof data.totalProbes === 'number' ? data.totalProbes : totalExpected;
+      const isFallback = Boolean(data.usedFallback || fallbackCount > 0);
+
+      setFallbackStats({
+        usedFallback: isFallback,
+        fallbackCount,
+        totalProbes,
+        rawSource: data.source || 'unknown',
+      });
 
       const sourceStr = (data.source || '').toLowerCase();
-      if (sourceStr.includes('cloudflare')) {
+      if (isFallback && fallbackCount >= totalProbes) {
+        setDiagnosisSource('local');
+      } else if (isFallback && fallbackCount > 0) {
+        setDiagnosisSource('hybrid');
+      } else if (sourceStr.includes('cloudflare')) {
         setDiagnosisSource('cloudflare');
       } else if (sourceStr.includes('gemini')) {
         setDiagnosisSource('gemini');
@@ -102,33 +122,94 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
         setDiagnosisSource('local');
       }
 
+      const aiResultsMap: Record<string, { base: any; layer0: any; layer1: any; layer2: any; usedFallback?: boolean }> = {};
+      if (Array.isArray(data.results)) {
+        data.results.forEach((r: any) => {
+          aiResultsMap[r.itemId] = {
+            base: r.base || r.aiDiagnosis,
+            layer0: r.layer0 || r.base || r.aiDiagnosis,
+            layer1: r.layer1 || r.base || r.aiDiagnosis,
+            layer2: r.layer2 || r.base || r.aiDiagnosis,
+            usedFallback: r.usedFallback,
+          };
+        });
+      }
+
       const computedResults: PerturbationEvaluationResult[] = HUMAN_GOLD_STANDARD_BENCHMARK.map((item) => {
-        const aiProbeResults = aiResultsMap[item.id] || {
-          base: {
-            hasMisconception: item.humanExpertDiagnosis.hasMisconception,
-            structuralMasteryScore: item.humanExpertDiagnosis.structuralMasteryScore,
-            misconceptionName: item.humanExpertDiagnosis.misconceptionName,
-            explanation: 'Evaluasi probe dasar terkalibrasi.',
-          },
-          layer0: {
-            hasMisconception: item.perturbations.layer0.expectedHasMisconception,
-            structuralMasteryScore: item.humanExpertDiagnosis.structuralMasteryScore,
-            misconceptionName: 'Layer 0 Memorization',
-            explanation: 'Evaluasi probe variasi format kalimat.',
-          },
-          layer1: {
-            hasMisconception: item.perturbations.layer1.expectedHasMisconception,
-            structuralMasteryScore: item.humanExpertDiagnosis.structuralMasteryScore,
-            misconceptionName: 'Layer 1 Surface Generalization',
-            explanation: 'Evaluasi probe generalisasi objek permukaan.',
-          },
-          layer2: {
-            hasMisconception: item.perturbations.layer2.expectedHasMisconception,
-            structuralMasteryScore: item.humanExpertDiagnosis.structuralMasteryScore,
-            misconceptionName: 'Layer 2 Semantic Perturbation',
-            explanation: 'Evaluasi probe kontras semantik minimal.',
-          },
-        };
+        const itemResult = aiResultsMap[item.id];
+        const aiProbeResults = itemResult
+          ? {
+              base: {
+                hasMisconception: itemResult.base.hasMisconception,
+                structuralMasteryScore: itemResult.base.structuralMasteryScore,
+                misconceptionName: itemResult.base.misconceptionName,
+                explanation: itemResult.base.explanation,
+                usedFallback: itemResult.base.usedFallback,
+                source: itemResult.base.source,
+                fallbackReason: itemResult.base.fallbackReason,
+              },
+              layer0: {
+                hasMisconception: itemResult.layer0.hasMisconception,
+                structuralMasteryScore: itemResult.layer0.structuralMasteryScore,
+                misconceptionName: itemResult.layer0.misconceptionName,
+                explanation: itemResult.layer0.explanation,
+                usedFallback: itemResult.layer0.usedFallback,
+                source: itemResult.layer0.source,
+                fallbackReason: itemResult.layer0.fallbackReason,
+              },
+              layer1: {
+                hasMisconception: itemResult.layer1.hasMisconception,
+                structuralMasteryScore: itemResult.layer1.structuralMasteryScore,
+                misconceptionName: itemResult.layer1.misconceptionName,
+                explanation: itemResult.layer1.explanation,
+                usedFallback: itemResult.layer1.usedFallback,
+                source: itemResult.layer1.source,
+                fallbackReason: itemResult.layer1.fallbackReason,
+              },
+              layer2: {
+                hasMisconception: itemResult.layer2.hasMisconception,
+                structuralMasteryScore: itemResult.layer2.structuralMasteryScore,
+                misconceptionName: itemResult.layer2.misconceptionName,
+                explanation: itemResult.layer2.explanation,
+                usedFallback: itemResult.layer2.usedFallback,
+                source: itemResult.layer2.source,
+                fallbackReason: itemResult.layer2.fallbackReason,
+              },
+            }
+          : {
+              base: {
+                hasMisconception: item.humanExpertDiagnosis.hasMisconception,
+                structuralMasteryScore: item.humanExpertDiagnosis.structuralMasteryScore,
+                misconceptionName: item.humanExpertDiagnosis.misconceptionName,
+                explanation: 'Evaluasi probe dasar terkalibrasi.',
+                usedFallback: true,
+                source: 'deterministic-local-lookup',
+              },
+              layer0: {
+                hasMisconception: item.perturbations.layer0.expectedHasMisconception,
+                structuralMasteryScore: item.humanExpertDiagnosis.structuralMasteryScore,
+                misconceptionName: 'Layer 0 Memorization',
+                explanation: 'Evaluasi probe variasi format kalimat.',
+                usedFallback: true,
+                source: 'deterministic-local-lookup',
+              },
+              layer1: {
+                hasMisconception: item.perturbations.layer1.expectedHasMisconception,
+                structuralMasteryScore: item.humanExpertDiagnosis.structuralMasteryScore,
+                misconceptionName: 'Layer 1 Surface Generalization',
+                explanation: 'Evaluasi probe generalisasi objek permukaan.',
+                usedFallback: true,
+                source: 'deterministic-local-lookup',
+              },
+              layer2: {
+                hasMisconception: item.perturbations.layer2.expectedHasMisconception,
+                structuralMasteryScore: item.humanExpertDiagnosis.structuralMasteryScore,
+                misconceptionName: 'Layer 2 Semantic Perturbation',
+                explanation: 'Evaluasi probe kontras semantik minimal.',
+                usedFallback: true,
+                source: 'deterministic-local-lookup',
+              },
+            };
         return evaluateDiagnosticAgreementAndPerturbation(item, aiProbeResults);
       });
 
@@ -161,11 +242,15 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
       const pW = parentCalibration.parentWeight;
       const aW = parentCalibration.aiWeight;
       const fused = Number(((pW * customParentScore) + (aW * aiScore)).toFixed(3));
+      const isFallback = Boolean(data.usedFallback);
       setCustomResult({
         aiScore,
         fusedScore: fused,
         verdict: fused >= 0.75 ? 'Struktur Konseptual Solid' : fused >= 0.50 ? 'Pemahaman Parsial' : 'Miskonsepsi Dideteksi',
         explanation: data.feynmanDiagnosis?.diagnosisExplanation || 'Diagnosis verbal berhasil dianalisis.',
+        usedFallback: isFallback,
+        source: data.source || (isFallback ? 'deterministic-local-heuristic' : 'cloudflare-workers-ai'),
+        fallbackReason: data.fallbackReason,
       });
     } catch (e: any) {
       // Fallback local estimation if network error
@@ -178,6 +263,9 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
         fusedScore: fused,
         verdict: fused >= 0.75 ? 'Struktur Konseptual Solid' : 'Pemahaman Parsial',
         explanation: 'Estimasi offline: penalaran logis dinilai berdasarkan bobot kalibrasi ortu vs AI.',
+        usedFallback: true,
+        source: 'offline-local-heuristic',
+        fallbackReason: `Jaringan/Server error (${e.message}), dievaluasi secara offline.`,
       });
     } finally {
       setIsDiagnosingCustom(false);
@@ -223,9 +311,15 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
                 </span>
               )}
               {diagnosisSource === 'local' && (
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-1">
-                  <Brain className="w-3 h-3 text-indigo-400" />
-                  <span>DETERMINISTIC LOCAL CALIBRATOR</span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3 text-amber-400" />
+                  <span>DETERMINISTIC LOCAL FALLBACK (HEURISTIC)</span>
+                </span>
+              )}
+              {diagnosisSource === 'hybrid' && (
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3 text-amber-400" />
+                  <span>HYBRID INFERENCE ({fallbackStats.totalProbes - fallbackStats.fallbackCount} AI / {fallbackStats.fallbackCount} FALLBACK)</span>
                 </span>
               )}
               {diagnosisSource === 'error' && (
@@ -506,7 +600,18 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
                     {res && (
                       <div className="flex items-center justify-between font-mono text-[10.5px]">
                         <span className="text-slate-400">AI Concordance:</span>
-                        <span className="text-emerald-400 font-bold">{(res.agreementScore * 100).toFixed(0)}%</span>
+                        <div className="flex items-center gap-1.5">
+                          {res.usedFallback ? (
+                            <span className="px-1.5 py-0.5 rounded text-[8.5px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                              FALLBACK
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 rounded text-[8.5px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                              AI
+                            </span>
+                          )}
+                          <span className="text-emerald-400 font-bold">{(res.agreementScore * 100).toFixed(0)}%</span>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -570,9 +675,20 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
                       <Brain className="w-4 h-4 text-cyan-400" />
                       <span>Hasil Diagnosis Sensor AI (Base Probe)</span>
                     </strong>
-                    <span className="text-[10px] font-mono text-cyan-300">
-                      {results.find((r) => r.itemId === selectedItem.id)?.isConcordant ? 'CONCORDANT' : 'Base Probe'}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {results.find((r) => r.itemId === selectedItem.id)?.aiDiagnosis.usedFallback ? (
+                        <span className="px-1.5 py-0.5 rounded text-[8.5px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                          FALLBACK LOKAL
+                        </span>
+                      ) : results.find((r) => r.itemId === selectedItem.id) ? (
+                        <span className="px-1.5 py-0.5 rounded text-[8.5px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                          {results.find((r) => r.itemId === selectedItem.id)?.aiDiagnosis.source || 'AI INFERENCE'}
+                        </span>
+                      ) : null}
+                      <span className="text-[10px] font-mono text-cyan-300">
+                        {results.find((r) => r.itemId === selectedItem.id)?.isConcordant ? 'CONCORDANT' : 'Base Probe'}
+                      </span>
+                    </div>
                   </div>
                   <div className="space-y-1 text-xs text-slate-300">
                     <div>
@@ -621,15 +737,26 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
                         <div className="space-y-1.5">
                           <div className="flex items-center justify-between">
                             <span className="text-indigo-300 font-bold block">{selectedItem.perturbations.layer0.type}</span>
-                            {selRes && (
-                              <span className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold ${
-                                selRes.perturbationSurvival.layer0Pass
-                                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
-                                  : 'bg-rose-950 text-rose-300 border border-rose-800'
-                              }`}>
-                                {selRes.perturbationSurvival.layer0Pass ? 'PASSED' : 'GAGAL'}
-                              </span>
-                            )}
+                            <div className="flex items-center gap-1">
+                              {selRes && (
+                                <span className={`px-1.5 py-0.5 rounded text-[8px] font-mono font-bold ${
+                                  selRes.layerResults.layer0.usedFallback
+                                    ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                                    : 'bg-cyan-950 text-cyan-300 border border-cyan-800'
+                                }`}>
+                                  {selRes.layerResults.layer0.usedFallback ? 'FALLBACK' : 'AI'}
+                                </span>
+                              )}
+                              {selRes && (
+                                <span className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold ${
+                                  selRes.perturbationSurvival.layer0Pass
+                                    ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                                    : 'bg-rose-950 text-rose-300 border border-rose-800'
+                                }`}>
+                                  {selRes.perturbationSurvival.layer0Pass ? 'PASSED' : 'GAGAL'}
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <div className="text-slate-300 text-[10.5px]">
                             <strong>Probe:</strong> {selectedItem.perturbations.layer0.prompt}
@@ -661,15 +788,26 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
                         <div className="space-y-1.5">
                           <div className="flex items-center justify-between">
                             <span className="text-cyan-300 font-bold block">{selectedItem.perturbations.layer1.type}</span>
-                            {selRes && (
-                              <span className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold ${
-                                selRes.perturbationSurvival.layer1Pass
-                                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
-                                  : 'bg-rose-950 text-rose-300 border border-rose-800'
-                              }`}>
-                                {selRes.perturbationSurvival.layer1Pass ? 'PASSED' : 'GAGAL'}
-                              </span>
-                            )}
+                            <div className="flex items-center gap-1">
+                              {selRes && (
+                                <span className={`px-1.5 py-0.5 rounded text-[8px] font-mono font-bold ${
+                                  selRes.layerResults.layer1.usedFallback
+                                    ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                                    : 'bg-cyan-950 text-cyan-300 border border-cyan-800'
+                                }`}>
+                                  {selRes.layerResults.layer1.usedFallback ? 'FALLBACK' : 'AI'}
+                                </span>
+                              )}
+                              {selRes && (
+                                <span className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold ${
+                                  selRes.perturbationSurvival.layer1Pass
+                                    ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                                    : 'bg-rose-950 text-rose-300 border border-rose-800'
+                                }`}>
+                                  {selRes.perturbationSurvival.layer1Pass ? 'PASSED' : 'GAGAL'}
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <div className="text-slate-300 text-[10.5px]">
                             <strong>Probe:</strong> {selectedItem.perturbations.layer1.prompt}
@@ -701,15 +839,26 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
                         <div className="space-y-1.5">
                           <div className="flex items-center justify-between">
                             <span className="text-amber-300 font-bold block">{selectedItem.perturbations.layer2.type}</span>
-                            {selRes && (
-                              <span className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold ${
-                                selRes.perturbationSurvival.layer2Pass
-                                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
-                                  : 'bg-rose-950 text-rose-300 border border-rose-800'
-                              }`}>
-                                {selRes.perturbationSurvival.layer2Pass ? 'SURVIVED' : 'GAGAL'}
-                              </span>
-                            )}
+                            <div className="flex items-center gap-1">
+                              {selRes && (
+                                <span className={`px-1.5 py-0.5 rounded text-[8px] font-mono font-bold ${
+                                  selRes.layerResults.layer2.usedFallback
+                                    ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                                    : 'bg-cyan-950 text-cyan-300 border border-cyan-800'
+                                }`}>
+                                  {selRes.layerResults.layer2.usedFallback ? 'FALLBACK' : 'AI'}
+                                </span>
+                              )}
+                              {selRes && (
+                                <span className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold ${
+                                  selRes.perturbationSurvival.layer2Pass
+                                    ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                                    : 'bg-rose-950 text-rose-300 border border-rose-800'
+                                }`}>
+                                  {selRes.perturbationSurvival.layer2Pass ? 'SURVIVED' : 'GAGAL'}
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <div className="text-slate-300 text-[10.5px]">
                             <strong>Probe:</strong> {selectedItem.perturbations.layer2.prompt}
@@ -935,6 +1084,15 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
                     <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-purple-950 text-purple-300 border border-purple-800 font-bold">
                       {customResult.verdict}
                     </span>
+                    {customResult.usedFallback ? (
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                        FALLBACK LOKAL
+                      </span>
+                    ) : (
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                        {customResult.source || 'AI INFERENCE'}
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-3 font-mono text-[11px]">
                     <span className="text-slate-400">Skor Ortu: <strong className="text-purple-300">{(customParentScore * 100).toFixed(0)}%</strong></span>
@@ -942,6 +1100,11 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
                     <span className="text-slate-400">Skor Fusi Akhir: <strong className="text-emerald-400 text-sm">{(customResult.fusedScore * 100).toFixed(0)}%</strong></span>
                   </div>
                 </div>
+                {customResult.fallbackReason && (
+                  <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded text-[10.5px] text-amber-300">
+                    <strong>Catatan Sumber:</strong> {customResult.fallbackReason}
+                  </div>
+                )}
                 <p className="text-[11px] text-slate-300 leading-relaxed">
                   {customResult.explanation}
                 </p>
@@ -985,7 +1148,20 @@ export const CentralHypothesisTestHarness: React.FC<CentralHypothesisTestHarness
                   return (
                     <tr key={item.id} className="hover:bg-slate-900/40">
                       <td className="py-3 px-3">
-                        <strong className="text-white block">{item.domain}</strong>
+                        <div className="flex items-center gap-1.5">
+                          <strong className="text-white block">{item.domain}</strong>
+                          {res && (
+                            res.usedFallback ? (
+                              <span className="px-1.5 py-0.5 rounded text-[8px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                FALLBACK
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 rounded text-[8px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                                AI
+                              </span>
+                            )
+                          )}
+                        </div>
                         <span className="text-[10px] text-slate-400 font-mono">{item.id}</span>
                       </td>
                       <td className="py-3 px-3 text-center font-mono">

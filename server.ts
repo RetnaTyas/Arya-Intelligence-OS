@@ -219,6 +219,7 @@ function extractBenchmarkArray(raw: any): any[] | null {
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   const cf = getCloudflareConfig();
+  const gemini = getGeminiClient();
 
   res.json({
     status: 'ok',
@@ -226,14 +227,16 @@ app.get('/api/health', (req, res) => {
     activeModel: cf.model,
     hasCloudflareCredentials: cf.isConfigured,
     cloudflareModel: cf.model,
+    secondaryProvider: 'gemini-2.5-flash',
+    hasGeminiCredentials: Boolean(gemini),
+    deterministicLocalFallback: true,
     cloudflarePagesBinding: {
       type: 'Workers AI',
       name: 'AiOS AI',
       value: 'Workers AI Catalog',
       defaultModel: cf.model,
     },
-    exclusiveProvider: 'Workers AI Only (@cf/qwen/qwen3-30b-a3b-fp8)',
-    system: 'Personal Intelligence OS (Cloudflare Workers AI Exclusively)',
+    system: 'Personal Intelligence OS (Dual-Engine: Workers AI Primary with Gemini & Deterministic Local Heuristic Fallback)',
   });
 });
 
@@ -311,51 +314,110 @@ Expected Principle: "${expectedPrinciple}"
 Do not output markdown codeblocks or extra conversational filler, output clean JSON.
 `;
 
-  try {
-    const prompt = `Analisis penjelasan siswa berikut ini:\n"${studentExplanation}"`;
-    const reply = await runCloudflareWorkersAI([
-      { role: 'system', content: systemInstruction },
-      { role: 'user', content: prompt },
-    ], 0.1);
+  const gemini = getGeminiClient();
 
-    const parsed = extractJsonFromText(reply);
-    if (!parsed || typeof parsed !== 'object') {
-      throw new Error(`Cloudflare Workers AI (${cf.model}) tidak menghasilkan JSON Feynman yang valid: "${String(reply).slice(0, 100)}..."`);
+  // 1. Try Cloudflare Workers AI
+  if (cf.isConfigured) {
+    try {
+      const prompt = `Analisis penjelasan siswa berikut ini:\n"${studentExplanation}"`;
+      const reply = await runCloudflareWorkersAI([
+        { role: 'system', content: systemInstruction },
+        { role: 'user', content: prompt },
+      ], 0.1);
+
+      const parsed = extractJsonFromText(reply);
+      if (parsed && typeof parsed === 'object') {
+        const conceptualUnderstanding = typeof parsed.conceptualUnderstanding === 'number'
+          ? Math.min(1, Math.max(0, parsed.conceptualUnderstanding))
+          : (typeof parsed.score === 'number' ? Math.min(1, Math.max(0, parsed.score)) : 0.75);
+        const causalReasoning = typeof parsed.causalReasoning === 'number'
+          ? Math.min(1, Math.max(0, parsed.causalReasoning))
+          : 0.70;
+        const transferScore = typeof parsed.transferScore === 'number'
+          ? Math.min(1, Math.max(0, parsed.transferScore))
+          : 0.65;
+
+        return res.json({
+          ...parsed,
+          conceptualUnderstanding,
+          causalReasoning,
+          transferScore,
+          feynmanDiagnosis: {
+            conceptualUnderstanding,
+            causalReasoning,
+            transferScore,
+            diagnosisExplanation: parsed.feedbackSummary || parsed.explanation || 'Diagnosis verbal berhasil dianalisis.',
+            misconceptions: Array.isArray(parsed.misconceptions) ? parsed.misconceptions : [],
+          },
+          usedFallback: false,
+          source: `cloudflare-workers-ai (${cf.model})`,
+        });
+      }
+    } catch (cfErr: any) {
+      console.warn('Cloudflare Workers AI Feynman error, attempting Gemini/fallback:', cfErr.message);
     }
-
-    const conceptualUnderstanding = typeof parsed.conceptualUnderstanding === 'number'
-      ? Math.min(1, Math.max(0, parsed.conceptualUnderstanding))
-      : (typeof parsed.score === 'number' ? Math.min(1, Math.max(0, parsed.score)) : 0.75);
-    const causalReasoning = typeof parsed.causalReasoning === 'number'
-      ? Math.min(1, Math.max(0, parsed.causalReasoning))
-      : 0.70;
-    const transferScore = typeof parsed.transferScore === 'number'
-      ? Math.min(1, Math.max(0, parsed.transferScore))
-      : 0.65;
-
-    const responsePayload = {
-      ...parsed,
-      conceptualUnderstanding,
-      causalReasoning,
-      transferScore,
-      feynmanDiagnosis: {
-        conceptualUnderstanding,
-        causalReasoning,
-        transferScore,
-        diagnosisExplanation: parsed.feedbackSummary || parsed.explanation || 'Diagnosis verbal berhasil dianalisis.',
-        misconceptions: Array.isArray(parsed.misconceptions) ? parsed.misconceptions : [],
-      },
-      source: `cloudflare-workers-ai (${cf.model})`,
-    };
-
-    return res.json(responsePayload);
-  } catch (error: any) {
-    console.error('Cloudflare Workers AI Feynman error:', error.message);
-    return res.status(500).json({
-      error: `Cloudflare Workers AI Error: ${error.message}`,
-      source: 'cloudflare-workers-ai-error',
-    });
   }
+
+  // 2. Try Gemini if configured
+  if (gemini) {
+    try {
+      const prompt = `${systemInstruction}\n\nAnalisis penjelasan siswa berikut ini:\n"${studentExplanation}"`;
+      const response = await gemini.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+          temperature: 0.1,
+          responseMimeType: 'application/json',
+        },
+      });
+      const parsed = extractJsonFromText(response.text);
+      if (parsed && typeof parsed === 'object') {
+        const conceptualUnderstanding = typeof parsed.conceptualUnderstanding === 'number'
+          ? Math.min(1, Math.max(0, parsed.conceptualUnderstanding))
+          : 0.75;
+        const causalReasoning = typeof parsed.causalReasoning === 'number'
+          ? Math.min(1, Math.max(0, parsed.causalReasoning))
+          : 0.70;
+        const transferScore = typeof parsed.transferScore === 'number'
+          ? Math.min(1, Math.max(0, parsed.transferScore))
+          : 0.65;
+
+        return res.json({
+          ...parsed,
+          conceptualUnderstanding,
+          causalReasoning,
+          transferScore,
+          feynmanDiagnosis: {
+            conceptualUnderstanding,
+            causalReasoning,
+            transferScore,
+            diagnosisExplanation: parsed.feedbackSummary || parsed.explanation || 'Diagnosis verbal dianalisis oleh Gemini.',
+            misconceptions: Array.isArray(parsed.misconceptions) ? parsed.misconceptions : [],
+          },
+          usedFallback: false,
+          source: 'gemini-2.5-flash',
+        });
+      }
+    } catch (geminiErr: any) {
+      console.warn('Gemini Feynman error, falling back to local heuristic:', geminiErr.message);
+    }
+  }
+
+  // 3. Deterministic Local Heuristic Fallback (Honest label, no fake AI stamp)
+  const local = generateLocalFeynmanDiagnosis(conceptName, studentExplanation);
+  return res.json({
+    ...local,
+    feynmanDiagnosis: {
+      conceptualUnderstanding: local.conceptualUnderstanding,
+      causalReasoning: local.causalReasoning,
+      transferScore: local.transferScore,
+      diagnosisExplanation: local.feedbackSummary,
+      misconceptions: local.misconceptions,
+    },
+    usedFallback: true,
+    source: 'deterministic-local-heuristic',
+    fallbackReason: 'Inferensi model AI tidak dapat diakses atau gagal mem-parse format JSON; dievaluasi melalui sensor heuristik lokal.',
+  });
 });
 
 // Endpoint: Batch Benchmark Diagnosis for Central Hypothesis (Tahap 2 Harness)
@@ -445,7 +507,11 @@ Output strictly a JSON array of objects with the exact structure:
               ], 0.1);
               const parsed = extractBenchmarkArray(reply);
               if (Array.isArray(parsed) && parsed.length > 0) {
-                return parsed;
+                return parsed.map((p: any) => ({
+                  ...p,
+                  usedFallback: false,
+                  source: `cloudflare-workers-ai (${cf.model})`,
+                }));
               }
               console.warn(`Workers AI (${cf.model}) mengembalikan payload non-array, fallback lokal untuk chunk ini:`, String(reply).slice(0, 100));
               return chunk.map((p: any) => ({
@@ -492,7 +558,11 @@ Output strictly a JSON array of objects with the exact structure:
               const replyText = response.text || '';
               const parsed = extractBenchmarkArray(replyText);
               if (Array.isArray(parsed) && parsed.length > 0) {
-                return parsed;
+                return parsed.map((p: any) => ({
+                  ...p,
+                  usedFallback: false,
+                  source: 'gemini-2.5-flash',
+                }));
               }
               return chunk.map((p: any) => ({
                 probeId: p.probeId,
@@ -527,40 +597,77 @@ Output strictly a JSON array of objects with the exact structure:
     }));
   }
 
+  let totalFallbackProbes = 0;
+  const totalExpectedProbes = items.length * 4;
+
   const results = items.map((item: any) => {
     const get = (suffix: string) => {
       const probeKey = `${item.id}::${suffix}`;
       const found = allParsedProbes.find((p: any) => p && p.probeId === probeKey);
       if (!found) {
+        totalFallbackProbes += 1;
         return generateLocalProbeDiagnosis(probeKey, item.prompt, item.childUtterance);
       }
+
+      const isFallback = Boolean(found.usedFallback === true);
+      if (isFallback) {
+        totalFallbackProbes += 1;
+      }
+
       return {
         hasMisconception: Boolean(found.hasMisconception === true || found.hasMisconception === 'true' || found.hasMisconception === 1),
         misconceptionName: found.misconceptionName || 'None',
         structuralMasteryScore: typeof found.structuralMasteryScore === 'number'
           ? Math.min(1, Math.max(0, found.structuralMasteryScore))
           : (!isNaN(Number(found.structuralMasteryScore)) ? Math.min(1, Math.max(0, Number(found.structuralMasteryScore))) : 0.5),
-        explanation: found.explanation || `Analisis inferensi probe ${probeKey}.`,
+        explanation: found.explanation || (isFallback
+          ? `Evaluasi fallback lokal probe ${probeKey}.`
+          : `Analisis inferensi probe ${probeKey}.`),
+        usedFallback: isFallback,
+        source: isFallback ? 'deterministic-local-lookup' : (found.source || providerSource),
+        fallbackReason: isFallback ? (found.fallbackReason || 'Model inference failed or unparseable') : undefined,
       };
     };
 
+    const baseProbe = get('base');
+    const layer0Probe = get('layer0');
+    const layer1Probe = get('layer1');
+    const layer2Probe = get('layer2');
+    const itemUsedFallback = Boolean(
+      baseProbe.usedFallback || layer0Probe.usedFallback || layer1Probe.usedFallback || layer2Probe.usedFallback
+    );
+
     return {
       itemId: item.id,
-      base: get('base'),
-      layer0: get('layer0'),
-      layer1: get('layer1'),
-      layer2: get('layer2'),
-      source: providerSource,
+      base: baseProbe,
+      layer0: layer0Probe,
+      layer1: layer1Probe,
+      layer2: layer2Probe,
+      usedFallback: itemUsedFallback,
+      source: itemUsedFallback ? 'deterministic-local-lookup' : providerSource,
     };
   });
 
-  return res.json({ results, source: providerSource });
+  const overallSource = totalFallbackProbes === 0
+    ? providerSource
+    : totalFallbackProbes === totalExpectedProbes
+    ? 'deterministic-local-lookup'
+    : `hybrid (${totalExpectedProbes - totalFallbackProbes} AI, ${totalFallbackProbes} fallback)`;
+
+  return res.json({
+    results,
+    source: overallSource,
+    usedFallback: totalFallbackProbes > 0,
+    fallbackCount: totalFallbackProbes,
+    totalProbes: totalExpectedProbes,
+  });
 });
 
 // Endpoint: Batch Feynman Suite Calibration
 app.post('/api/benchmark/feynman-suite', async (req, res) => {
   const { cases } = req.body; // Array of BenchmarkCase
   const cf = getCloudflareConfig();
+  const gemini = getGeminiClient();
 
   if (!Array.isArray(cases) || cases.length === 0) {
     return res.status(400).json({ error: 'Array of benchmark cases required' });
@@ -591,48 +698,100 @@ Output strictly a JSON array matching:
     childUtterance: c.childUtterance,
   }));
 
-  try {
-    const reply = await runCloudflareWorkersAI([
-      { role: 'system', content: systemInstruction },
-      { role: 'user', content: `Kalibrasi kasus Feynman berikut. Kembalikan HANYA array JSON [ ... ]:\n${JSON.stringify(promptData)}` },
-    ], 0.1);
+  let parsedArray: any[] | null = null;
+  let providerSource = 'deterministic-local-heuristic';
 
-    const parsedArray = extractBenchmarkArray(reply);
-    if (!Array.isArray(parsedArray) || parsedArray.length === 0) {
-      throw new Error(`Workers AI (${cf.model}) tidak mengembalikan array JSON kalibrasi valid.`);
-    }
+  // 1. Try Cloudflare Workers AI
+  if (cf.isConfigured) {
+    try {
+      const reply = await runCloudflareWorkersAI([
+        { role: 'system', content: systemInstruction },
+        { role: 'user', content: `Kalibrasi kasus Feynman berikut. Kembalikan HANYA array JSON [ ... ]:\n${JSON.stringify(promptData)}` },
+      ], 0.1);
 
-    const evaluations = cases.map((c: any) => {
-      const match = parsedArray.find((p: any) => p && (p.caseId === c.id || p.id === c.id));
-      if (!match) {
-        const local = generateLocalFeynmanDiagnosis(c.conceptName, c.childUtterance);
-        return {
-          caseId: c.id,
-          aiScore: local.conceptualUnderstanding,
-          aiLabel: local.misconceptions.length > 0 ? 'Miskonsepsi' : 'Pemahaman Kausal',
-          aiReasoning: local.feedbackSummary,
-          source: `cloudflare-workers-ai (${cf.model})`,
-        };
+      const parsed = extractBenchmarkArray(reply);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        parsedArray = parsed;
+        providerSource = `cloudflare-workers-ai (${cf.model})`;
+      } else {
+        console.warn(`Workers AI (${cf.model}) returned non-array for Feynman suite, trying secondary engine.`);
       }
-      const rawScore = match.aiScore !== undefined ? match.aiScore : match.score;
-      const scoreNum = typeof rawScore === 'number' ? rawScore : Number(rawScore);
+    } catch (cfErr: any) {
+      console.warn('Cloudflare Workers AI Feynman suite error, trying secondary engine:', cfErr.message);
+    }
+  }
+
+  // 2. Try Gemini if Workers AI was unavailable or unparseable
+  if (!parsedArray && gemini) {
+    try {
+      const prompt = `${systemInstruction}\n\nKalibrasi kasus Feynman berikut. Kembalikan HANYA array JSON [ ... ]:\n${JSON.stringify(promptData)}`;
+      const response = await gemini.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+          temperature: 0.1,
+          responseMimeType: 'application/json',
+        },
+      });
+      const replyText = response.text || '';
+      const parsed = extractBenchmarkArray(replyText);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        parsedArray = parsed;
+        providerSource = 'gemini-2.5-flash';
+      }
+    } catch (geminiErr: any) {
+      console.warn('Gemini Feynman suite error, falling back to deterministic local heuristic:', geminiErr.message);
+    }
+  }
+
+  // 3. Assemble evaluations per case with honest per-case and overall metadata
+  let fallbackCount = 0;
+  const totalCases = cases.length;
+
+  const evaluations = cases.map((c: any) => {
+    const match = Array.isArray(parsedArray)
+      ? parsedArray.find((p: any) => p && (p.caseId === c.id || p.id === c.id))
+      : null;
+
+    if (!match) {
+      fallbackCount += 1;
+      const local = generateLocalFeynmanDiagnosis(c.conceptName, c.childUtterance);
       return {
         caseId: c.id,
-        aiScore: !isNaN(scoreNum) ? Math.min(1, Math.max(0, scoreNum)) : 0.75,
-        aiLabel: match.aiLabel || match.label || 'Teridentifikasi',
-        aiReasoning: match.aiReasoning || match.reasoning || `Inferensi kalibrasi Cloudflare Workers AI (${cf.model}).`,
-        source: `cloudflare-workers-ai (${cf.model})`,
+        aiScore: local.conceptualUnderstanding,
+        aiLabel: local.misconceptions.length > 0 ? 'Miskonsepsi' : 'Pemahaman Kausal',
+        aiReasoning: local.feedbackSummary,
+        usedFallback: true,
+        source: 'deterministic-local-heuristic',
+        fallbackReason: local.fallbackReason,
       };
-    });
+    }
 
-    return res.json({ evaluations, source: `cloudflare-workers-ai (${cf.model})` });
-  } catch (error: any) {
-    console.error('Cloudflare Workers AI Feynman suite error:', error.message);
-    return res.status(500).json({
-      error: `Cloudflare Workers AI Error: ${error.message}`,
-      source: 'cloudflare-workers-ai-error',
-    });
-  }
+    const rawScore = match.aiScore !== undefined ? match.aiScore : match.score;
+    const scoreNum = typeof rawScore === 'number' ? rawScore : Number(rawScore);
+    return {
+      caseId: c.id,
+      aiScore: !isNaN(scoreNum) ? Math.min(1, Math.max(0, scoreNum)) : 0.75,
+      aiLabel: match.aiLabel || match.label || 'Teridentifikasi',
+      aiReasoning: match.aiReasoning || match.reasoning || `Inferensi kalibrasi AI (${providerSource}).`,
+      usedFallback: false,
+      source: providerSource,
+    };
+  });
+
+  const overallSource = fallbackCount === 0
+    ? providerSource
+    : fallbackCount === totalCases
+    ? 'deterministic-local-heuristic'
+    : `hybrid (${totalCases - fallbackCount} AI, ${fallbackCount} fallback)`;
+
+  return res.json({
+    evaluations,
+    source: overallSource,
+    usedFallback: fallbackCount > 0,
+    fallbackCount,
+    totalCases,
+  });
 });
 
 // Fallback intelligent helpers
@@ -705,6 +864,9 @@ function generateLocalFeynmanDiagnosis(conceptName: string, explanation: string)
     nextBestProbe: misconceptions.length > 0
       ? 'Ajak menguji perbandingan massa jenis di Lab Simulasi Fluida.'
       : 'Uji kemampuan transfer ke skenario baru (misalnya kapal selam di air tawar vs air laut).',
+    usedFallback: true,
+    source: 'deterministic-local-heuristic' as const,
+    fallbackReason: 'Inferensi model AI tidak dapat diakses atau menghasilkan output non-JSON; dievaluasi melalui sensor heuristik lokal.',
   };
 }
 
@@ -713,132 +875,113 @@ function generateLocalProbeDiagnosis(probeId: string, prompt: string, studentUtt
   const id = probeId.split('::')[0] || '';
   const suffix = probeId.split('::')[1] || 'base';
 
+  let result: {
+    hasMisconception: boolean;
+    misconceptionName: string;
+    structuralMasteryScore: number;
+    explanation: string;
+  };
+
   // bench-frac-01 (1/4 vs 1/8 denominator magnitude)
   if (id === 'bench-frac-01') {
-    return {
+    result = {
       hasMisconception: true,
       misconceptionName: 'Transfer intuisi bilangan bulat: penyebut besar disangka nilai pecahan lebih besar',
       structuralMasteryScore: 0.16,
-      explanation: `Evaluasi Heuristik Lokal [${suffix}]: Terdeteksi overgeneralization sifat bilangan bulat (8 > 4) ke sistem pembagian pecahan.`,
+      explanation: `Evaluasi Fallback Lookup [${suffix}]: Terdeteksi overgeneralization sifat bilangan bulat (8 > 4) ke sistem pembagian pecahan.`,
     };
-  }
-
-  // bench-frac-02 (1/2 + 1/3 = 2/5)
-  if (id === 'bench-frac-02') {
-    return {
+  } else if (id === 'bench-frac-02') {
+    result = {
       hasMisconception: true,
       misconceptionName: 'Penjumlahan langsung pembilang dan penyebut terpisah (atas+atas, bawah+bawah)',
       structuralMasteryScore: 0.18,
-      explanation: `Evaluasi Heuristik Lokal [${suffix}]: Satuan ukuran penyebut diperlakukan sebagai bilangan aditif terpisah tanpa rekonsiliasi unit bersama.`,
+      explanation: `Evaluasi Fallback Lookup [${suffix}]: Satuan ukuran penyebut diperlakukan sebagai bilangan aditif terpisah tanpa rekonsiliasi unit bersama.`,
     };
-  }
-
-  // bench-frac-03 (buzzwords without partition)
-  if (id === 'bench-frac-03') {
-    return {
+  } else if (id === 'bench-frac-03') {
+    result = {
       hasMisconception: true,
       misconceptionName: 'Penghafalan istilah teknis (buzzwords) tanpa intuisi partisi konkret',
       structuralMasteryScore: 0.32,
-      explanation: `Evaluasi Heuristik Lokal [${suffix}]: Pengulangan istilah formal tanpa pemahaman relasi spasial atau representasi fisik nyata.`,
+      explanation: `Evaluasi Fallback Lookup [${suffix}]: Pengulangan istilah formal tanpa pemahaman relasi spasial atau representasi fisik nyata.`,
     };
-  }
-
-  // bench-frac-04-control (Positive control: partition & unit inverse)
-  if (id === 'bench-frac-04-control') {
-    return {
+  } else if (id === 'bench-frac-04-control') {
+    result = {
       hasMisconception: false,
       misconceptionName: 'None',
       structuralMasteryScore: 0.95,
-      explanation: `Evaluasi Heuristik Lokal [${suffix}]: Anak memahami hubungan terbalik antara jumlah bagian dan ukuran partisi secara mendalam.`,
+      explanation: `Evaluasi Fallback Lookup [${suffix}]: Anak memahami hubungan terbalik antara jumlah bagian dan ukuran partisi secara mendalam.`,
     };
-  }
-
-  // bench-frac-05 (equal parts ignored)
-  if (id === 'bench-frac-05') {
-    return {
+  } else if (id === 'bench-frac-05') {
+    result = {
       hasMisconception: true,
       misconceptionName: 'Mengabaikan syarat kesamaan ukuran partisi pada pecahan',
       structuralMasteryScore: 0.20,
-      explanation: `Evaluasi Heuristik Lokal [${suffix}]: Hanya menghitung jumlah potongan fisik tanpa memeriksa kesetaraan luas atau volume bagian.`,
+      explanation: `Evaluasi Fallback Lookup [${suffix}]: Hanya menghitung jumlah potongan fisik tanpa memeriksa kesetaraan luas atau volume bagian.`,
     };
-  }
-
-  // bench-frac-06 (+1/+1 additive equivalent trap)
-  if (id === 'bench-frac-06') {
-    return {
+  } else if (id === 'bench-frac-06') {
+    result = {
       hasMisconception: true,
       misconceptionName: 'Menganggap penambahan bilangan sama pada pembilang & penyebut mempertahankan nilai',
       structuralMasteryScore: 0.18,
-      explanation: `Evaluasi Heuristik Lokal [${suffix}]: Anak memperlakukan kesetaraan pecahan secara aditif (+1/+1) alih-alih skalasi multiplikatif.`,
+      explanation: `Evaluasi Fallback Lookup [${suffix}]: Anak memperlakukan kesetaraan pecahan secara aditif (+1/+1) alih-alih skalasi multiplikatif.`,
     };
-  }
-
-  // bench-frac-07-control (Positive control: scaling identity x2/x2)
-  if (id === 'bench-frac-07-control') {
-    return {
+  } else if (id === 'bench-frac-07-control') {
+    result = {
       hasMisconception: false,
       misconceptionName: 'None',
       structuralMasteryScore: 0.96,
-      explanation: `Evaluasi Heuristik Lokal [${suffix}]: Anak menyadari bahwa perkalian pembilang dan penyebut dengan angka sama setara mengalikan dengan identitas 1.`,
+      explanation: `Evaluasi Fallback Lookup [${suffix}]: Anak menyadari bahwa perkalian pembilang dan penyebut dengan angka sama setara mengalikan dengan identitas 1.`,
     };
-  }
-
-  // bench-alg-08-control (Positive control: equality as balance)
-  if (id === 'bench-alg-08-control' || id === 'bench-alg-04') {
-    return {
+  } else if (id === 'bench-alg-08-control' || id === 'bench-alg-04') {
+    result = {
       hasMisconception: false,
       misconceptionName: 'None',
       structuralMasteryScore: 0.96,
-      explanation: `Evaluasi Heuristik Lokal [${suffix}]: Tanda sama dengan dipahami sebagai neraca timbangan relasional dua arah yang simetris.`,
+      explanation: `Evaluasi Fallback Lookup [${suffix}]: Tanda sama dengan dipahami sebagai neraca timbangan relasional dua arah yang simetris.`,
     };
-  }
-
-  // bench-alg-09 (mechanical sign transposition)
-  if (id === 'bench-alg-09' || id === 'bench-alg-05') {
-    return {
+  } else if (id === 'bench-alg-09' || id === 'bench-alg-05') {
+    result = {
       hasMisconception: true,
       misconceptionName: 'Pindah ruas mekanis tanpa operasi inversi tanda',
       structuralMasteryScore: 0.22,
-      explanation: `Evaluasi Heuristik Lokal [${suffix}]: Prosedur simbolik dijalankan sebagai aturan hafalan magis tanpa mempertahankan keseimbangan neraca.`,
+      explanation: `Evaluasi Fallback Lookup [${suffix}]: Prosedur simbolik dijalankan sebagai aturan hafalan magis tanpa mempertahankan keseimbangan neraca.`,
     };
-  }
-
-  // bench-alg-10 (equals as calculator operation)
-  if (id === 'bench-alg-10') {
-    return {
+  } else if (id === 'bench-alg-10') {
+    result = {
       hasMisconception: true,
       misconceptionName: 'Tanda sama dengan diartikan perintah kalkulator untuk melakukan operasi',
       structuralMasteryScore: 0.20,
-      explanation: `Evaluasi Heuristik Lokal [${suffix}]: Anak memperlakukan persamaan sebagai instruksi komputasi satu arah alih-alih relasi ekuivalensi.`,
+      explanation: `Evaluasi Fallback Lookup [${suffix}]: Anak memperlakukan persamaan sebagai instruksi komputasi satu arah alih-alih relasi ekuivalensi.`,
     };
-  }
-
-  // bench-ratio-11 (additive instead of multiplicative ratio)
-  if (id === 'bench-ratio-11' || id === 'bench-ratio-06') {
-    return {
+  } else if (id === 'bench-ratio-11' || id === 'bench-ratio-06') {
+    result = {
       hasMisconception: true,
       misconceptionName: 'Berpikir aditif bukan multiplikatif pada rasio',
       structuralMasteryScore: 0.26,
-      explanation: `Evaluasi Heuristik Lokal [${suffix}]: Anak mengaplikasikan penambahan selisih konstan alih-alih faktor skala multiplikatif pada relasi intensif.`,
+      explanation: `Evaluasi Fallback Lookup [${suffix}]: Anak mengaplikasikan penambahan selisih konstan alih-alih faktor skala multiplikatif pada relasi intensif.`,
     };
-  }
-
-  // bench-ratio-12-control (Positive control: multiplicative scaling in recipes)
-  if (id === 'bench-ratio-12-control') {
-    return {
+  } else if (id === 'bench-ratio-12-control') {
+    result = {
       hasMisconception: false,
       misconceptionName: 'None',
       structuralMasteryScore: 0.97,
-      explanation: `Evaluasi Heuristik Lokal [${suffix}]: Penalaran proporsional sempurna dengan mempertahankan invarian rasio melalui faktor pengali skala.`,
+      explanation: `Evaluasi Fallback Lookup [${suffix}]: Penalaran proporsional sempurna dengan mempertahankan invarian rasio melalui faktor pengali skala.`,
+    };
+  } else {
+    const hasErrorSignals = utt.includes('tambah') || utt.includes('lebih besar') || utt.includes('pindah');
+    result = {
+      hasMisconception: hasErrorSignals,
+      misconceptionName: hasErrorSignals ? 'Miskonsepsi heuristik terdeteksi' : 'None',
+      structuralMasteryScore: hasErrorSignals ? 0.25 : 0.88,
+      explanation: `Evaluasi Fallback Lookup [${suffix}]: Analisis penalaran ujaran anak melalui aturan heuristik lokal.`,
     };
   }
 
-  const hasErrorSignals = utt.includes('tambah') || utt.includes('lebih besar') || utt.includes('pindah');
   return {
-    hasMisconception: hasErrorSignals,
-    misconceptionName: hasErrorSignals ? 'Miskonsepsi heuristik terdeteksi' : 'None',
-    structuralMasteryScore: hasErrorSignals ? 0.25 : 0.88,
-    explanation: `Evaluasi Heuristik Lokal [${suffix}]: Analisis penalaran ujaran anak.`,
+    ...result,
+    usedFallback: true,
+    source: 'deterministic-local-lookup' as const,
+    fallbackReason: 'Inferensi model AI tidak tersedia atau gagal diproses; dievaluasi melalui kalibrator fallback lokal.',
   };
 }
 

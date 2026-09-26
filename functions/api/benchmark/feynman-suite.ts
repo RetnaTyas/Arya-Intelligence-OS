@@ -68,16 +68,22 @@ Output strictly a JSON array matching:
     const rawData = response?.response !== undefined ? response?.response : (response?.result?.response !== undefined ? response?.result?.response : (response?.result !== undefined ? response.result : response));
     const parsedArray = extractBenchmarkArray(rawData);
 
+    let fallbackCount = 0;
+    const totalCases = cases.length;
+
     const evaluations = cases.map((c: any) => {
       const match = Array.isArray(parsedArray) ? parsedArray.find((p: any) => p && (p.caseId === c.id || p.id === c.id)) : null;
       if (!match) {
+        fallbackCount += 1;
         const local = generateLocalFeynmanDiagnosis(c.conceptName, c.childUtterance);
         return {
           caseId: c.id,
           aiScore: local.conceptualUnderstanding,
           aiLabel: local.misconceptions.length > 0 ? 'Miskonsepsi' : 'Pemahaman Kausal',
           aiReasoning: local.feedbackSummary,
-          source: `cloudflare-workers-ai (${model})`,
+          usedFallback: true,
+          source: 'deterministic-local-heuristic',
+          fallbackReason: local.fallbackReason,
         };
       }
       const rawScore = match.aiScore !== undefined ? match.aiScore : match.score;
@@ -87,14 +93,24 @@ Output strictly a JSON array matching:
         aiScore: !isNaN(scoreNum) ? Math.min(1, Math.max(0, scoreNum)) : 0.75,
         aiLabel: match.aiLabel || match.label || 'Teridentifikasi',
         aiReasoning: match.aiReasoning || match.reasoning || `Inferensi kalibrasi Pages Functions Workers AI binding (AiOS AI: ${model}).`,
+        usedFallback: false,
         source: `cloudflare-workers-ai (${model})`,
       };
     });
 
+    const overallSource = fallbackCount === 0
+      ? `cloudflare-workers-ai (${model})`
+      : fallbackCount === totalCases
+      ? 'deterministic-local-heuristic'
+      : `hybrid (${totalCases - fallbackCount} AI, ${fallbackCount} fallback)`;
+
     return new Response(
       JSON.stringify({
         evaluations,
-        source: `cloudflare-workers-ai (${model})`,
+        source: overallSource,
+        usedFallback: fallbackCount > 0,
+        fallbackCount,
+        totalCases,
         binding: 'AiOS AI',
       }),
       { headers: { 'Content-Type': 'application/json' } }

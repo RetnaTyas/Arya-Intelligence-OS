@@ -110,10 +110,15 @@ Output strictly a JSON array of objects with the exact structure:
 
           const parsed = extractBenchmarkArray(rawData);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed;
+            return parsed.map((p: any) => ({
+              ...p,
+              usedFallback: false,
+              source: `cloudflare-workers-ai (${model})`,
+            }));
           }
 
           // Fallback heuristic for this chunk if AI returned non-array
+          console.warn('AI did not return valid array, marking fallback for chunk');
           return chunk.map((p: any) => ({
             probeId: p.probeId,
             ...generateLocalProbeDiagnosis(p.probeId, p.prompt, p.studentUtterance),
@@ -129,38 +134,72 @@ Output strictly a JSON array of objects with the exact structure:
     );
 
     const allParsed = chunkResults.flat();
+    let totalFallbackProbes = 0;
+    const totalExpectedProbes = items.length * 4;
 
     const results = items.map((item: any) => {
       const get = (suffix: string) => {
         const probeKey = `${item.id}::${suffix}`;
         const found = allParsed.find((p: any) => p && p.probeId === probeKey);
         if (!found) {
+          totalFallbackProbes += 1;
           return generateLocalProbeDiagnosis(probeKey, item.prompt, item.childUtterance);
         }
+
+        const isFallback = Boolean(found.usedFallback === true);
+        if (isFallback) {
+          totalFallbackProbes += 1;
+        }
+
         return {
           hasMisconception: Boolean(found.hasMisconception === true || found.hasMisconception === 'true' || found.hasMisconception === 1),
           misconceptionName: found.misconceptionName || 'None',
           structuralMasteryScore: typeof found.structuralMasteryScore === 'number'
             ? Math.min(1, Math.max(0, found.structuralMasteryScore))
             : (!isNaN(Number(found.structuralMasteryScore)) ? Math.min(1, Math.max(0, Number(found.structuralMasteryScore))) : 0.5),
-          explanation: found.explanation || `Analisis inferensi probe ${probeKey} (AiOS AI: ${model}).`,
+          explanation: found.explanation || (isFallback
+            ? `Evaluasi fallback lokal probe ${probeKey}.`
+            : `Analisis inferensi probe ${probeKey} (AiOS AI: ${model}).`),
+          usedFallback: isFallback,
+          source: isFallback ? 'deterministic-local-lookup' : `cloudflare-workers-ai (${model})`,
+          fallbackReason: isFallback ? (found.fallbackReason || 'Model inference failed or unparseable') : undefined,
         };
       };
 
+      const baseProbe = get('base');
+      const layer0Probe = get('layer0');
+      const layer1Probe = get('layer1');
+      const layer2Probe = get('layer2');
+      const itemUsedFallback = Boolean(
+        baseProbe.usedFallback || layer0Probe.usedFallback || layer1Probe.usedFallback || layer2Probe.usedFallback
+      );
+
       return {
         itemId: item.id,
-        base: get('base'),
-        layer0: get('layer0'),
-        layer1: get('layer1'),
-        layer2: get('layer2'),
-        source: `cloudflare-workers-ai (${model})`,
+        base: baseProbe,
+        layer0: layer0Probe,
+        layer1: layer1Probe,
+        layer2: layer2Probe,
+        usedFallback: itemUsedFallback,
+        source: itemUsedFallback
+          ? 'deterministic-local-lookup'
+          : `cloudflare-workers-ai (${model})`,
       };
     });
+
+    const overallSource = totalFallbackProbes === 0
+      ? `cloudflare-workers-ai (${model})`
+      : totalFallbackProbes === totalExpectedProbes
+      ? 'deterministic-local-lookup'
+      : `hybrid (${totalExpectedProbes - totalFallbackProbes} AI, ${totalFallbackProbes} fallback)`;
 
     return new Response(
       JSON.stringify({
         results,
-        source: `cloudflare-workers-ai (${model})`,
+        source: overallSource,
+        usedFallback: totalFallbackProbes > 0,
+        fallbackCount: totalFallbackProbes,
+        totalProbes: totalExpectedProbes,
         binding: 'AiOS AI',
       }),
       { headers: { 'Content-Type': 'application/json' } }
