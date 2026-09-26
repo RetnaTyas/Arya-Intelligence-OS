@@ -1,3 +1,11 @@
+// ============================================================================
+// ⚠️ EKSPERIMEN PARALEL OUT-OF-SEQUENCE (DI LUAR JALUR UTAMA TAHAP 1)
+// Rujukan: docs/architecture/KNOWN_ISSUES.md (Temuan 6) & intelligence-os-foundation.md Bagian 12
+// Status: Eksperimen riset paralel (Domain Komputasi: Kompleksitas Pencarian Biner).
+// CATATAN DISIPLIN: Modul ini TIDAK dihitung dalam pemenuhan Gerbang Tahap 1 & Tahap 2.
+// Domain Aktif Resmi Tahap 1: Matematika Sempit (Pecahan → Persamaan Linear: narrowMathDomain.ts)
+// ============================================================================
+
 import React, { useState } from 'react';
 import {
   Cpu,
