@@ -6,10 +6,7 @@ import { extractJsonFromText, extractBenchmarkArray } from './lib/json-extract';
 import { generateLocalProbeDiagnosis, generateLocalFeynmanDiagnosis } from './lib/fallback-heuristics';
 
 export interface Env {
-  'AiOS AI'?: {
-    run: (model: string, input: any) => Promise<any>;
-  };
-  AI?: {
+  AI: {
     run: (model: string, input: any) => Promise<any>;
   };
   AI_MODEL?: string;
@@ -20,8 +17,6 @@ export const DEFAULT_AI_MODEL = '@cf/qwen/qwen3-30b-a3b-fp8';
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    const aiBinding = env['AiOS AI'] || env.AI || null;
-    const bindingName = env['AiOS AI'] ? 'AiOS AI' : (env.AI ? 'AI' : 'none');
     const url = new URL(request.url);
     const pathname = url.pathname;
     const model = env.AI_MODEL || DEFAULT_AI_MODEL;
@@ -62,13 +57,13 @@ export default {
     try {
       // 1. Health Route: /health or /api/health
       if (pathname === '/health' || pathname === '/api/health') {
-        const hasBinding = Boolean(aiBinding && typeof aiBinding.run === 'function');
+        const hasBinding = Boolean(env.AI && typeof env.AI.run === 'function');
         return json({
           status: 'ok',
           service: 'arya-ai-gateway',
           runtime: 'Cloudflare Worker (Service Binding Target)',
           hasAiBinding: hasBinding,
-          bindingName,
+          bindingName: 'AI',
           model,
           isPubliclyExposed: false,
           timestamp: new Date().toISOString(),
@@ -80,7 +75,7 @@ export default {
         const body: any = await request.json();
         const { concept, studentMessage, history, learnerState } = body;
 
-        if (!aiBinding) {
+        if (!env.AI) {
           return json({
             message: `[Gateway Offline Heuristic]: Bagaimana menurutmu relasi sebab-akibat pada konsep ${concept || 'ini'}?`,
             usedFallback: true,
@@ -112,7 +107,7 @@ Current learner state: ${JSON.stringify(learnerState || {})}
           content: studentMessage || 'Halo, saya ingin memahami konsep ini.',
         });
 
-        const response: any = await aiBinding.run(model, { messages, temperature: 0.7 });
+        const response: any = await env.AI.run(model, { messages, temperature: 0.7 });
         const replyText = response?.response || response?.result?.response || '';
         return json({
           message: replyText || 'Mari kita telusuri prinsip dasarnya bersama-sama.',
@@ -126,7 +121,7 @@ Current learner state: ${JSON.stringify(learnerState || {})}
         const body: any = await request.json();
         const { conceptName, studentExplanation, expectedPrinciple } = body;
 
-        if (!aiBinding) {
+        if (!env.AI) {
           const local = generateLocalFeynmanDiagnosis(conceptName, studentExplanation);
           return json(local);
         }
@@ -156,7 +151,7 @@ Expected Principle: "${expectedPrinciple || ''}"
 `;
         try {
           const prompt = `Analisis penjelasan siswa berikut ini:\n"${studentExplanation}"`;
-          const reply: any = await aiBinding.run(model, {
+          const reply: any = await env.AI.run(model, {
             messages: [
               { role: 'system', content: systemInstruction },
               { role: 'user', content: prompt },
@@ -249,7 +244,7 @@ Each row is INDEPENDENT. Output strictly a JSON array of objects:
 ]`;
 
         let allParsed: any[] = [];
-        if (aiBinding) {
+        if (env.AI) {
           const CHUNK_SIZE = 4;
           const chunks: any[][] = [];
           for (let i = 0; i < allPromptRows.length; i += CHUNK_SIZE) {
@@ -259,7 +254,7 @@ Each row is INDEPENDENT. Output strictly a JSON array of objects:
           const chunkResults = await Promise.all(
             chunks.map(async (chunk) => {
               try {
-                const response: any = await aiBinding.run(model, {
+                const response: any = await env.AI.run(model, {
                   messages: [
                     { role: 'system', content: systemInstruction },
                     { role: 'user', content: `Evaluasi setiap probe berikut secara independen. Kembalikan HANYA array JSON murni:\n${JSON.stringify(chunk)}` },
@@ -372,10 +367,10 @@ Output STRICTLY JSON array:
 ]`;
 
         let evaluations: any[] = [];
-        if (aiBinding) {
+        if (env.AI) {
           try {
             const prompt = `Evaluasi kasus-kasus berikut:\n${JSON.stringify(cases.map((c: any) => ({ caseId: c.id, concept: c.conceptName, utterance: c.childUtterance })))}`;
-            const response: any = await aiBinding.run(model, {
+            const response: any = await env.AI.run(model, {
               messages: [
                 { role: 'system', content: systemInstruction },
                 { role: 'user', content: prompt },
