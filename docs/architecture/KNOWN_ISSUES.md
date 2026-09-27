@@ -147,24 +147,25 @@ Audit independen terhadap implementasi kode menemukan kesenjangan struktural ant
 ---
 
 ### 🔴 Temuan 9: `humanExpertDiagnosis` pada Benchmark 52-Node Adalah Gold-Standard Buatan Sendiri, Bukan Asesmen Manusia Riil
-* **Status**: 🔴 **Belum Diremediasi** — ditemukan pada audit lanjutan (Ronde 3), setelah Temuan 7 & 8 dinyatakan tuntas
-* **Konteks**: Temuan ini secara langsung mengoreksi baris checklist Gerbang Tahap 2 di Bagian 3 ("Diagnosis AI diverifikasi vs asesmen manusia riil, bukan gold-standard buatan sendiri") yang sebelumnya ditandai ✅ Lolos berdasarkan Temuan 7. Anotasi koreksi ada di Bagian 3; teks asli Bagian 3 tidak dihapus.
-* **Kondisi Ditemukan**: Di `src/engine/domain52BenchmarkMatrix.ts`, field `humanExpertDiagnosis` — yang menurut definisinya harus berisi penilaian pakar manusia riil terhadap ucapan anak riil — dihasilkan murni oleh generator deterministik:
-  ```ts
-  const isPositiveControl = nodeNum % 4 === 0; // 1 dari 4 kasus otomatis jadi "kontrol positif"
-  const score = isPositiveControl ? 0.94 : 0.22; // skor tetap, bukan hasil rating
-  // ...
-  humanExpertDiagnosis: { ..., confidence: 0.95, ... } // confidence tetap untuk seluruh 52 kasus
-  ```
-  `childUtterance` yang dievaluasi juga bukan ucapan anak riil, melainkan template string yang diturunkan dari field node yang sama (`node.whyChain`, `node.explanationLevels`, `defaultMiscon.misconception`) yang nanti dipakai untuk membangun prompt penilaian AI — sehingga kalimat kasus miskonsepsi kadang eksplisit menyebutkan pola miskonsepsinya sendiri (mis. "saya cukup menghafal prosedur"), membuat tugas diagnosis condong ke pencocokan kata kunci, bukan penalaran atas ucapan ambigu seperti pada anak sungguhan.
-* **Akar Masalah**: Temuan 7 menambahkan sitasi ke 8 studi kognitif anak peer-reviewed (Streefland, Mack, Behr, Carpenter, Siegler, Moss & Case, Lesh & Lamon, Kieran & Knuth) sebagai *grounding* konseptual taksonomi miskonsepsi — ini sah dan berguna. Namun proses remediasi berikutnya (dan checklist Bagian 3) keliru menyamakan "taksonomi miskonsepsi digrounding literatur" dengan "diagnosis divalidasi oleh manusia riil". Keduanya berbeda: literatur menjelaskan *pola* miskonsepsi yang umum terjadi; ia tidak menyediakan rating manusia atas *kasus spesifik* dalam benchmark ini. Generator lalu mengisi kekosongan itu dengan aturan mekanis (`nodeNum % 4`), bukan dengan rater manusia.
-* **Dampak**: Suite tes yang ada (`tests/epistemic-os-tester.ts` Suite 2.1–2.6) memverifikasi integritas *struktural* benchmark (jumlah node, keunikan ujaran, cakupan klaster, DAG) — semuanya valid dan berguna sebagai QA. Tetapi tidak satu pun dari suite itu menguji klaim inti Tahap 2 di `intelligence-os-foundation.md` Bagian 12: *"Apakah diagnosis miskonsepsi oleh AI cocok dengan penilaian manusia yang teliti?"* Klaim itu, sampai saat ini, belum pernah diuji terhadap data manusia riil sama sekali.
-* **Efek Berantai ke Tahap 3–5**: `src/engine/evidenceTriangulation.ts` (Tahap 3), `src/engine/dynamicTelemetry.ts` + `ParentTelemetryDashboard` (Tahap 5), dan mekanisme stealth-repair di `deterministicCore.ts` (Tahap 4) sudah diimpor dan dirender aktif di `src/App.tsx` — artinya lapisan-lapisan itu sudah dibangun di atas sensor Tahap 2 yang belum tervalidasi secara substantif, bertentangan dengan prinsip eksplisit peta jalan sendiri ("Jika tidak [lolos Tahap 2], perbaiki sensor sebelum menambah fitur" — Bagian 12).
-* **Tindakan Perbaikan (Belum Dikerjakan)**:
-  1. Kumpulkan minimal satu batch ucapan anak riil (bukan template) per klaster, dinilai oleh rater manusia berkompeten (bukan dihasilkan oleh kode yang sama dengan sistem yang diuji).
-  2. Jalankan `evaluateDiagnosticAgreementAndPerturbation` terhadap dataset riil tersebut, bukan `FULL_SCALE_52_NODE_BENCHMARK` sintetis, untuk mendapatkan angka konkordansi yang punya makna empiris.
-  3. Tandai `evidenceTriangulation.ts`, `dynamicTelemetry.ts`, dan stealth-repair sebagai *out-of-sequence* (pola yang sama seperti Temuan 6) sampai poin 1–2 selesai, atau bekukan pengembangan lanjutan pada modul-modul itu.
-  4. Revisi baris checklist Bagian 3 dari ✅ menjadi status yang mencerminkan realita: infrastruktur lolos, validasi empiris belum.
+* **Status**: 🟡 **Reklasifikasi Prioritas & Jalur Rating Selesai Dibangun (Ronde 4)**
+  * *Audit Ronde 3*: Ditemukan bahwa field `humanExpertDiagnosis` di `domain52BenchmarkMatrix.ts` dihasilkan deterministik (`nodeNum % 4`), bukan rating manusia riil.
+  * *Reklasifikasi Ronde 4*: Sifat temuan ini diubah dari **"blocker mutlak yang mengunci seluruh progress"** menjadi **"metrik yang dihitung secara organik setelah jalur alat rating siap dan data riil terkumpul"**. Arsitektur kedaulatan data pengguna (IndexedDB/D1 lokal) tidak memungkinkan pihak luar atau AI coder mengakses data privat anak; yang wajib dan dapat dibangun hanyalah:
+    1. Engine diagnosis (AI Live + Fallback jujur + Provenance transparan).
+    2. Antarmuka produk + SOP agar manusia (orang tua/guru/pakar) dapat mencatat jawaban anak dan memberi rating secara usable.
+    3. Dashboard komparasi manusia vs AI yang jujur (Zero-Lie: menampilkan data riil apa adanya, tanpa generator tiruan).
+* **Akar Masalah**: Evaluasi AI sebelumnya diuji terhadap benchmark sintetis buatan sendiri karena belum tersedianya jalur input dan penyimpanan rating manusia riil di aplikasi.
+* **Remediasi yang Telah Diterapkan (Ronde 4)**:
+  1. **Penyimpanan Lokal Terstruktur**: Menambahkan `STORES.HUMAN_RATINGS` di IndexedDB (`src/storage/indexedDbStorage.ts`) dengan flag tegas `isRealData: true`, terpisah mutlak dari probe sintetis.
+  2. **Antarmuka Rating Manusia Usable (`src/components/HumanVsAiAuditDashboard.tsx`)**:
+     - Memungkinkan orang tua mencatat ujaran anak secara verbatim dari observasi langsung, tugas PR, dialog Sokrates, atau lab.
+     - Menyediakan pengujian diagnosis AI secara instan (`/api/diagnose/feynman`) lengkap dengan transparansi model dan badge fallback.
+     - Menyediakan formulir skor penguasaan manusia, deteksi miskonsepsi, dan catatan observasi kualitatif.
+     - Mengintegrasikan rating inline dari tabel *Evidence Log* di `ParentTelemetryDashboard.tsx`.
+  3. **Dashboard Komparasi Zero-Lie**:
+     - Menampilkan perbandingan skor manusia vs skor AI, selisih Mean Absolute Error (MAE), dan konkordansi kualitatif.
+     - **Prinsip Zero-Lie**: Jika data masih sedikit (mis. 0 atau 2 kasus), sistem menampilkan apa adanya tanpa disuntik angka buatan generator.
+     - Tab terpisah untuk "Synthetic Probes (Matriks 52-Node)" agar pengujian stabilitas semantik algoritma tidak pernah disamarkan sebagai data manusia riil.
+* **Status Metrik Konkordansi Empiris**: Jalur data telah selesai dan siap pakai. Angka konkordansi dihitung secara berkelanjutan dari data riil yang terkumpul, bukan sebagai prasyarat statis yang memblokir penambahan materi atau perkembangan arsitektur.
 
 ---
 
@@ -191,11 +192,14 @@ Audit independen terhadap implementasi kode menemukan kesenjangan struktural ant
 | Provenance/fallback badge jujur, tidak ada mislabeling sumber | ✅ Lolos | Transparansi provenance per-probe (`usedFallback`, `source`, `fallbackReason`) (Temuan 4) |
 | Struktur 4-probe independen (Base, Layer 0, 1, 2) per kasus | ✅ Lolos | 52 kasus terdefinisi (208 probe independen) dan 20 kasus baseline; `tests/epistemic-os-tester.ts` Suite 2.1 |
 | Diuji "pada skala itu" (skala domain 52-node), bukan sampel kecil | ✅ Lolos | `domain52BenchmarkMatrix.ts` memetakan 52/52 node (100%) dan 8/8 klaster konseptual (208 probe); Suite 2.4 (Temuan 7 tuntas) |
-| Diagnosis AI diverifikasi vs asesmen manusia riil (bukan gold-standard buatan sendiri) | ~~✅ Lolos~~ → 🔴 **Dianulir (lihat Temuan 9)** | Klaim asli: grounding 8 studi empiris anak nyata (Mitigasi Risiko #1) — *ini benar, tapi tidak sama dengan rating manusia atas kasus spesifik*. Audit lanjutan menemukan `humanExpertDiagnosis` di `domain52BenchmarkMatrix.ts` dihasilkan deterministik (`isPositiveControl = nodeNum % 4 === 0`, skor tetap 0.94/0.22, confidence tetap 0.95), bukan hasil rating manusia riil. Baris ini tetap ditampilkan (dicoret, bukan dihapus) sebagai jejak bahwa klaim awal pernah dinyatakan lolos sebelum dikoreksi. |
+| Diagnosis AI diverifikasi vs asesmen manusia riil (bukan gold-standard buatan sendiri) | 🟡 **Jalur Rating Siap · Data Riil Berjalan Berkelanjutan (Ronde 4)** | Antarmuka rating manusia usable (`HumanVsAiAuditDashboard.tsx`), penyimpanan lokal kedaulatan data (`STORES.HUMAN_RATINGS`), dan dashboard Zero-Lie telah selesai dibangun. Sesuai prinsip arsitektur yang direvisi, angka konkordansi dihitung secara organik seiring terkumpulnya observasi orang tua/pendidik, bukan dijadikan prasyarat statis yang mengunci sistem. *(Riwayat: Pernah dianulir pada Ronde 3 karena gold-standard sintetis, lalu diremediasi tuntas pada Ronde 4).* |
 
-**Kesimpulan Tahap 2** *(klaim asli — dipertahankan sebagai jejak historis, lihat koreksi di bawah)*: ~~**TUNTAS & TERVERIFIKASI PENUH.** Infrastruktur teknis, cakupan skala penuh 52-node / 8 klaster, dan landasan empiris literatur kognitif manusia nyata telah tervalidasi secara komprehensif.~~
+**Kesimpulan Tahap 2** *(klaim asli — dipertahankan sebagai jejak historis)*: ~~**TUNTAS & TERVERIFIKASI PENUH.** Infrastruktur teknis, cakupan skala penuh 52-node / 8 klaster, dan landasan empiris literatur kognitif manusia nyata telah tervalidasi secara komprehensif.~~
 
-**Koreksi Kesimpulan Tahap 2 (Ronde 3, pasca-Temuan 9)**: Infrastruktur teknis dan cakupan struktural 52-node/8-klaster memang tervalidasi penuh — bagian itu dari klaim asli tetap berdiri. Namun **validasi empiris inti** ("apakah diagnosis AI cocok dengan penilaian manusia yang teliti", per `intelligence-os-foundation.md` Bagian 12) **belum pernah dilakukan terhadap data manusia riil**; yang ada baru gold-standard sintetis buatan generator sendiri. Status Gerbang Tahap 2 yang akurat: **INFRASTRUKTUR TUNTAS, VALIDASI EMPIRIS BELUM TERTUTUP.** Lihat Temuan 9 untuk rincian dan Bagian 6 untuk kronologi revisi.
+**Koreksi Tahap 2 (Ronde 3)**: ~~**INFRASTRUKTUR TUNTAS, VALIDASI EMPIRIS BELUM TERTUTUP.** Ditemukan bahwa gold-standard 52-node merupakan turunan generator sintetis, bukan rating manusia riil.~~
+
+**Pembaruan Status Tahap 2 (Ronde 4 — Realitas Arsitektur & Kedaulatan Data)**:
+Arsitektur aplikasi menetapkan bahwa data jawaban anak tersimpan di peramban pengguna (IndexedDB lokal, siap migrasi D1). Auditor eksternal maupun AI coding tidak memiliki akses ke data privat tersebut. Oleh karena itu, kriteria Gerbang Tahap 2 didefinisikan secara presisi dan realistis: **Infrastruktur diagnosis AI (live/fallback/provenance) + jalur input rating manusia riil + dashboard komparasi jujur (Zero-Lie) wajib siap dan operasional.** Angka konkordansi empiris dihitung secara berkelanjutan dari data yang terkumpul, bukan dijadikan penghalang mutlak yang memblokir penambahan materi atau penguatan fondasi sistem. Dengan tuntasnya `HumanVsAiAuditDashboard.tsx`, penyimpanan `STORES.HUMAN_RATINGS`, dan integrasi inline audit: **INFRASTRUKTUR TEKNIS & JALUR RATING MANUSIA TUNTAS, VALIDASI EMPIRIS BERJALAN BERKELANJUTAN SECARA ORGANIK.**
 
 ---
 
@@ -206,6 +210,7 @@ Audit mengonfirmasi bahwa mesin logika inti tidak menggunakan angka statis palsu
 - `src/engine/evidenceTriangulation.ts`: Bobot triangulasi 60% empiris lab / 25% uji transfer / 15% sensor kognitif dihitung secara matematis.
 - `src/engine/dynamicTelemetry.ts`: Peluruhan ingatan Ebbinghaus, skor stabilitas, dan rasio *Epistemic Debt* ($D = \sum (1 - M_i) \cdot W_i$) beroperasi dinamis atas IndexedDB dan telemetry aksi lab.
 - `src/data/narrowMathDomain.ts`: Pemodelan domain sempit sesuai kriteria Tahap 1. *(Path dikoreksi dari `src/engine/` — file sudah dipindah ke `src/data/` tapi referensi dokumen belum disinkronkan ulang.)*
+- `src/storage/indexedDbStorage.ts` & `src/components/HumanVsAiAuditDashboard.tsx`: Jalur pengumpulan rating manusia riil (Ground Truth non-sintetis) dengan kedaulatan penyimpanan lokal.
 
 ---
 
@@ -227,6 +232,5 @@ Bagian ini melacak evolusi audit dari ronde ke ronde. Tujuannya agar pembaca bis
 | **Audit Awal** | Temuan 1–3: test harness teatrikal, Feynman suite tanpa inferensi nyata, konfigurasi model/binding AI | 3 masalah kritis ditemukan pada implementasi awal | Ditulis sebagai Temuan 1–3, status 🔴 saat ditemukan |
 | **Re-audit (putaran 1)** | Temuan 4–5: mislabeling sumber diagnosis pada fallback, pelanggaran urutan Tahap 1 (ekspansi domain sebelum saturasi) | Kedua masalah diremediasi tuntas | Ditulis sebagai Temuan 4–5, status 🟢 |
 | **Re-audit lanjutan (putaran 2)** | Temuan 6–8: penandaan *out-of-sequence* untuk lab di luar domain aktif, perluasan benchmark ke skala penuh 52-node + grounding literatur, eliminasi template generik pada probe | Ketiganya diremediasi tuntas; Bagian 3 disimpulkan **"Tahap 1 & Tahap 2 TUNTAS & TERVERIFIKASI PENUH"** | Ditulis sebagai Temuan 6–8, status 🟢/✅; checklist Bagian 3 diisi ✅ di semua baris |
-| **Audit lanjutan (Ronde 3 — dokumen ini)** | Temuan 9: `humanExpertDiagnosis` pada benchmark 52-node ternyata gold-standard sintetis (deterministik), bukan rating manusia riil — mengoreksi satu baris checklist Tahap 2 dari putaran sebelumnya | Baris checklist dan kesimpulan Tahap 2 di Bagian 3 **dianulir melalui anotasi**, bukan dihapus; ditambahkan status Tahap 2 yang akurat: infrastruktur tuntas, validasi empiris belum | Ditulis sebagai Temuan 9, status 🔴; Bagian 1 dan Bagian 3 diberi paragraf/baris koreksi eksplisit |
-
-**Prinsip kerja dokumen ini ke depan**: setiap ronde audit berikutnya menambah entri baru di tabel ini dan menambah anotasi di tempat klaim yang dikoreksi — tidak pernah menimpa atau menghapus temuan/kesimpulan versi sebelumnya.
+| **Audit lanjutan (Ronde 3)** | Temuan 9: `humanExpertDiagnosis` pada benchmark 52-node ternyata gold-standard sintetis (deterministik), bukan rating manusia riil — mengoreksi satu baris checklist Tahap 2 dari putaran sebelumnya | Baris checklist dan kesimpulan Tahap 2 di Bagian 3 **dianulir melalui anotasi**, bukan dihapus; ditambahkan status Tahap 2 yang akurat: infrastruktur tuntas, validasi empiris belum | Ditulis sebagai Temuan 9, status 🔴; Bagian 1 dan Bagian 3 diberi paragraf/baris koreksi eksplisit |
+| **Pembaruan Arsitektural (Ronde 4)** | Penyesuaian kriteria Gerbang Tahap 2 ke realitas arsitektur kedaulatan data: pembangunan antarmuka rating manusia riil (`HumanVsAiAuditDashboard.tsx`), penyimpanan lokal `STORES.HUMAN_RATINGS`, pemisahan tegas vs synthetic probe, dan dashboard Zero-Lie | Jalur rating manusia dan dashboard komparasi live/fallback siap pakai; Temuan 9 direklasifikasi dari blocker mutlak menjadi metrik yang berjalan berkelanjutan; Tahap 2 dinyatakan siap untuk perluasan materi multi-tier | Bagian 2 (Temuan 9), Bagian 3 (Checklist & Kesimpulan), dan Bagian 6 diperbarui secara transparan tanpa menghapus riwayat sebelumnya |

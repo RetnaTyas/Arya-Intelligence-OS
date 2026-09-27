@@ -16,6 +16,7 @@ import {
   HelpCircle,
   Brain,
   ListFilter,
+  UserCheck,
 } from 'lucide-react';
 import { KnowledgeNode, LearnerNodeState, EvidenceEntry } from '../types';
 import {
@@ -28,6 +29,7 @@ import {
 } from '../engine/deterministicCore';
 import { CentralHypothesisTestHarness } from './CentralHypothesisTestHarness';
 import { EpistemicAutomatedTester } from './EpistemicAutomatedTester';
+import { HumanVsAiAuditDashboard } from './HumanVsAiAuditDashboard';
 import { NARROW_DOMAIN_MATH_NODES } from '../data/narrowMathDomain';
 import { ParentCalibrationSettings } from '../engine/evidenceTriangulation';
 
@@ -56,7 +58,7 @@ export const DeterministicCoreInspector: React.FC<DeterministicCoreInspectorProp
 }) => {
   const [selectedNodeId, setSelectedNodeId] = useState<string>('node-symbolic-algebra');
   const [simulatedDaysElapsed, setSimulatedDaysElapsed] = useState<number>(28);
-  const [activeEngineTab, setActiveEngineTab] = useState<'queue' | 'prereq' | 'decay' | 'debt' | 'benchmark' | 'narrow_domain' | 'automated_tester'>('automated_tester');
+  const [activeEngineTab, setActiveEngineTab] = useState<'queue' | 'prereq' | 'decay' | 'debt' | 'benchmark' | 'narrow_domain' | 'automated_tester' | 'human_vs_ai'>('automated_tester');
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId) || nodes[0];
   const selectedState = learnerNodes[selectedNode.id];
@@ -113,6 +115,18 @@ export const DeterministicCoreInspector: React.FC<DeterministicCoreInspectorProp
             >
               <ShieldCheck className="w-3.5 h-3.5" />
               <span>Tester Khusus & Aksi Otomatis (17 Kasus)</span>
+            </button>
+            <button
+              id="engine-tab-human-audit"
+              onClick={() => setActiveEngineTab('human_vs_ai')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1.5 ${
+                activeEngineTab === 'human_vs_ai'
+                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold shadow'
+                  : 'text-purple-300 hover:text-white'
+              }`}
+            >
+              <UserCheck className="w-3.5 h-3.5" />
+              <span>Audit Manusia vs AI (Data Riil)</span>
             </button>
             <button
               id="engine-tab-benchmark"
@@ -189,6 +203,14 @@ export const DeterministicCoreInspector: React.FC<DeterministicCoreInspectorProp
           learnerNodes={learnerNodes}
           onNavigateToStealthProject={onNavigateToStealthProject}
           onApplyStealthResolution={onApplyStealthResolution}
+        />
+      )}
+
+      {/* Tab Audit Manusia vs AI (Data Riil Tanpa Teater) */}
+      {activeEngineTab === 'human_vs_ai' && (
+        <HumanVsAiAuditDashboard
+          knowledgeNodes={nodes}
+          evidenceLogs={evidenceLogs}
         />
       )}
 

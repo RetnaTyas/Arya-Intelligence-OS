@@ -33,6 +33,8 @@ import {
   ParentCalibrationSettings,
   DEFAULT_PARENT_CALIBRATION,
 } from '../engine/evidenceTriangulation';
+import { HumanVsAiAuditDashboard } from './HumanVsAiAuditDashboard';
+import { persistHumanRating } from '../storage/indexedDbStorage';
 
 interface ParentTelemetryDashboardProps {
   telemetry: CognitiveDomainTelemetry[];
@@ -79,6 +81,7 @@ export const ParentTelemetryDashboard: React.FC<ParentTelemetryDashboardProps> =
   storageInfo,
 }) => {
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
+  const [parentViewTab, setParentViewTab] = useState<'telemetry' | 'human_audit'>('telemetry');
   const [exportNotice, setExportNotice] = useState<boolean>(false);
   const [showResetConfirm, setShowResetConfirm] = useState<boolean>(false);
   const [showClearConfirm, setShowClearConfirm] = useState<boolean>(false);
@@ -206,6 +209,52 @@ export const ParentTelemetryDashboard: React.FC<ParentTelemetryDashboardProps> =
 
   return (
     <div id="parent-telemetry-container" className="space-y-6">
+      {/* View Sub-Tab Switcher: Telemetry Dashboard vs Real Human Audit */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/90 border border-slate-800 p-2 rounded-2xl shadow-lg">
+        <div className="flex items-center gap-2">
+          <button
+            id="tab-parent-telemetry-btn"
+            onClick={() => setParentViewTab('telemetry')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+              parentViewTab === 'telemetry'
+                ? 'bg-purple-600 text-white shadow-md'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+            }`}
+          >
+            <Activity className="w-4 h-4" />
+            <span>Telemetri Domain & Graf Stabilitas</span>
+          </button>
+
+          <button
+            id="tab-parent-human-audit-btn"
+            onClick={() => setParentViewTab('human_audit')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+              parentViewTab === 'human_audit'
+                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+            }`}
+          >
+            <UserCheck className="w-4 h-4 text-purple-400" />
+            <span>Audit Manusia vs AI (Zero-Lie Dashboard)</span>
+            <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-mono border border-emerald-500/30">
+              Data Riil
+            </span>
+          </button>
+        </div>
+
+        <div className="text-[11px] font-mono text-slate-400 px-2 hidden sm:block">
+          {parentViewTab === 'telemetry' ? 'Sensor Kognitif & Peluruhan Ebbinghaus' : 'Kedaulatan Evaluasi Orang Tua (Non-Sintetis)'}
+        </div>
+      </div>
+
+      {parentViewTab === 'human_audit' ? (
+        <HumanVsAiAuditDashboard
+          knowledgeNodes={knowledgeNodes}
+          evidenceLogs={evidenceLogs}
+          onOpenDoc={onOpenDeterministicEngine}
+        />
+      ) : (
+        <>
       {/* Smartwatch Banner - Section 9.2 Reference */}
       <div className="bg-gradient-to-r from-[#11172a] via-[#0f1b2d] to-[#16122c] border border-indigo-500/30 rounded-2xl p-6 shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
@@ -1041,6 +1090,37 @@ export const ParentTelemetryDashboard: React.FC<ParentTelemetryDashboardProps> =
                           if (onApplyParentAudit) {
                             onApplyParentAudit(entry.id, auditScore, auditNotes);
                           }
+                          persistHumanRating({
+                            id: `rating-inline-${entry.id}-${Date.now()}`,
+                            nodeId: entry.conceptId,
+                            nodeName: entry.conceptName,
+                            childUtterance: entry.actions.map((a) => a.description).join('; ') || `Observasi pada konsep ${entry.conceptName}`,
+                            contextSource: 'socratic_tutor',
+                            contextDetails: `Evidence Log ID: ${entry.id}`,
+                            ratedAt: new Date().toISOString(),
+                            raterRole: 'parent',
+                            humanScore: auditScore,
+                            humanHasMisconception: Boolean(entry.feynmanDiagnosis?.misconceptionDetected),
+                            humanMisconceptionLabel: entry.feynmanDiagnosis?.misconceptionDetected,
+                            humanNotes: auditNotes || 'Audit evaluasi orang tua dari rekaman bukti.',
+                            aiDiagnosis: entry.feynmanDiagnosis
+                              ? {
+                                  score: entry.feynmanDiagnosis.conceptualUnderstanding,
+                                  hasMisconception: Boolean(entry.feynmanDiagnosis.misconceptionDetected),
+                                  misconceptionLabel: entry.feynmanDiagnosis.misconceptionDetected,
+                                  reasoning: 'Diagnosis awal Feynman dialog yang terekam pada log bukti.',
+                                  source: 'Feynman Diagnostic Sensor',
+                                  evaluatedAt: entry.timestamp,
+                                }
+                              : undefined,
+                            discrepancyDelta: entry.feynmanDiagnosis
+                              ? Math.abs(auditScore - entry.feynmanDiagnosis.conceptualUnderstanding)
+                              : undefined,
+                            isConcordant: entry.feynmanDiagnosis
+                              ? Math.abs(auditScore - entry.feynmanDiagnosis.conceptualUnderstanding) <= 0.35
+                              : undefined,
+                            isRealData: true,
+                          });
                           setAuditingEntryId(null);
                         }}
                         className="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded text-xs font-semibold shrink-0 shadow"
@@ -1089,6 +1169,8 @@ export const ParentTelemetryDashboard: React.FC<ParentTelemetryDashboardProps> =
           )}
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 };

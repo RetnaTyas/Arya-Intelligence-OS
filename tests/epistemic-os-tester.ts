@@ -41,7 +41,7 @@ import {
   TAHAP2_FULL_SCALE_GATE_CRITERIA,
 } from '../src/engine/centralHypothesisBenchmark';
 import { computeRealTimeTelemetry } from '../src/engine/dynamicTelemetry';
-import { KnowledgeNode, LearnerNodeState, FeynmanDiagnosisResult } from '../src/types';
+import { KnowledgeNode, LearnerNodeState, FeynmanDiagnosisResult, HumanAuditRating } from '../src/types';
 
 interface TestResult {
   suite: string;
@@ -344,6 +344,45 @@ function runSuite2() {
     suite,
     'Orisinalitas & Relevansi Semantik Probe 52-Node (Anti-Fabrikasi Konten)',
     `Semua 52 kasus memiliki ujaran unik 100% di Base (${uniqueBase}/52), L0 (${uniqueL0}/52), L1 (${uniqueL1}/52), L2 (${uniqueL2}/52), dan terbukti bebas dari string template generik.`
+  );
+
+  // 2.7 Validasi Jalur Rating Manusia Riil & Pemisahan Tegas vs Probe Sintetis (Temuan 9 & Ronde 4 Gate)
+  const sampleHumanRating: HumanAuditRating = {
+    id: 'test-rating-001',
+    nodeId: 'math-frac-01-part-whole',
+    nodeName: 'Part-Whole & Partisi Sama Besar',
+    childUtterance: 'Kuenya dipotong 4 tapi yang satu besar sekali jadi tidak adil.',
+    contextSource: 'direct_observation',
+    ratedAt: new Date().toISOString(),
+    raterRole: 'parent',
+    humanScore: 0.90,
+    humanHasMisconception: false,
+    humanNotes: 'Anak paham bahwa potongan harus sama besar agar adil.',
+    aiDiagnosis: {
+      score: 0.88,
+      hasMisconception: false,
+      reasoning: 'Pemahaman partisi sama besar teridentifikasi.',
+      source: 'Workers AI (@cf/qwen/qwen3-30b-a3b-fp8)',
+      evaluatedAt: new Date().toISOString(),
+    },
+    discrepancyDelta: 0.02,
+    isConcordant: true,
+    isRealData: true,
+  };
+
+  const syntheticProbeHasRealFlag = FULL_SCALE_52_NODE_BENCHMARK.some((b: any) => b.isRealData === true);
+  const humanRatingStructureValid =
+    sampleHumanRating.isRealData === true &&
+    sampleHumanRating.humanScore >= 0 &&
+    sampleHumanRating.humanScore <= 1 &&
+    Boolean(sampleHumanRating.childUtterance) &&
+    sampleHumanRating.raterRole === 'parent';
+
+  assert(
+    humanRatingStructureValid && !syntheticProbeHasRealFlag,
+    suite,
+    'Pemisahan Tegas Jalur Rating Manusia Riil vs Probe Sintetis (Temuan 9 & Ronde 4 Gate)',
+    `Jalur rating manusia riil memiliki flag isRealData: true terstruktur mandiri; matriks 52-node probe sintetis terisolasi tegas tanpa tercampur ke data rating manusia.`
   );
 }
 

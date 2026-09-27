@@ -40,6 +40,7 @@ import {
   seedBaselineSampleDataset,
   persistParentCalibration,
   loadParentCalibration,
+  persistHumanRating,
 } from './storage/indexedDbStorage';
 import { computeRealTimeTelemetry } from './engine/dynamicTelemetry';
 
@@ -333,6 +334,41 @@ export default function App() {
   const handleApplyParentAudit = async (entryId: string, parentScore: number, notes?: string) => {
     const pWeight = parentCalibration.parentWeight;
     const aiWeight = parentCalibration.aiWeight;
+
+    const targetEntry = evidenceLogs.find((e) => e.id === entryId);
+    if (targetEntry) {
+      await persistHumanRating({
+        id: `rating-app-${entryId}-${Date.now()}`,
+        nodeId: targetEntry.conceptId,
+        nodeName: targetEntry.conceptName,
+        childUtterance: targetEntry.actions.map((a) => a.description).join('; ') || `Observasi pada konsep ${targetEntry.conceptName}`,
+        contextSource: 'socratic_tutor',
+        contextDetails: `Evidence Log ID: ${entryId}`,
+        ratedAt: new Date().toISOString(),
+        raterRole: 'parent',
+        humanScore: parentScore,
+        humanHasMisconception: Boolean(targetEntry.feynmanDiagnosis?.misconceptionDetected),
+        humanMisconceptionLabel: targetEntry.feynmanDiagnosis?.misconceptionDetected,
+        humanNotes: notes || 'Audit evaluasi orang tua dari log bukti.',
+        aiDiagnosis: targetEntry.feynmanDiagnosis
+          ? {
+              score: targetEntry.feynmanDiagnosis.conceptualUnderstanding,
+              hasMisconception: Boolean(targetEntry.feynmanDiagnosis.misconceptionDetected),
+              misconceptionLabel: targetEntry.feynmanDiagnosis.misconceptionDetected,
+              reasoning: 'Diagnosis awal Feynman dialog yang terekam pada log bukti.',
+              source: 'Feynman Diagnostic Sensor',
+              evaluatedAt: targetEntry.timestamp,
+            }
+          : undefined,
+        discrepancyDelta: targetEntry.feynmanDiagnosis
+          ? Math.abs(parentScore - targetEntry.feynmanDiagnosis.conceptualUnderstanding)
+          : undefined,
+        isConcordant: targetEntry.feynmanDiagnosis
+          ? Math.abs(parentScore - targetEntry.feynmanDiagnosis.conceptualUnderstanding) <= 0.35
+          : undefined,
+        isRealData: true,
+      });
+    }
 
     setEvidenceLogs((prev) =>
       prev.map((e) => {

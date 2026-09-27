@@ -2,6 +2,7 @@ import {
   LearnerNodeState,
   EvidenceEntry,
   ActiveTrajectory,
+  HumanAuditRating,
 } from '../types';
 import {
   INITIAL_LEARNER_NODES,
@@ -14,12 +15,13 @@ import {
 } from '../engine/evidenceTriangulation';
 
 const DB_NAME = 'PersonalIntelligenceOS_v1';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 const STORES = {
   LEARNER_NODES: 'learner_nodes',
   EVIDENCE_LOGS: 'evidence_logs',
   METADATA: 'system_metadata',
+  HUMAN_RATINGS: 'human_ratings',
 } as const;
 
 let dbInstance: IDBDatabase | null = null;
@@ -59,6 +61,13 @@ export function openOSDatabase(): Promise<IDBDatabase> {
       // 3. Metadata store (key: key)
       if (!db.objectStoreNames.contains(STORES.METADATA)) {
         db.createObjectStore(STORES.METADATA, { keyPath: 'key' });
+      }
+
+      // 4. Human Ratings store (key: id, indexed by nodeId & ratedAt)
+      if (!db.objectStoreNames.contains(STORES.HUMAN_RATINGS)) {
+        const ratingStore = db.createObjectStore(STORES.HUMAN_RATINGS, { keyPath: 'id' });
+        ratingStore.createIndex('nodeId', 'nodeId', { unique: false });
+        ratingStore.createIndex('ratedAt', 'ratedAt', { unique: false });
       }
     };
 
@@ -301,12 +310,55 @@ export async function getBrowserStorageEstimate(): Promise<{
 }
 
 /**
+ * Persist or update a single human audit rating in IndexedDB.
+ */
+export async function persistHumanRating(rating: HumanAuditRating): Promise<void> {
+  try {
+    const db = await openOSDatabase();
+    const tx = db.transaction(STORES.HUMAN_RATINGS, 'readwrite');
+    tx.objectStore(STORES.HUMAN_RATINGS).put(rating);
+  } catch (err) {
+    console.error('Gagal menyimpan HumanAuditRating ke IndexedDB:', err);
+  }
+}
+
+/**
+ * Retrieve all real human audit ratings from IndexedDB.
+ */
+export async function getAllHumanRatings(): Promise<HumanAuditRating[]> {
+  try {
+    const db = await openOSDatabase();
+    const ratings = await getAllFromStore<HumanAuditRating>(db, STORES.HUMAN_RATINGS);
+    // Sort latest first
+    ratings.sort((a, b) => (b.ratedAt > a.ratedAt ? 1 : -1));
+    return ratings;
+  } catch (err) {
+    console.warn('Gagal memuat HumanAuditRatings dari IndexedDB:', err);
+    return [];
+  }
+}
+
+/**
+ * Delete a human audit rating from IndexedDB.
+ */
+export async function deleteHumanRating(id: string): Promise<void> {
+  try {
+    const db = await openOSDatabase();
+    const tx = db.transaction(STORES.HUMAN_RATINGS, 'readwrite');
+    tx.objectStore(STORES.HUMAN_RATINGS).delete(id);
+  } catch (err) {
+    console.error('Gagal menghapus HumanAuditRating dari IndexedDB:', err);
+  }
+}
+
+/**
  * Export full IndexedDB dataset as JSON for parent data sovereignty and backup.
  */
 export async function exportOSDatasetJSON(): Promise<string> {
   const db = await openOSDatabase();
   const nodes = await getAllFromStore<LearnerNodeState>(db, STORES.LEARNER_NODES);
   const evidence = await getAllFromStore<EvidenceEntry>(db, STORES.EVIDENCE_LOGS);
+  const humanRatings = await getAllFromStore<HumanAuditRating>(db, STORES.HUMAN_RATINGS);
   const trajectory = await getFromStore<{ key: string; value: ActiveTrajectory }>(
     db,
     STORES.METADATA,
@@ -315,15 +367,17 @@ export async function exportOSDatasetJSON(): Promise<string> {
 
   const payload = {
     app: 'Arya Personal Intelligence OS',
-    version: '1.0.0',
+    version: '1.1.0',
     exportTimestamp: new Date().toISOString(),
-    principle: 'Parent Data Sovereignty · Dokumen Fondasi v0.1',
+    principle: 'Parent Data Sovereignty · Dokumen Fondasi v0.1 · Human vs AI Audit Path',
     storageEngine: 'IndexedDB Local Storage',
     nodeCount: nodes.length,
     evidenceCount: evidence.length,
+    humanRatingCount: humanRatings.length,
     activeTrajectory: trajectory?.value || INITIAL_ACTIVE_TRAJECTORY,
     learnerNodes: nodes,
     evidenceLogs: evidence,
+    humanRatings,
   };
 
   return JSON.stringify(payload, null, 2);
@@ -336,6 +390,7 @@ export async function importOSDatasetJSON(jsonString: string): Promise<{
   success: boolean;
   learnerNodes: Record<string, LearnerNodeState>;
   evidenceLogs: EvidenceEntry[];
+  humanRatings: HumanAuditRating[];
   activeTrajectory: ActiveTrajectory;
 }> {
   const data = JSON.parse(jsonString);
@@ -345,13 +400,14 @@ export async function importOSDatasetJSON(jsonString: string): Promise<{
 
   const db = await openOSDatabase();
   const tx = db.transaction(
-    [STORES.LEARNER_NODES, STORES.EVIDENCE_LOGS, STORES.METADATA],
+    [STORES.LEARNER_NODES, STORES.EVIDENCE_LOGS, STORES.METADATA, STORES.HUMAN_RATINGS],
     'readwrite'
   );
 
   // Clear existing
   tx.objectStore(STORES.LEARNER_NODES).clear();
   tx.objectStore(STORES.EVIDENCE_LOGS).clear();
+  tx.objectStore(STORES.HUMAN_RATINGS).clear();
 
   const nodesMap: Record<string, LearnerNodeState> = {};
   const nodeStore = tx.objectStore(STORES.LEARNER_NODES);
@@ -364,6 +420,12 @@ export async function importOSDatasetJSON(jsonString: string): Promise<{
   const evidenceStore = tx.objectStore(STORES.EVIDENCE_LOGS);
   for (const entry of evidenceList) {
     evidenceStore.put(entry);
+  }
+
+  const ratingsList: HumanAuditRating[] = Array.isArray(data.humanRatings) ? data.humanRatings : [];
+  const ratingStore = tx.objectStore(STORES.HUMAN_RATINGS);
+  for (const r of ratingsList) {
+    ratingStore.put(r);
   }
 
   const trajectory = data.activeTrajectory || INITIAL_ACTIVE_TRAJECTORY;
@@ -380,6 +442,7 @@ export async function importOSDatasetJSON(jsonString: string): Promise<{
     success: true,
     learnerNodes: nodesMap,
     evidenceLogs: evidenceList,
+    humanRatings: ratingsList,
     activeTrajectory: trajectory,
   };
 }
@@ -391,13 +454,14 @@ export async function importOSDatasetJSON(jsonString: string): Promise<{
 export async function clearAllOSData(): Promise<void> {
   const db = await openOSDatabase();
   const tx = db.transaction(
-    [STORES.LEARNER_NODES, STORES.EVIDENCE_LOGS, STORES.METADATA],
+    [STORES.LEARNER_NODES, STORES.EVIDENCE_LOGS, STORES.METADATA, STORES.HUMAN_RATINGS],
     'readwrite'
   );
 
   tx.objectStore(STORES.LEARNER_NODES).clear();
   tx.objectStore(STORES.EVIDENCE_LOGS).clear();
   tx.objectStore(STORES.METADATA).clear();
+  tx.objectStore(STORES.HUMAN_RATINGS).clear();
 
   // Mark as intentionally cleared
   tx.objectStore(STORES.METADATA).put({ key: 'isUserCleared', value: true });

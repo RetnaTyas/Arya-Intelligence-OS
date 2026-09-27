@@ -3,6 +3,41 @@ export type MasteryEvidenceType = 'solve' | 'explain' | 'predict' | 'transfer' |
 export type AgeBracket = '1-3' | '4-6' | '7-9' | '10-12';
 export type CognitiveTier = 'tier-1' | 'tier-2' | 'tier-3' | 'tier-4';
 
+export interface HumanAuditRating {
+  id: string; // Unique audit rating ID (e.g. audit-timestamp-uuid)
+  nodeId: string;
+  nodeName: string;
+  childUtterance: string; // The genuine child statement/explanation
+  contextSource: 'socratic_tutor' | 'lab_simulation' | 'direct_observation' | 'homework' | 'other';
+  contextDetails?: string; // Optional context, e.g. "Lab Neraca", "Saat sarapan", "Latihan soal pecahan"
+  ratedAt: string; // ISO 8601 string
+  raterRole: 'parent' | 'educator' | 'subject_expert';
+  raterName?: string;
+
+  // Penilaian Manusia Riil (Ground Truth)
+  humanScore: number; // 0.0 to 1.0 (tingkat penguasaan konseptual)
+  humanHasMisconception: boolean;
+  humanMisconceptionLabel?: string;
+  humanNotes: string; // Catatan kualitatif observasi manusia
+
+  // Diagnosis AI yang Dipasangkan (Live Evaluasi atau Capture Saat Rating)
+  aiDiagnosis?: {
+    score: number; // 0.0 to 1.0
+    hasMisconception: boolean;
+    misconceptionLabel?: string;
+    reasoning: string;
+    usedFallback?: boolean;
+    source: string; // e.g. "Workers AI (@cf/qwen/qwen3-30b-a3b-fp8)" or "Deterministic Rule Engine (Fallback)"
+    fallbackReason?: string;
+    evaluatedAt: string;
+  };
+
+  // Metrik Perbandingan Manusia vs AI (Dihitung Deterministik)
+  discrepancyDelta?: number; // |humanScore - aiScore|
+  isConcordant?: boolean; // humanHasMisconception === aiHasMisconception && |humanScore - aiScore| <= 0.35
+  isRealData: true; // Penanda kedaulatan data: 100% data manusia riil, bukan generator sintetis!
+}
+
 export interface CognitiveTierMeta {
   id: AgeBracket;
   tier: CognitiveTier;
