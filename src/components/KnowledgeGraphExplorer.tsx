@@ -10,6 +10,7 @@ import {
   ArrowUpRight,
   Layers,
   CheckCircle2,
+  AlertTriangle,
   Baby,
   Lock,
   Compass,
@@ -760,14 +761,41 @@ export const KnowledgeGraphExplorer: React.FC<KnowledgeGraphExplorerProps> = ({
           {/* Action Launchers */}
           <div className="pt-2 space-y-2">
             {selectedNode.activeSimulationId && (
-              <button
-                id="launch-node-sim-btn"
-                onClick={() => onLaunchSimulation(selectedNode.activeSimulationId!)}
-                className="w-full py-2.5 px-4 bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white text-xs font-semibold rounded-lg flex items-center justify-center gap-2 shadow-md transition cursor-pointer"
-              >
-                <span>Buka Lab Eksperimen Interaktif</span>
-                <ArrowUpRight className="w-3.5 h-3.5" />
-              </button>
+              <div className="space-y-1.5">
+                {selectedNode.simulationAlignment === 'analogy' && (
+                  <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-300 flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <div>
+                      <strong className="font-semibold block text-amber-200">Mode Analogi Representasi</strong>
+                      <span className="text-slate-300">
+                        Lab yang terhubung (<em>{selectedNode.activeSimulationId}</em>) melatih analogi representasi serupa, bukan instrumen uji konsep langsung. Telemetri akan dicatat sebagai latihan representasional tanpa mengklaim penguasaan langsung rumus "{selectedNode.name}".
+                      </span>
+                    </div>
+                  </div>
+                )}
+                {selectedNode.simulationAlignment === 'direct' && (
+                  <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-[11px] text-emerald-300 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>Lab ini adalah instrumen uji langsung (1-to-1 fidelity) untuk konsep ini.</span>
+                  </div>
+                )}
+                <button
+                  id="launch-node-sim-btn"
+                  onClick={() => onLaunchSimulation(selectedNode.activeSimulationId!)}
+                  className={`w-full py-2.5 px-4 text-white text-xs font-semibold rounded-lg flex items-center justify-center gap-2 shadow-md transition cursor-pointer ${
+                    selectedNode.simulationAlignment === 'analogy'
+                      ? 'bg-gradient-to-r from-amber-600 to-indigo-600 hover:from-amber-500 hover:to-indigo-500'
+                      : 'bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500'
+                  }`}
+                >
+                  <span>
+                    {selectedNode.simulationAlignment === 'analogy'
+                      ? 'Buka Lab Analogi Representasi'
+                      : 'Buka Lab Eksperimen Interaktif'}
+                  </span>
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
             )}
 
             <button

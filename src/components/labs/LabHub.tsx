@@ -14,6 +14,7 @@ import {
   Puzzle,
   Lock,
   CheckCircle2,
+  AlertTriangle,
   ChevronDown,
   ChevronUp,
   ChevronRight,
@@ -99,6 +100,7 @@ interface LabHubProps {
   queue?: RecommendedExperience[];
   learnerNodes?: Record<string, LearnerNodeState>;
   knowledgeNodes?: KnowledgeNode[];
+  activeNode?: KnowledgeNode;
 }
 
 export const LabHub: React.FC<LabHubProps> = ({
@@ -113,6 +115,7 @@ export const LabHub: React.FC<LabHubProps> = ({
   queue = [],
   learnerNodes = {},
   knowledgeNodes = [],
+  activeNode,
 }) => {
   const [selectedDomain, setSelectedDomain] = useState<DomainFilter>('Semua');
   const [selectedAge, setSelectedAge] = useState<AgeFilter>('Semua');
@@ -1211,6 +1214,21 @@ export const LabHub: React.FC<LabHubProps> = ({
 
       {/* Render Currently Active Lab View */}
       <div className="animate-fade-in">
+        {/* Peringatan Jujur Integritas Bukti: Mode Analogi Representasi */}
+        {activeNode && activeNode.activeSimulationId === activeLabId && activeNode.simulationAlignment === 'analogy' && (
+          <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-200 text-xs flex items-start gap-2.5 shadow">
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <strong className="block text-amber-300 font-bold">
+                ⚠️ Transparansi Bukti: Mode Analogi Representasi untuk "{activeNode.name}"
+              </strong>
+              <p className="mt-0.5 text-slate-300 leading-relaxed text-[11px]">
+                Simulasi ini dijalankan sebagai <strong>analogi representasi visual</strong> (misal pemodelan batang atau garis bilangan umum), bukan instrumen uji konsep 1-ke-1. Telemetri manipulasi lab akan dicatat sebagai <em>latihan representasional</em> demi melindungi mastery signal anak dari klaim penguasaan semu.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Ages 1 - 3 */}
         {activeLabId === 'object_permanence' && (
           <ObjectPermanenceLab

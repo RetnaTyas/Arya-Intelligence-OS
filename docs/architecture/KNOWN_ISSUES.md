@@ -188,7 +188,14 @@ Audit independen terhadap implementasi kode menemukan kesenjangan struktural ant
   3. **Penegasan Modalitas Asesmen Perkembangan (`assessmentModality`)**:
      - Ditambahkan tipe `AssessmentModality` (`behavioral_observation`, `visual_manipulation`, `relational_manipulation`, `socratic_feynman`) pada `types.ts` dan 52 node.
      - Fungsi `triangulateEvidence` disesuaikan: anak pada modalitas behavioral/visual diprioritaskan melalui bukti manipulasi empiris dan observasi orang tua tanpa penalti kata pendek.
-  4. **Verifikasi Otomatis**:
+  4. **Pencegahan Pencemaran Sinyal Mastery & Klasifikasi Lab (`simulationAlignment`)**:
+     - Audit lanjutan mengungkap bahwa 5 lab yang ada tidak boleh disamaratakan sebagai instrumen uji 1-ke-1 untuk seluruh 52 konsep (mis. lab aljabar `2x+4=14` tidak boleh mencemari sinyal penguasaan node persentase `math-pct-37`).
+     - Ditambahkan klasifikasi tegas `simulationAlignment: 'direct' | 'analogy' | 'unsupported'` pada setiap node.
+     - **Peringatan Visual Jujur**: Tampil badge dan banner peringatan di UI `KnowledgeGraphExplorer.tsx` dan `LabHub.tsx` saat lab berjalan dalam mode analogi.
+     - **Perlindungan Sinyal di `App.tsx`**: Telemetri dari lab analogi hanya menaikkan aplikasi representasional tanpa menaikkan `understanding` spesifik, sehingga *Evidence Log* dan learner state terlindung dari pencemaran klaim semu.
+  5. **Prompt Dinamis Socratic Tutor Berbasis Skema Node**:
+     - Template saran pertanyaan statis (yang sebelumnya hardcoded soal kapal induk & aljabar division by zero untuk semua usia) diganti menjadi **generator dinamis** dari `activeNode.whyChain`, `activeNode.commonMisconceptions`, dan `activeNode.ageBracket`. Anak usia 4-6 kini disajikan prompt konkret ramah balita, sementara siswa 10-12 disajikan penalaran aljabar logis.
+  6. **Verifikasi Otomatis**:
      - Ditambahkan assertion Suite 1.6 pada `tests/epistemic-os-tester.ts` yang memvalidasi 52/52 `activeSimulationId`, 52/52 `assessmentModality`, dan 0 kata kunci jargon pascasarjana. Hasil: **23 / 23 tes lolos (100.0%)**.
 
 ---

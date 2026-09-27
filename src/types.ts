@@ -93,6 +93,11 @@ export type AssessmentModality =
   | 'relational_manipulation'  // Tier III (7-9): penalaran relasional, garis bilangan & neraca
   | 'socratic_feynman';        // Tier IV (10-12): penalaran aljabar formal & dialog hipotesis-deduktif
 
+export type SimulationAlignment =
+  | 'direct'       // Simulasi menguji konsep node secara presisi (1-to-1 fidelity)
+  | 'analogy'      // Simulasi melatih representasi/analogi serupa, bukan instrumen langsung konsep ini
+  | 'unsupported'; // Belum ada simulasi interaktif yang cocok
+
 export interface KnowledgeNode {
   id: string;
   name: string;
@@ -118,6 +123,8 @@ export interface KnowledgeNode {
   centrality: number; // 0.0 to 1.0 (Dependency centrality in graph)
   futureRelevance: number; // 0.0 to 1.0
   activeSimulationId?: string;
+  simulationAlignment?: SimulationAlignment;
+  simulationNote?: string;
 }
 
 export interface MasteryHierarchy {

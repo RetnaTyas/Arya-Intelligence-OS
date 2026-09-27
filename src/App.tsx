@@ -81,21 +81,26 @@ export default function App() {
 
     // 2. Identify the target KnowledgeNode in the graph
     const matchedNode =
-      knowledgeNodes.find((n) => n.activeSimulationId === simulationId || n.id.includes(simulationId)) ||
-      selectedNode;
+      (selectedNode && selectedNode.activeSimulationId === simulationId)
+        ? selectedNode
+        : (knowledgeNodes.find((n) => n.activeSimulationId === simulationId || n.id.includes(simulationId)) || selectedNode);
 
     if (!matchedNode) return;
 
+    const isAnalogy = matchedNode.simulationAlignment === 'analogy';
+
     // 3. Deterministic Mastery Calculation based on real empirical telemetry:
-    // - Accuracy score (0..1)
-    // - Manipulation precision (0..1)
-    // - Penalty if trial & error guesswork was detected
+    // Anti-Pencemaran Sinyal Mastery: Jika simulasi berstatus "analogy" (mis. lab aljabar 2x+4=14 dijalankan untuk node persentase),
+    // sistem TIDAK BOLEH menaikkan understanding atau recall konsep target seolah-olah anak menguasai rumus tersebut!
     const discount = evidence.isTrialAndErrorGuesswork ? 0.5 : 1.0;
-    const accuracyGain = (evidence.accuracyScore * 0.18) * discount;
-    const precisionGain = (evidence.manipulationPrecision * 0.12) * discount;
+    const accuracyGain = (evidence.accuracyScore * 0.18) * discount * (isAnalogy ? 0.25 : 1.0);
+    const precisionGain = (evidence.manipulationPrecision * 0.12) * discount * (isAnalogy ? 0.35 : 1.0);
+    const understandingGain = isAnalogy ? 0 : (accuracyGain * 0.8);
 
     const confidence: 'high' | 'medium' | 'low' =
-      evidence.accuracyScore >= 0.75 && !evidence.isTrialAndErrorGuesswork
+      isAnalogy
+        ? 'low'
+        : evidence.accuracyScore >= 0.75 && !evidence.isTrialAndErrorGuesswork
         ? 'high'
         : evidence.accuracyScore >= 0.5
         ? 'medium'
@@ -124,7 +129,7 @@ export default function App() {
       const gatedMastery = applyMasteryGating(current.mastery, {
         application: (current.mastery.application || 0.5) + accuracyGain,
         transfer: (current.mastery.transfer || 0.4) + precisionGain,
-        understanding: (current.mastery.understanding || 0.6) + (accuracyGain * 0.8),
+        understanding: (current.mastery.understanding || 0.6) + understandingGain,
       });
 
       return {
@@ -148,22 +153,28 @@ export default function App() {
       actions: [
         {
           actionType: 'solve_challenge',
-          description: `Telemetri Empiris Lab: ${evidence.trialCount} kali uji coba, Akurasi: ${(evidence.accuracyScore * 100).toFixed(0)}%, Presisi: ${(evidence.manipulationPrecision * 100).toFixed(0)}%. ${
+          description: `${isAnalogy ? '[Mode Analogi Representasi] ' : ''}Telemetri Empiris Lab: ${evidence.trialCount} kali uji coba, Akurasi: ${(evidence.accuracyScore * 100).toFixed(0)}%, Presisi: ${(evidence.manipulationPrecision * 100).toFixed(0)}%. ${
             evidence.isTrialAndErrorGuesswork
               ? 'Terdeteksi pola tebak-acak (penalti diterapkan pada akselerasi mastery).'
               : 'Eksplorasi sistematis terverifikasi.'
-          }`,
+          }${isAnalogy ? ' (Hanya menaikkan aplikasi analogi; pemahaman konseptual spesifik dilindungi).' : ''}`,
           timestamp: new Date().toISOString(),
         },
       ],
       confidence,
-      retentionStatus: 'verified_transfer',
-      notes: `Bukti empiris langsung dari interaksi anak pada simulasi ${simulationId}.`,
+      retentionStatus: isAnalogy ? 'pending' : 'verified_transfer',
+      notes: isAnalogy
+        ? `[Integritas Bukti]: Simulasi ${simulationId} adalah analogi representasi untuk ${matchedNode.name}. Tidak mencemari sinyal pemahaman rumus langsung.`
+        : `Bukti empiris langsung (1-to-1 fidelity) dari interaksi anak pada simulasi ${simulationId}.`,
     };
 
     setEvidenceLogs((prev) => [newEntry, ...prev]);
     setKnowledgeStability((prev) => Math.min(99, prev + 1));
-    showToast(`✓ Telemetri Empiris ${matchedNode.name}: Akurasi ${(evidence.accuracyScore * 100).toFixed(0)}% terintegrasi ke State Anak!`);
+    showToast(
+      isAnalogy
+        ? `ℹ️ Telemetri Analogi ${matchedNode.name}: Latihan representasi dicatat (pemahaman konsep dilindungi dari klaim semu).`
+        : `✓ Telemetri Empiris ${matchedNode.name}: Akurasi ${(evidence.accuracyScore * 100).toFixed(0)}% terintegrasi ke State Anak!`
+    );
   };
 
   // IndexedDB Storage & Quota State
@@ -820,6 +831,7 @@ export default function App() {
                 queue={recommendedQueue}
                 learnerNodes={learnerNodes}
                 knowledgeNodes={knowledgeNodes}
+                activeNode={selectedNode}
               />
             )}
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Send, Sparkles, Brain, AlertTriangle, ArrowRight, RefreshCw, MessageSquare } from 'lucide-react';
 import { KnowledgeNode, LearnerNodeState } from '../types';
 
@@ -25,20 +25,59 @@ export const SocraticTutorView: React.FC<SocraticTutorViewProps> = ({
     {
       id: 'm-1',
       role: 'tutor',
-      text: `Halo Arya! Kita sedang berada di node "${activeNode.name}". Di Intelligence OS, kita tidak menghafal rumus secara buta. Mari kita mulai dari pertanyaan "KENAPA": apa yang paling membuatmu penasaran tentang fenomena ini?`,
-      timestamp: '17:40',
+      text: `Halo Arya! Kita sedang berada di node "${activeNode.name}" (${activeNode.developmentalStage || activeNode.domain}). Di Intelligence OS, kita tidak menghafal rumus secara buta. Mari kita mulai dari pertanyaan "KENAPA": apa yang paling membuatmu penasaran tentang hal ini?`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     },
   ]);
   const [inputValue, setInputValue] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [activeModelSource, setActiveModelSource] = useState<string>('');
 
-  const samplePrompts = [
-    'Kenapa kapal induk baja 100.000 ton bisa mengapung sedangkan paku kecil tenggelam?',
-    'Kenapa aturan aljabar tidak memperbolehkan kita membagi dengan nol?',
-    'Bagaimana kapal selam bisa melayang netral di tengah laut tanpa terus-terusan mengayuh baling-baling?',
-    'Kenapa kita melakukan operasi yang sama pada kedua sisi neraca?',
-  ];
+  // Sinkronkan pesan pembuka saat pengguna berpindah simpul pengetahuan
+  useEffect(() => {
+    setMessages([
+      {
+        id: `m-${Date.now()}`,
+        role: 'tutor',
+        text: `Halo Arya! Kita sedang berada di node "${activeNode.name}" (${activeNode.developmentalStage || activeNode.domain}). Mari kita selidiki prinsip intinya: apa yang ingin kamu ketahui tentang konsep ini?`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      },
+    ]);
+  }, [activeNode.id]);
+
+  // Generate dynamic, context-aware prompt suggestions directly from activeNode schema
+  const samplePrompts = useMemo(() => {
+    const prompts: string[] = [];
+
+    // 1. Ambil dari WhyChain node
+    if (activeNode.whyChain && activeNode.whyChain.length > 0) {
+      const why1 = activeNode.whyChain[0].replace(/\.$/, '');
+      prompts.push(`Kenapa ${why1.charAt(0).toLowerCase() + why1.slice(1)}?`);
+    }
+
+    // 2. Ambil dari Misconception node (pancingan kritis)
+    if (activeNode.commonMisconceptions && activeNode.commonMisconceptions.length > 0) {
+      const misc = activeNode.commonMisconceptions[0];
+      prompts.push(`Bagaimana jika ada yang berpendapat: "${misc.misconception}"? Kenapa itu keliru?`);
+    }
+
+    // 3. Ambil dari representasi konkret atau usia
+    if (activeNode.explanationLevels?.concrete) {
+      if (activeNode.ageBracket === '4-6') {
+        prompts.push(`Bisakah kamu ceritakan contoh ${activeNode.name.toLowerCase()} dengan benda mainan atau makanan?`);
+      } else {
+        prompts.push(`Bagaimana konsep ini bekerja pada situasi nyata: "${activeNode.explanationLevels.concrete.slice(0, 70)}..."?`);
+      }
+    }
+
+    // 4. Cadangan spesifik jika WhyChain kedua ada
+    if (activeNode.whyChain && activeNode.whyChain.length > 1) {
+      const why2 = activeNode.whyChain[1].replace(/\.$/, '');
+      prompts.push(`Bisakah kamu jelaskan: ${why2.charAt(0).toLowerCase() + why2.slice(1)}?`);
+    }
+
+    return prompts.slice(0, 3);
+  }, [activeNode]);
 
   const handleSendMessage = async (textToSend?: string) => {
     const query = textToSend || inputValue;

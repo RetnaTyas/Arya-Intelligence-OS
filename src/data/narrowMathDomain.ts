@@ -37,6 +37,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.95,
     futureRelevance: 0.98,
     activeSimulationId: 'part_whole',
+    simulationAlignment: 'direct',
+    simulationNote: 'Simulasi interaktif langsung (1-to-1 fidelity) untuk konsep ini.',
   },
   {
     id: 'math-frac-02-equal-sharing',
@@ -68,6 +70,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.88,
     futureRelevance: 0.92,
     activeSimulationId: 'part_whole',
+    simulationAlignment: 'direct',
+    simulationNote: 'Simulasi interaktif langsung (1-to-1 fidelity) untuk konsep ini.',
   },
   {
     id: 'math-frac-03-unit-fractions',
@@ -99,6 +103,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.94,
     futureRelevance: 0.97,
     activeSimulationId: 'part_whole',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-frac-04-fraction-of-set',
@@ -130,6 +136,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.85,
     futureRelevance: 0.90,
     activeSimulationId: 'piaget_conservation',
+    simulationAlignment: 'direct',
+    simulationNote: 'Simulasi interaktif langsung (1-to-1 fidelity) untuk konsep ini.',
   },
   {
     id: 'math-frac-05-half-symmetry',
@@ -161,6 +169,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.82,
     futureRelevance: 0.88,
     activeSimulationId: 'part_whole',
+    simulationAlignment: 'direct',
+    simulationNote: 'Simulasi interaktif langsung (1-to-1 fidelity) untuk konsep ini.',
   },
   {
     id: 'math-frac-06-folding-geometry',
@@ -192,6 +202,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.84,
     futureRelevance: 0.91,
     activeSimulationId: 'bar_model',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
 
   // =========================================================================
@@ -227,6 +239,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.93,
     futureRelevance: 0.98,
     activeSimulationId: 'number_line',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-frac-08-denominator-inversion',
@@ -258,6 +272,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.92,
     futureRelevance: 0.96,
     activeSimulationId: 'bar_model',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-frac-09-numerator-counting',
@@ -289,6 +305,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.89,
     futureRelevance: 0.95,
     activeSimulationId: 'bar_model',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-frac-10-unit-building',
@@ -320,6 +338,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.87,
     futureRelevance: 0.93,
     activeSimulationId: 'bar_model',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-frac-11-fraction-one-whole',
@@ -351,6 +371,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.91,
     futureRelevance: 0.96,
     activeSimulationId: 'number_line',
+    simulationAlignment: 'direct',
+    simulationNote: 'Simulasi interaktif langsung (1-to-1 fidelity) untuk konsep ini.',
   },
   {
     id: 'math-frac-12-number-line-fractions',
@@ -382,6 +404,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.94,
     futureRelevance: 0.98,
     activeSimulationId: 'number_line',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
 
   // =========================================================================
@@ -417,6 +441,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.92,
     futureRelevance: 0.97,
     activeSimulationId: 'bar_model',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-frac-14-multiplicative-scaling',
@@ -448,6 +474,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.93,
     futureRelevance: 0.98,
     activeSimulationId: 'piaget_conservation',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-frac-15-simplifying-fractions',
@@ -479,6 +507,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.88,
     futureRelevance: 0.94,
     activeSimulationId: 'number_line',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-frac-16-comparing-same-denom',
@@ -510,6 +540,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.86,
     futureRelevance: 0.91,
     activeSimulationId: 'number_line',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-frac-17-comparing-same-num',
@@ -541,6 +573,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.88,
     futureRelevance: 0.93,
     activeSimulationId: 'number_line',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-frac-18-benchmark-half',
@@ -572,6 +606,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.89,
     futureRelevance: 0.94,
     activeSimulationId: 'bar_model',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-frac-19-common-denominator',
@@ -603,6 +639,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.93,
     futureRelevance: 0.97,
     activeSimulationId: 'bar_model',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
 
   // =========================================================================
@@ -638,6 +676,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.92,
     futureRelevance: 0.96,
     activeSimulationId: 'bar_model',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-frac-21-sub-same-denom',
@@ -669,6 +709,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.90,
     futureRelevance: 0.94,
     activeSimulationId: 'bar_model',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-frac-22-add-diff-denom',
@@ -700,6 +742,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.95,
     futureRelevance: 0.98,
     activeSimulationId: 'bar_model',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-frac-23-sub-diff-denom',
@@ -731,6 +775,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.91,
     futureRelevance: 0.95,
     activeSimulationId: 'number_line',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-frac-24-improper-fractions',
@@ -762,6 +808,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.90,
     futureRelevance: 0.95,
     activeSimulationId: 'number_line',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-frac-25-mixed-numbers',
@@ -793,6 +841,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.89,
     futureRelevance: 0.94,
     activeSimulationId: 'bar_model',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-frac-26-mixed-operations',
@@ -824,6 +874,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.88,
     futureRelevance: 0.93,
     activeSimulationId: 'bar_model',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
 
   // =========================================================================
@@ -859,6 +911,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.91,
     futureRelevance: 0.96,
     activeSimulationId: 'bar_model',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-frac-28-fraction-of-quantity',
@@ -890,6 +944,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.93,
     futureRelevance: 0.97,
     activeSimulationId: 'bar_model',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-frac-29-fraction-times-fraction',
@@ -921,6 +977,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.95,
     futureRelevance: 0.99,
     activeSimulationId: 'bar_model',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-frac-30-multiplication-scaling',
@@ -952,6 +1010,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.94,
     futureRelevance: 0.98,
     activeSimulationId: 'bar_model',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-frac-31-division-measurement',
@@ -983,6 +1043,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.93,
     futureRelevance: 0.98,
     activeSimulationId: 'bar_model',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-frac-32-division-partition',
@@ -1014,6 +1076,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.89,
     futureRelevance: 0.95,
     activeSimulationId: 'bar_model',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-frac-33-reciprocal-inverse',
@@ -1045,6 +1109,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.96,
     futureRelevance: 0.99,
     activeSimulationId: 'number_line',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
 
   // =========================================================================
@@ -1080,6 +1146,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.92,
     futureRelevance: 0.97,
     activeSimulationId: 'number_line',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-dec-35-fraction-decimal-link',
@@ -1111,6 +1179,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.91,
     futureRelevance: 0.96,
     activeSimulationId: 'number_line',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-dec-36-comparing-decimals',
@@ -1142,6 +1212,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.90,
     futureRelevance: 0.95,
     activeSimulationId: 'number_line',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-pct-37-percentage-per-hundred',
@@ -1173,6 +1245,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.92,
     futureRelevance: 0.97,
     activeSimulationId: 'bar_model',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-pct-38-percent-frac-dec-triangle',
@@ -1204,6 +1278,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.93,
     futureRelevance: 0.98,
     activeSimulationId: 'bar_model',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-pct-39-percent-of-number',
@@ -1235,6 +1311,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.91,
     futureRelevance: 0.96,
     activeSimulationId: 'bar_model',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
 
   // =========================================================================
@@ -1270,6 +1348,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.92,
     futureRelevance: 0.97,
     activeSimulationId: 'bar_model',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-rat-41-multiplicative-thinking',
@@ -1301,6 +1381,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.94,
     futureRelevance: 0.98,
     activeSimulationId: 'bar_model',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-rat-42-ratio-tables',
@@ -1332,6 +1414,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.89,
     futureRelevance: 0.94,
     activeSimulationId: 'number_line',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-rat-43-unit-rate',
@@ -1363,6 +1447,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.93,
     futureRelevance: 0.98,
     activeSimulationId: 'bar_model',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-rat-44-proportional-reasoning',
@@ -1394,6 +1480,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.95,
     futureRelevance: 0.99,
     activeSimulationId: 'number_line',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-rat-45-constant-proportionality',
@@ -1425,6 +1513,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.94,
     futureRelevance: 0.99,
     activeSimulationId: 'qualitative_balance',
+    simulationAlignment: 'direct',
+    simulationNote: 'Simulasi interaktif langsung (1-to-1 fidelity) untuk konsep ini.',
   },
 
   // =========================================================================
@@ -1460,6 +1550,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.96,
     futureRelevance: 1.0,
     activeSimulationId: 'bar_model',
+    simulationAlignment: 'direct',
+    simulationNote: 'Simulasi interaktif langsung (1-to-1 fidelity) untuk konsep ini.',
   },
   {
     id: 'math-alg-47-bar-model-algebra',
@@ -1491,6 +1583,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.92,
     futureRelevance: 0.97,
     activeSimulationId: 'qualitative_balance',
+    simulationAlignment: 'direct',
+    simulationNote: 'Simulasi interaktif langsung (1-to-1 fidelity) untuk konsep ini.',
   },
   {
     id: 'math-alg-48-balance-scale-unknown',
@@ -1522,6 +1616,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.95,
     futureRelevance: 0.99,
     activeSimulationId: 'qualitative_balance',
+    simulationAlignment: 'direct',
+    simulationNote: 'Simulasi interaktif langsung (1-to-1 fidelity) untuk konsep ini.',
   },
   {
     id: 'math-alg-49-one-step-addition',
@@ -1553,6 +1649,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.94,
     futureRelevance: 0.99,
     activeSimulationId: 'qualitative_balance',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Simulasi ini melatih analogi representasi visual serupa (mis. aljabar batang atau garis bilangan), bukan instrumen uji langsung konsep ini.',
   },
   {
     id: 'math-alg-50-one-step-multiplication',
@@ -1584,6 +1682,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.93,
     futureRelevance: 0.98,
     activeSimulationId: 'bar_model',
+    simulationAlignment: 'direct',
+    simulationNote: 'Simulasi interaktif langsung (1-to-1 fidelity) untuk konsep ini.',
   },
   {
     id: 'math-alg-51-two-step-linear',
@@ -1615,6 +1715,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.97,
     futureRelevance: 1.0,
     activeSimulationId: 'bar_model',
+    simulationAlignment: 'direct',
+    simulationNote: 'Simulasi interaktif langsung (1-to-1 fidelity) untuk konsep ini.',
   },
   {
     id: 'math-alg-52-distributive-equations',
