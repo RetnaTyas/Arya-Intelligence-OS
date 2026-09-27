@@ -445,56 +445,168 @@ Implikasi implementasi: representasi datanya harus berupa graph dengan edge yang
 
 ---
 
-## 7. Self-Healing Learning
+## 7. Self-Healing Learning: Dari Epistemic Debt ke Evidence Debt
 
-### 7.1 Epistemic Debt
+Prinsip dasar Self-Healing Learning bertumpu pada premis bahwa penguasaan pengetahuan adalah sistem dinamis yang rentan terhadap entropi, kelupaan (*decay*), dan celah konseptual. Namun, pelajaran arsitektural terpenting dari implementasi dan audit sistem ini adalah: **Self-Healing Learning membutuhkan kemampuan Self-Diagnosing Debt**.
 
-Istilah desain sistem (bukan diagnosis psikologis formal) untuk akumulasi celah fondasi yang menjadi bottleneck di materi lanjutan.
+Sistem yang hanya mendeteksi adanya celah tanpa memahami kausalitas dan kemampuan-sembuh (*repairability*) dari celah tersebut rentan menghasilkan **self-healing theater** — situasi di mana angka debt terlihat mengecil di atas kertas atau dasbor, padahal kondisi dasar yang dibutuhkan untuk menyembuhkannya secara substantif belum pernah terpenuhi.
 
-### 7.2 Mekanisme
+### 7.1 Taksonomi Epistemic Debt
+
+Istilah desain sistem (bukan diagnosis psikologis formal) untuk akumulasi celah, defisit, atau diskrepansi fondasi yang dapat menjadi bottleneck bagi pembelajaran, reasoning, atau validasi sistem lanjutan.
+
+Terdapat dua kelas debt yang mekanismenya fundamental berbeda:
+
+#### 7.1.1 Learning Debt (Epistemic Debt Klasik)
+> **Definisi:** Akumulasi celah fondasi pengetahuan akibat decay (peluruhan ingatan Ebbinghaus), prasyarat yang terlewati (*missing prerequisites*), atau miskonsepsi yang belum terkoreksi pada diri pembelajar.
+
+- **Level:** Penguasaan kognitif pembelajar (*learner's knowledge state*).
+- **Pertanyaan inti:** *"Bagaimana cara menutup celah atau mengonsolidasikan kembali penguasaan konsep ini secara kontekstual dan bermakna?"*
+- **Sifat perbaikan:** Bersifat pedagogis dan adaptif kurikuler.
+
+#### 7.1.2 Evidence Debt
+> **Definisi:** Akumulasi keadaan di mana sistem membutuhkan suatu bukti (*evidence*) untuk melakukan diagnosis, kalibrasi, atau validasi klaim, tetapi belum memiliki mekanisme yang memadai untuk memperoleh, menyimpan, membandingkan, atau mengaudit bukti tersebut.
+
+- **Level:** Infrastruktur observabilitas dan pengukuran sistem (*observability & measurement infrastructure*).
+- **Pertanyaan inti:** *"Kenapa evidence tersebut belum bisa eksis atau belum dapat diobservasi?"* (Bukan sekadar *"Bagaimana mengurangi angka debt?"*).
+- **Contoh nyata dalam arsitektur:**
+  - *Required:* Konkordansi diagnosis AI ↔ Asesmen Manusia Riil.
+  - *Available:* Bukti sintetis (*synthetic probes* dari matriks benchmark deterministik).
+  - *Missing:* Jalur rating manusia riil (antarmuka input, penyimpanan lokal IndexedDB yang berdaulat, SOP penilai, dan dasbor komparasi Zero-Lie).
+  
+  Ini bukan *decay* kognitif. Jika sistem memperlakukan ketiadaan rating manusia sebagai "learning debt", engine akan tergoda menyintesis angka generator buatan sendiri untuk membuat metrik terlihat tuntas — jatuh ke dalam teater validasi. Pertanyaan yang benar adalah: *alat apa yang belum dibangun agar bukti otentik itu bisa diobservasi?*
+
+---
+
+### 7.2 Alur Diagnostik & Prinsip Anti-Self-Healing Theater
+
+Model lama mengasumsikan alur linear implisit: `DEBT DETECTED → REPAIR → HEALED`. Asumsi ini cacat karena menganggap Evidence Engine otomatis selalu mampu menyediakan seluruh bukti yang dibutuhkan untuk intervensi.
+
+Alur yang terbukti aman harus menyisipkan tahap **Klasifikasi Debt**, **Analisis Kausalitas & Persistensi**, serta **Pintu Kemampuan-Sembuh (Repairability Gate)** sebelum Adaptive Engine dijalankan:
 
 ```
-LEARNING ACTIVITY → Evidence Engine
-        ┌───────────┴───────────┐
-   New Mastery             Decay Signal
-                          ┌─────┴─────┐
-                  Recall weakness   Dependency weakness
-        └───────────┬───────────┘
-              Adaptive Engine
-                    ↓
-      Cari titik penyisipan alami
-        ┌───────────┴───────────┐
-  Proyek berjalan          Konteks baru
-                    ↓
-            Reconsolidation
-                    ↓
-     Evidence baru → Update Knowledge Graph
+                  DEBT DETECTED
+                        ↓
+                  CLASSIFY DEBT
+         ┌──────────────┴──────────────┐
+         ↓                             ↓
+   Learning Debt                 Evidence Debt
+         ↓                             ↓
+  Decay/Misconception           Observability Gap
+  Cause Analysis                Missing Pathway Analysis
+         └──────────────┬──────────────┘
+                        ▼
+               CAN IT BE REPAIRED?
+              (Repairability Gate)
+         ┌──────────────┴──────────────┐
+        YES                            NO
+         │                             │
+         ↓                             ↓
+   REPAIR ENGINE               CREATE REPAIRABILITY
+   (Adaptive/Curriculum)       (Bangun Jalur UI, Storage,
+         │                      SOP, & Dashboard Komparasi)
+         │                             │
+         └──────────────┬──────────────┘
+                        ▼
+                     REPAIR
+                        ↓
+                  VERIFY STATE
+              (Bukan Sekadar Asumsi)
+                        ↓
+                     HEALED?
 ```
 
-### 7.3 Stealth insertion (Passive Contextual Remediation)
+> **Prinsip Pengunci:** *Debt yang terlihat mengecil belum tentu debt benar-benar sembuh.* Tahap *Verify State* wajib memverifikasi integritas bukti di balik penyembuhan. Mengurangi debt dengan menimpa nilai atau memakai generator sintetis adalah ilusi kesembuhan (*self-healing theater*).
 
-Remedial tidak menjadi ruangan terpisah, melainkan fungsi tersembunyi dalam perjalanan belajar.
+---
 
-- **Sinyal decay:** aljabar factoring turun 15%.
-- **Prediksi bottleneck:** decay ini akan menyulitkan modul yang akan datang.
-- **Reconsolidation:** aljabar disisipkan ke proyek berminat tinggi (misalnya kapal selam: "berapa volume air yang harus dipindahkan agar berat totalnya berubah menjadi X?").
-- **Hasil:** fondasi pulih sebagai efek samping penemuan, tanpa rasa malu.
+### 7.3 Mekanisme Alur Sistem: Dari Sinyal Bukti Menuju Rekonsolidasi
 
-### 7.4 Debt Risk
-
-Formulasi konseptual:
+Perbaikan alur operasional: menyisipkan simpul **Signal Diagnosis** dan cabang **Build Repairability** sebelum Adaptive Engine:
 
 ```
-Debt Risk = Decay × Dependency Centrality × Future Relevance × Uncertainty
+               LEARNING ACTIVITY / OBSERVATION
+                             ↓
+                      Evidence Engine
+                             ↓
+                      Evidence Signal
+                             ↓
+                      SIGNAL DIAGNOSIS
+          ┌──────────────────┴──────────────────┐
+          ↓                                     ↓
+      Repairable                             Not Yet
+   (Instrumen Siap)                    (Jalur Belum Ada)
+          ↓                                     ↓
+    Adaptive Engine                    Build Repairability
+          ↓                             (Buat Jalur Rating,
+Cari Titik Penyisipan Alami              Storage, & Dashboard)
+  ┌───────┴───────┐                             │
+Proyek      Konteks Baru                        │
+  └───────┬───────┘                             │
+          ↓                                     │
+   Reconsolidation ←────────────────────────────┘
+          ↓
+    Evidence Baru Otentik
+          ↓
+Update Knowledge Graph / Audit Log
 ```
 
-Yang penting bukan seberapa lupa suatu konsep, tetapi seberapa berbahaya kelupaan itu bagi masa depan graph. Contoh: penurunan kecil pada aritmetika tidak perlu dipanik-kan, tetapi decay besar pada aljabar linear ketika anak bergerak menuju komputasi kuantum harus memicu reaksi.
+Self-healing tidak selalu berarti langsung melakukan tindakan kurikuler (*healing*). Sering kali, langkah pertama dari self-healing adalah **menyembuhkan kondisi sistem yang sebelumnya membuat proses healing tidak mungkin dilakukan**.
 
-> **Catatan status:** Dua faktor (*Future Relevance*, *Uncertainty*) belum punya definisi operasional. Lihat bagian 11.
+---
 
-### 7.5 Cognitive Bottleneck Prediction
+### 7.4 Batasan Moda Remediasi: Stealth Insertion vs. Explicit Intervention
 
-Sistem tidak hanya berkata "anak lupa factoring", tetapi "jika decay berlanjut, node X/Y/Z pada lintasan aktif menjadi lebih sulit". Ini *predictive maintenance* untuk pengetahuan: jangan menunggu bearing pecah baru diperbaiki.
+Konsep *Passive Contextual Remediation (Stealth Insertion)* adalah prinsip desain unggulan agar remedial tidak menjadi ruangan isolasi yang memalukan bagi anak. Namun, **tidak semua debt dapat atau boleh diselesaikan secara stealth**.
+
+Moda remediasi harus ditentukan oleh **kausalitas debt (*debt causality*)**, bukan oleh preferensi estetika bahwa semua perbaikan harus selalu tidak kasat mata:
+
+| Kelas Debt | Contoh Kasus | Moda Remediasi yang Tepat | Rasional Desain |
+|---|---|---|---|
+| **Learning Debt (Decay)** | Pemahaman aljabar factoring turun 15%. | **Stealth Contextual Insertion** (Remedial Terselubung) | Menyisipkan perhitungan factoring ke dalam proyek kapal selam ("berapa volume air yang harus dipindahkan..."). Fondasi pulih tanpa rasa malu sebagai efek samping eksplorasi. |
+| **Learning Debt (Kritis)** | Miskonsepsi fundamental relasional "=" (menganggap "=" berarti tombol kalkulator). | **Targeted Socratic Intervention** (Eksplisit Bertahap) | Membuka dialog Sokrates berpandu atau simulasi neraca kualitatif untuk membongkar kontradiksi logis secara sadar. |
+| **Evidence Debt** | Konkordansi AI vs manusia riil belum dapat dinilai karena ketiadaan rating manusia. | **Explicit Structural Intervention** (Intervensi Struktural Terbuka) | *Stealth insertion tidak menyelesaikan apa-apa.* Solusinya adalah membangun antarmuka rating usable, skema penyimpanan lokal IndexedDB, SOP bagi orang tua/guru, dan dashboard komparasi perbandingan Zero-Lie. |
+
+---
+
+### 7.5 Dua Dimensi Debt Risk
+
+Formula risiko tidak boleh dipaksakan menjadi satu formula tunggal untuk seluruh kelas debt, karena Evidence Debt tidak selalu melibatkan faktor peluruhan (*decay*).
+
+#### A. Learning Debt Risk
+Formulasi operasional untuk celah pengetahuan:
+```
+Learning Debt Risk = Decay × Dependency Centrality × Future Relevance × Uncertainty
+```
+- **Decay:** Tingkat peluruhan retensi memori (kurva Ebbinghaus terbobot bukti).
+- **Dependency Centrality:** Berapa banyak simpul hilir yang bertumpu pada simpul ini dalam Directed Acyclic Graph (DAG).
+- **Future Relevance:** Nilai strategis simpul terhadap lintasan aktif pembelajar.
+- **Uncertainty:** Interval kepercayaan model terhadap estimasi penguasaan saat ini.
+
+#### B. Evidence Debt Risk
+Dimensi konseptual untuk defisit infrastruktur bukti/pengukuran:
+```
+Evidence Debt Risk = Evidence Criticality × Observability Gap × Persistence × Downstream Impact
+```
+- **Evidence Criticality:** Seberapa vital bukti tersebut bagi validitas klaim atau keselamatan diagnosis (mis. validasi sensor miskonsepsi vs log aktivitas biasa).
+- **Observability Gap:** Jarak antara bukti yang dibutuhkan (*required*) dengan instrumen observasi yang saat ini tersedia (*available*).
+- **Persistence:** Berapa lama celah bukti ini telah dibiarkan tanpa instrumentasi.
+- **Downstream Impact:** Berapa banyak keputusan adaptif, rekomendasi materi, atau lapisan arsitektur lanjutan yang dibangun di atas sensor yang belum teruji tersebut.
+
+---
+
+### 7.6 Cognitive & Observability Bottleneck Prediction
+
+Sistem tidak hanya memprediksi kemacetan pengetahuan (*knowledge bottleneck*), tetapi juga kemacetan observabilitas (*evidence bottleneck*):
+
+1. **Knowledge Bottleneck:**
+   > *"Jika peluruhan pemahaman factoring berlanjut, simpul Aljabar Lanjutan (X/Y/Z) pada lintasan aktif akan mengalami kegagalan transmisi konsep."*
+   *(Predictive maintenance untuk pengetahuan — perbaiki bantalan roda sebelum patah).*
+
+2. **Evidence Bottleneck:**
+   > *"Konkordansi AI vs manusia belum dapat dihitung karena status validasi belum dapat diobservasi (validation state is not observable) akibat belum adanya jalur rating manusia yang memadai."*
+
+Pernyataan kedua **tidak sama** dengan mengatakan *"Diagnosis AI salah atau tidak valid"*; melainkan menyatakan dengan presisi ilmiah: *"Status validasi belum dapat diobservasi secara sah."* Ini adalah pembedaan epistemik tingkat tinggi yang melindungi sistem dari klaim prematur.
 
 ---
 
