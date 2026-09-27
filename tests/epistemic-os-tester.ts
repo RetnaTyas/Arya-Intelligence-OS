@@ -182,6 +182,25 @@ function runSuite1() {
     'Roadmap Discipline & Out-of-Sequence Marking (Temuan 6 Gate)',
     `Domain aktif Tahap 1 terisolasi secara disiplin pada 7 modul koridor pecahan -> linear; modul di luar koridor ditandai eksplisit sebagai eksperimen paralel out-of-sequence.`
   );
+
+  // 1.6 Delivery Empiris & Keselarasan Modalitas Perkembangan (Temuan 10 Remediasi)
+  const nodesWithSim = narrowNodes.filter((n) => Boolean(n.activeSimulationId));
+  const nodesWithModality = narrowNodes.filter((n) => Boolean(n.assessmentModality));
+  const forbiddenJargon = ['lebesgue', 'modul bebas', 'isomorfisme', 'lipschitz', 'ruang afin'];
+  let jargonCount = 0;
+  for (const n of narrowNodes) {
+    const formalText = n.explanationLevels?.formal?.toLowerCase() || '';
+    for (const j of forbiddenJargon) {
+      if (formalText.includes(j)) jargonCount++;
+    }
+  }
+
+  assert(
+    nodesWithSim.length === 52 && nodesWithModality.length === 52 && jargonCount === 0,
+    suite,
+    'Kelengkapan Delivery Empiris & Bahasa Formal Proporsional (Temuan 10 Gate)',
+    `100% node (${nodesWithSim.length}/52) memiliki activeSimulationId lab interaktif, 100% (${nodesWithModality.length}/52) memiliki assessmentModality eksplisit, dan 0 istilah pascasarjana ditemukan pada layer formal.`
+  );
 }
 
 // ============================================================================

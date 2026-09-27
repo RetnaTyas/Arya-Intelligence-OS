@@ -87,6 +87,12 @@ export const COGNITIVE_TIERS: Record<AgeBracket, CognitiveTierMeta> = {
   },
 };
 
+export type AssessmentModality =
+  | 'behavioral_observation'   // Tier I (1-3): tindakan fisik & manipulasi langsung
+  | 'visual_manipulation'      // Tier II (4-6): representasi visual & partisi konkret
+  | 'relational_manipulation'  // Tier III (7-9): penalaran relasional, garis bilangan & neraca
+  | 'socratic_feynman';        // Tier IV (10-12): penalaran aljabar formal & dialog hipotesis-deduktif
+
 export interface KnowledgeNode {
   id: string;
   name: string;
@@ -95,6 +101,7 @@ export interface KnowledgeNode {
   prerequisites: string[]; // Node IDs
   ageBracket?: AgeBracket;
   developmentalStage?: string;
+  assessmentModality?: AssessmentModality;
   explanationLevels: {
     concrete: string;
     visual: string;

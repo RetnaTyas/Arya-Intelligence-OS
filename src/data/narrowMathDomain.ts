@@ -13,13 +13,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '4-6',
     developmentalStage: 'Pra-Operasional (4 - 6 Thn)',
+    assessmentModality: 'visual_manipulation',
     description: 'Konsep dasar pecahan sebagai bagian sama besar dari satu kesatuan utuh.',
     prerequisites: [],
     explanationLevels: {
       concrete: 'Memotong 1 balok kue menjadi 4 potongan sama besar.',
       visual: 'Diagram pizza lingkaran atau balok fraksi yang diarsir 1 dari 4.',
       symbolic: '1/4, dengan angka bawah adalah jumlah total bagian sama.',
-      formal: 'a/b di mana b ≠ 0 mewakili pembagian himpunan terukur S ke b partisi ekuivalen.',
+      formal: 'Pecahan a/b (b ≠ 0) menyatakan a bagian kongruen dari suatu kuantitas utuh yang dipartisi menjadi b bagian bernilai sama.',
     },
     whyChain: [
       'Pecahan lahir karena bilangan bulat tidak cukup membagi hal yang tidak pas habis.',
@@ -43,13 +44,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '4-6',
     developmentalStage: 'Pra-Operasional (4 - 6 Thn)',
+    assessmentModality: 'visual_manipulation',
     description: 'Membagi sejumlah benda atau makanan secara adil kepada beberapa penerima tanpa sisa.',
     prerequisites: ['math-frac-01-part-whole'],
     explanationLevels: {
       concrete: 'Membagikan 6 kue kering kepada 3 teman sehingga masing-masing mendapat 2 kue.',
       visual: 'Mengelompokkan 6 ikon kue ke dalam 3 piring secara merata satu demi satu.',
       symbolic: '6 ÷ 3 = 2, atau setiap anak mendapat 1/3 dari seluruh kue.',
-      formal: 'Partisi himpunan terhingga A ke k blok independen berkardinalitas identik |A|/k.',
+      formal: 'Pembagian n objek ke k penerima menghasilkan porsi q = n/k sedemikian hingga k × q = n tanpa sisa.',
     },
     whyChain: [
       'Pembagian adil menjamin setiap pihak menerima porsi yang ekuivalen tanpa kecemburuan.',
@@ -65,6 +67,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.88,
     futureRelevance: 0.92,
+    activeSimulationId: 'part_whole',
   },
   {
     id: 'math-frac-03-unit-fractions',
@@ -72,13 +75,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '4-6',
     developmentalStage: 'Pra-Operasional (4 - 6 Thn)',
+    assessmentModality: 'visual_manipulation',
     description: 'Pecahan dengan pembilang 1 yang mewakili satu bagian tunggal dari partisi utuh.',
     prerequisites: ['math-frac-01-part-whole'],
     explanationLevels: {
       concrete: 'Melipat selembar pita menjadi 2, 3, atau 4 bagian dan mewarnai 1 bagian saja.',
       visual: 'Batang fraksi berwarna dengan label 1/2, 1/3, 1/4 yang tersusun berdampingan.',
       symbolic: '1/n di mana n adalah bilangan bulat positif penyebut.',
-      formal: 'Elemen satuan multiplikatif dasar n^(-1) yang membentuk basis pembangun medan pecahan.',
+      formal: 'Pecahan satuan 1/n adalah satu bagian dari partisi utuh n bagian, di mana n × (1/n) = 1.',
     },
     whyChain: [
       'Pecahan satuan adalah balok lego pembangun semua pecahan lainnya.',
@@ -94,6 +98,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.94,
     futureRelevance: 0.97,
+    activeSimulationId: 'part_whole',
   },
   {
     id: 'math-frac-04-fraction-of-set',
@@ -101,13 +106,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '4-6',
     developmentalStage: 'Pra-Operasional (4 - 6 Thn)',
+    assessmentModality: 'visual_manipulation',
     description: 'Menerapkan konsep pecahan bukan hanya pada 1 benda utuh bersambung, tetapi pada kumpulan objek diskret.',
     prerequisites: ['math-frac-02-equal-sharing', 'math-frac-03-unit-fractions'],
     explanationLevels: {
       concrete: 'Dari 8 kelereng, 4 kelereng berwarna merah (setengahnya merah).',
       visual: '8 lingkaran kecil di mana 4 dilingkari garis putus-putus sebagai 1/2 bagian.',
       symbolic: '1/2 dari 8 = 4.',
-      formal: 'Kardinalitas subhimpunan sejati terhadap kardinalitas semesta: |S|/|U|.',
+      formal: 'Porsi pecahan kumpulan N objek: (a/b) × N mewakili jumlah anggota yang dipilih dari partisi b kelompok sama banyak.',
     },
     whyChain: [
       'Di alam nyata, kesatuan utuh sering kali berupa sekeranjang buah atau sekelompok orang.',
@@ -123,6 +129,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.85,
     futureRelevance: 0.90,
+    activeSimulationId: 'piaget_conservation',
   },
   {
     id: 'math-frac-05-half-symmetry',
@@ -130,13 +137,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '4-6',
     developmentalStage: 'Pra-Operasional (4 - 6 Thn)',
+    assessmentModality: 'visual_manipulation',
     description: 'Mengidentifikasi apakah suatu garis membagi bentuk tepat menjadi dua bagian simetris berluas sama.',
     prerequisites: ['math-frac-01-part-whole'],
     explanationLevels: {
       concrete: 'Melipat kertas origami berbentuk segitiga dan persegi tepat pada garis simetri.',
       visual: 'Berbagai bangun datar dengan garis pemisah lurus atau miring, membedakan mana yang pas 1/2.',
       symbolic: 'Luas(A) = Luas(B) = 1/2 Luas Total.',
-      formal: 'Refleksi isometrik dan pelestarian ukuran Lebesgue Lebesgue-invariant measure pada bidang Euclidean.',
+      formal: 'Dua bagian A dan B membentuk setengah bidang jika Luas(A) = Luas(B) dan gabungan A serta B menutup bidang utuh tanpa tumpang tindih.',
     },
     whyChain: [
       'Garis pemisah tidak harus vertikal lurus; yang penting luas kedua area terbelah identik.',
@@ -152,6 +160,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.82,
     futureRelevance: 0.88,
+    activeSimulationId: 'part_whole',
   },
   {
     id: 'math-frac-06-folding-geometry',
@@ -159,13 +168,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '4-6',
     developmentalStage: 'Pra-Operasional (4 - 6 Thn)',
+    assessmentModality: 'visual_manipulation',
     description: 'Membagi kertas atau bidang menjadi 4, 8, atau 16 bagian melalui pelipatan berulang teratur.',
     prerequisites: ['math-frac-05-half-symmetry'],
     explanationLevels: {
       concrete: 'Melipat kertas dua kali menghasilkan 4 kuadran sama besar.',
       visual: 'Pola garis lipatan berpetak pada kertas bujur sangkar.',
       symbolic: '1/2 × 1/2 = 1/4.',
-      formal: 'Iterasi pembagian dyadic bisection pada manifold 2D.',
+      formal: 'Pelipatan berulang k kali dengan faktor belah 2 menghasilkan 2^k petak sama besar dengan luas masing-masing (1/2)^k bagian utuh.',
     },
     whyChain: [
       'Melipat dua kali menghasilkan 4 bagian, bukan 3, karena tiap bagian sebelumnya terbelah lagi.',
@@ -181,6 +191,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.84,
     futureRelevance: 0.91,
+    activeSimulationId: 'bar_model',
   },
 
   // =========================================================================
@@ -192,13 +203,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '7-9',
     developmentalStage: 'Operasional Konkret (7 - 9 Thn)',
+    assessmentModality: 'relational_manipulation',
     description: 'Penyebut menentukan ukuran partisi; pembilang menghitung berapa partisi yang diambil.',
     prerequisites: ['math-frac-03-unit-fractions'],
     explanationLevels: {
       concrete: 'Piring berisi 3 potong martabak dari cetakan 8 potong sama besar.',
       visual: 'Strip pita terbagi 8, 3 petak diwarnai biru.',
       symbolic: '3/8 (3 yang diambil, 8 total partisi identik).',
-      formal: 'n/d: d adalah unitasi partisi, n adalah skalar kardinalitas partisi terpilih.',
+      formal: 'Pada notasi a/b: b mendefinisikan ukuran unit pemotong (1/b) dan a mencacah banyaknya unit tersebut.',
     },
     whyChain: [
       'Penyebut memberi nama keluarga satuan (per-delapan, per-empat).',
@@ -214,6 +226,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.93,
     futureRelevance: 0.98,
+    activeSimulationId: 'number_line',
   },
   {
     id: 'math-frac-08-denominator-inversion',
@@ -221,13 +234,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '7-9',
     developmentalStage: 'Operasional Konkret (7 - 9 Thn)',
+    assessmentModality: 'relational_manipulation',
     description: 'Semakin banyak bagian pembagi (penyebut membesar), semakin kecil ukuran masing-masing irisan.',
     prerequisites: ['math-frac-07-num-denom-roles'],
     explanationLevels: {
       concrete: 'Membagi 1 batang cokelat ke 2 orang vs membaginya ke 10 orang.',
       visual: 'Diagram batang horizontal di mana potongan 1/10 tampak jauh lebih kurus daripada 1/2.',
       symbolic: 'Jika a > b maka 1/a < 1/b untuk a, b > 0.',
-      formal: 'Monotonisitas fungsi invers f(x) = 1/x pada domain R+.',
+      formal: 'Untuk kuantitas tetap, jika b₁ > b₂ > 0 maka ukuran partisi 1/b₁ < 1/b₂ (hubungan berbanding terbalik).',
     },
     whyChain: [
       'Total zat atau kuantitas bersifat kekal (invarian).',
@@ -243,6 +257,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.92,
     futureRelevance: 0.96,
+    activeSimulationId: 'bar_model',
   },
   {
     id: 'math-frac-09-numerator-counting',
@@ -250,13 +265,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '7-9',
     developmentalStage: 'Operasional Konkret (7 - 9 Thn)',
+    assessmentModality: 'relational_manipulation',
     description: 'Memahami bahwa 3/5 adalah 3 buah dari unit berukuran seperlima (1/5 + 1/5 + 1/5).',
     prerequisites: ['math-frac-07-num-denom-roles'],
     explanationLevels: {
       concrete: 'Menyusun 3 buah keping plastik bertuliskan 1/5 berdampingan.',
       visual: 'Bar model dengan 5 kotak sama panjang, 3 kotak diwarnai ungu.',
       symbolic: '3/5 = 3 × (1/5) = 1/5 + 1/5 + 1/5.',
-      formal: 'Struktur modul bebas berdimensi 1 atas gelanggang bilangan bulat dengan generator 1/d.',
+      formal: 'Notasi a/b setara dengan a × (1/b), yaitu penjumlahan berulang unit dasar 1/b sebanyak a kali.',
     },
     whyChain: [
       'Pecahan bukan dua bilangan terpisah yang disusun atas-bawah, melainkan satu bilangan tunggal.',
@@ -272,6 +288,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.89,
     futureRelevance: 0.95,
+    activeSimulationId: 'bar_model',
   },
   {
     id: 'math-frac-10-unit-building',
@@ -279,13 +296,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '7-9',
     developmentalStage: 'Operasional Konkret (7 - 9 Thn)',
+    assessmentModality: 'relational_manipulation',
     description: 'Mengurai pecahan sejati apa pun menjadi jumlahan beberapa pecahan satuan.',
     prerequisites: ['math-frac-09-numerator-counting'],
     explanationLevels: {
       concrete: 'Membongkar balok 4/6 menjadi 4 keping lepas 1/6.',
       visual: 'Diagram pita berarsir dengan label 1/6 pada tiap segmen individu.',
       symbolic: 'k/n = ∑_{i=1}^k (1/n).',
-      formal: 'Representasi elemen grup aditif melalui kombinasi linear basis satuan.',
+      formal: 'Dekomposisi pecahan: k/n = 1/n + 1/n + ... + 1/n (sebanyak k suku), dengan ukuran unit 1/n invarian.',
     },
     whyChain: [
       'Dekomposisi adalah fondasi untuk memahami penjumlahan pecahan dan pembagian pecahan nanti.',
@@ -301,6 +319,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.87,
     futureRelevance: 0.93,
+    activeSimulationId: 'bar_model',
   },
   {
     id: 'math-frac-11-fraction-one-whole',
@@ -308,13 +327,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '7-9',
     developmentalStage: 'Operasional Konkret (7 - 9 Thn)',
+    assessmentModality: 'relational_manipulation',
     description: 'Ketika seluruh partisi diambil lengkap, kuantitasnya sama persis dengan satu kesatuan utuh.',
     prerequisites: ['math-frac-09-numerator-counting'],
     explanationLevels: {
       concrete: 'Mengumpulkan 4 keping 1/4 pizza menjadi 1 pizza bulat penuh sempurna.',
       visual: 'Lingkaran utuh yang terbagi 6 juring, di mana semua 6 juring diarsir penuh.',
       symbolic: '4/4 = 1, 6/6 = 1, n/n = 1 (n ≠ 0).',
-      formal: 'Identitas multiplikatif medan Q: x · x^(-1) = 1 untuk setiap x ≠ 0.',
+      formal: 'Pecahan n/n mewakili pengambilan seluruh n partisi dari satu keutuhan, sehingga n/n = 1 untuk sembarang n ≠ 0.',
     },
     whyChain: [
       'Jika kamu memotong kue jadi n potong lalu mengambil semua n potong, kamu punya seluruh kue kembali.',
@@ -330,6 +350,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.91,
     futureRelevance: 0.96,
+    activeSimulationId: 'number_line',
   },
   {
     id: 'math-frac-12-number-line-fractions',
@@ -337,13 +358,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '7-9',
     developmentalStage: 'Operasional Konkret (7 - 9 Thn)',
+    assessmentModality: 'relational_manipulation',
     description: 'Menempatkan pecahan sebagai titik jarak spasial pada garis bilangan antara 0 dan 1.',
     prerequisites: ['math-frac-11-fraction-one-whole'],
     explanationLevels: {
       concrete: 'Melompat di atas meteran kain dari angka 0 meter sampai 1 meter, berhenti di tanda 1/2 dan 3/4 meter.',
       visual: 'Garis bilangan bergradien dengan titik interval sama berlabel 0, 1/4, 2/4, 3/4, 1.',
       symbolic: '0 < 1/4 < 2/4 < 3/4 < 1.',
-      formal: 'Penyisipan bilangan rasional Q ke dalam ruang metrik R dengan topologi urutan standar.',
+      formal: 'Setiap pecahan a/b berkorespondensi dengan titik jarak unik x pada sumbu bilangan riil dengan 0 ≤ x ≤ 1 jika a ≤ b.',
     },
     whyChain: [
       'Pecahan bukan sekadar irisan kue di dapur; pecahan adalah titik bilangan riil pada sumbu koordinat.',
@@ -371,13 +393,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '7-9',
     developmentalStage: 'Operasional Konkret (7 - 9 Thn)',
+    assessmentModality: 'relational_manipulation',
     description: 'Pecahan dengan angka pembilang dan penyebut berbeda yang menempati proporsi luas yang identik.',
     prerequisites: ['math-frac-12-number-line-fractions'],
     explanationLevels: {
       concrete: '1 dari 2 potongan roti sama banyaknya dengan 2 dari 4 potongan roti yang sama.',
       visual: 'Dua batang pecahan sejajar: 1/2 tepat berhimpitan dengan 2/4 dan 4/8.',
       symbolic: '1/2 = 2/4 = 4/8.',
-      formal: 'Kelas ekuivalensi [a/b] pada relasi a·d = b·c.',
+      formal: 'Dua pecahan a/b dan c/d disebut ekuivalen (a/b = c/d) jika dan hanya jika proporsi nilai kuantitas keduanya sama (a·d = b·c).',
     },
     whyChain: [
       'Memotong lebih halus tidak menambah atau mengurangi zat materi kue.',
@@ -393,6 +416,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.92,
     futureRelevance: 0.97,
+    activeSimulationId: 'bar_model',
   },
   {
     id: 'math-frac-14-multiplicative-scaling',
@@ -400,13 +424,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '7-9',
     developmentalStage: 'Operasional Konkret (7 - 9 Thn)',
+    assessmentModality: 'relational_manipulation',
     description: 'Mengalikan pembilang dan penyebut dengan angka yang sama tidak mengubah nilai karena setara dengan mengali 1.',
     prerequisites: ['math-frac-13-equivalent-visual', 'math-frac-11-fraction-one-whole'],
     explanationLevels: {
       concrete: 'Tiap 1 irisan kue kita potong lagi jadi 3 irisan kecil: jumlah potongan dan yang diambil sama-sama dikali 3.',
       visual: 'Diagram bar mendatar dipotong garis-garis kisi vertikal baru.',
       symbolic: 'a/b = (a × k)/(b × k) untuk k ≠ 0.',
-      formal: 'Aksi identitas perkalian: (a/b) · (k/k) = (a/b) · 1 = a/b.',
+      formal: 'Mengalikan pembilang dan penyebut dengan k ≠ 0 mempertahankan nilai pecahan: a/b = (a × k)/(b × k) karena k/k = 1.',
     },
     whyChain: [
       'Mengalikan apapun dengan 1 tidak mengubah besaran aslinya.',
@@ -422,6 +447,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.93,
     futureRelevance: 0.98,
+    activeSimulationId: 'piaget_conservation',
   },
   {
     id: 'math-frac-15-simplifying-fractions',
@@ -429,13 +455,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '7-9',
     developmentalStage: 'Operasional Konkret (7 - 9 Thn)',
+    assessmentModality: 'relational_manipulation',
     description: 'Membagi pembilang dan penyebut dengan faktor persekutuan bersama untuk mendapatkan bentuk paling sederhana.',
     prerequisites: ['math-frac-14-multiplicative-scaling'],
     explanationLevels: {
       concrete: 'Menggabungkan 4 potong kecil dari 8 irisan kue kembali menjadi 1 potong besar setengah.',
       visual: 'Menghapus garis-garis pembagi sekunder pada diagram kisi.',
       symbolic: '4/8 = (4÷4)/(8÷4) = 1/2.',
-      formal: 'Reduksi pecahan ke bentuk koprima gcd(a, b) = 1.',
+      formal: "Pecahan disederhanakan dengan membagi pembilang dan penyebut oleh FPB(a, b) sehingga bentuk akhir a'/b' saling prima (FPB = 1).",
     },
     whyChain: [
       'Bentuk paling sederhana memudahkan perbandingan dan menghemat beban kognitif komputasi.',
@@ -451,6 +478,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.88,
     futureRelevance: 0.94,
+    activeSimulationId: 'number_line',
   },
   {
     id: 'math-frac-16-comparing-same-denom',
@@ -458,13 +486,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '7-9',
     developmentalStage: 'Operasional Konkret (7 - 9 Thn)',
+    assessmentModality: 'relational_manipulation',
     description: 'Jika ukuran partisi sama (penyebut identik), cukup bandingkan banyaknya potongan (pembilang).',
     prerequisites: ['math-frac-09-numerator-counting'],
     explanationLevels: {
       concrete: 'Piring A isi 3 potong kue per-delapan, Piring B isi 5 potong kue per-delapan.',
       visual: 'Dua batang fraksi berukuran per-delapan: batang dengan 5 kotak ungu lebih panjang dari 3 kotak.',
       symbolic: '3/8 < 5/8 karena penyebut sama dan 3 < 5.',
-      formal: 'Keterurutan kompatibel terhadap operasi aditif monoid pecahan.',
+      formal: 'Untuk penyebut sama d > 0: a/d < c/d jika dan hanya jika a < c.',
     },
     whyChain: [
       'Karena satuannya sudah sama persis (irisan per-delapan), perbandingan kembali menjadi perbandingan cacah biasa.',
@@ -480,6 +509,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.86,
     futureRelevance: 0.91,
+    activeSimulationId: 'number_line',
   },
   {
     id: 'math-frac-17-comparing-same-num',
@@ -487,13 +517,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '7-9',
     developmentalStage: 'Operasional Konkret (7 - 9 Thn)',
+    assessmentModality: 'relational_manipulation',
     description: 'Jika jumlah potongan sama (pembilang identik), pecahan dengan penyebut lebih kecil bernilai lebih besar.',
     prerequisites: ['math-frac-08-denominator-inversion'],
     explanationLevels: {
       concrete: 'Kamu dapat 2 potong kue dari loyang yang dibagi 3 vs dapat 2 potong dari loyang yang dibagi 10.',
       visual: 'Sandingkan 2 blok 1/3 dengan 2 blok 1/10.',
       symbolic: '2/3 > 2/10 karena potongan per-tiga jauh lebih gemuk daripada per-sepuluh.',
-      formal: 'Monotonisitas terbalik pada pemetaan f(d) = n/d untuk n tetap positif.',
+      formal: 'Untuk pembilang sama a > 0: a/b₁ > a/b₂ jika dan hanya jika b₁ < b₂.',
     },
     whyChain: [
       'Jumlah potongannya sama (sama-sama 2), tetapi mutu ukuran tiap potongannya ditentukan penyebut.',
@@ -509,6 +540,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.88,
     futureRelevance: 0.93,
+    activeSimulationId: 'number_line',
   },
   {
     id: 'math-frac-18-benchmark-half',
@@ -516,13 +548,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '7-9',
     developmentalStage: 'Operasional Konkret (7 - 9 Thn)',
+    assessmentModality: 'relational_manipulation',
     description: 'Menggunakan nilai 1/2 sebagai patokan mental cepat untuk menaksir apakah suatu pecahan kurang dari atau lebih dari setengah.',
     prerequisites: ['math-frac-12-number-line-fractions', 'math-frac-16-comparing-same-denom'],
     explanationLevels: {
       concrete: 'Melihat gelas ukur: apakah air berada di bawah tanda setengah atau di atasnya.',
       visual: 'Titik 1/2 di garis bilangan bertindak sebagai mercusuar jangkar.',
       symbolic: '3/8 < 1/2 (karena setengah dari 8 adalah 4) dan 5/8 > 1/2.',
-      formal: 'Topologi metrik partisi interval [0, 1] melalui subinterval [0, 1/2) dan (1/2, 1].',
+      formal: 'Penaksiran dengan acuan 1/2: a/b < 1/2 jika a < b/2, dan a/b > 1/2 jika a > b/2.',
     },
     whyChain: [
       'Otak manusia memiliki intuisi cepat terhadap "separuh/setengah".',
@@ -538,6 +571,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.89,
     futureRelevance: 0.94,
+    activeSimulationId: 'bar_model',
   },
   {
     id: 'math-frac-19-common-denominator',
@@ -545,13 +579,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '7-9',
     developmentalStage: 'Operasional Konkret (7 - 9 Thn)',
+    assessmentModality: 'relational_manipulation',
     description: 'Mengubah dua pecahan berbeda penyebut menjadi pecahan ekuivalen berpenyebut sama agar memiliki unit ukuran seragam.',
     prerequisites: ['math-frac-14-multiplicative-scaling'],
     explanationLevels: {
       concrete: 'Memotong ulang loyang berisi potongan 1/2 dan loyang berisi 1/3 menjadi irisan per-enam yang sama kecil.',
       visual: 'Kisi persegi 2×3 yang membagi luas menjadi 6 petak bersama.',
       symbolic: '1/2 = 3/6 dan 1/3 = 2/6; penyebut bersama adalah 6.',
-      formal: 'Konstruksi kelipatan persekutuan terkecil lcm(b, d) sebagai penyebut kanonikal medan rasional.',
+      formal: 'Penyamaan penyebut pecahan a/b dan c/d menggunakan kelipatan persekutuan m = KPK(b, d) menghasilkan pecahan sejenis am/b dan cm/d.',
     },
     whyChain: [
       'Kita tidak bisa menjumlahkan atau membandingkan secara langsung hal yang satuannya berbeda.',
@@ -567,6 +602,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.93,
     futureRelevance: 0.97,
+    activeSimulationId: 'bar_model',
   },
 
   // =========================================================================
@@ -578,13 +614,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '7-9',
     developmentalStage: 'Operasional Konkret (7 - 9 Thn)',
+    assessmentModality: 'relational_manipulation',
     description: 'Menjumlahkan pembilang saat penyebut sudah sama, karena satuan unit potongannya identik.',
     prerequisites: ['math-frac-16-comparing-same-denom', 'math-frac-10-unit-building'],
     explanationLevels: {
       concrete: 'Menggabungkan 1 potong per-empat dan 2 potong per-empat menjadi 3 potong per-empat.',
       visual: 'Batang fraksi: 1 petak biru + 2 petak biru pada pita 4 petak = 3 petak terisi.',
       symbolic: '1/4 + 2/4 = (1 + 2)/4 = 3/4.',
-      formal: 'Sifat distributif perkalian terhadap penjumlahan skalar: a·(1/d) + b·(1/d) = (a + b)·(1/d).',
+      formal: 'Penjumlahan pecahan sejenis: a/d + c/d = (a + c)/d, di mana ukuran unit 1/d tetap dan pencacah dijumlahkan.',
     },
     whyChain: [
       'Penyebut adalah nama satuan unit (seperti apel); 1 per-empat + 2 per-empat = 3 per-empat.',
@@ -600,6 +637,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.92,
     futureRelevance: 0.96,
+    activeSimulationId: 'bar_model',
   },
   {
     id: 'math-frac-21-sub-same-denom',
@@ -607,13 +645,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '7-9',
     developmentalStage: 'Operasional Konkret (7 - 9 Thn)',
+    assessmentModality: 'relational_manipulation',
     description: 'Mengurangkan pembilang saat penyebut identik: menghitung sisa potongan unit yang tertinggal.',
     prerequisites: ['math-frac-20-add-same-denom'],
     explanationLevels: {
       concrete: 'Piring ada 5 potong kue per-enam, diambil 2 potong, tersisa 3 potong per-enam.',
       visual: 'Bar model dengan 5 petak berarsir, 2 petak dicoret silang.',
       symbolic: '5/6 - 2/6 = (5 - 2)/6 = 3/6 = 1/2.',
-      formal: 'Invers aditif pada modul fraksi: a/d - b/d = (a - b)/d.',
+      formal: 'Pengurangan pecahan sejenis: a/d - c/d = (a - c)/d untuk a ≥ c.',
     },
     whyChain: [
       'Pengurangan adalah operasi balikan dari penjumlahan pada unit yang sama.',
@@ -629,6 +668,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.90,
     futureRelevance: 0.94,
+    activeSimulationId: 'bar_model',
   },
   {
     id: 'math-frac-22-add-diff-denom',
@@ -636,13 +676,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '10-12',
     developmentalStage: 'Operasional Formal (10 - 12 Thn)',
+    assessmentModality: 'relational_manipulation',
     description: 'Menyelaraskan penyebut ke kelipatan bersama sebelum menjumlahkan pembilang.',
     prerequisites: ['math-frac-19-common-denominator', 'math-frac-20-add-same-denom'],
     explanationLevels: {
       concrete: 'Menggabungkan 1/2 gelas air dan 1/3 gelas air dengan menakar keduanya dalam satuan per-enam gelas.',
       visual: 'Mengubah balok 1/2 menjadi 3/6 dan balok 1/3 menjadi 2/6, lalu disatukan menjadi 5/6.',
       symbolic: '1/2 + 1/3 = 3/6 + 2/6 = 5/6.',
-      formal: 'a/b + c/d = (ad + bc)/(bd) sebagai hukum penjumlahan pada lapangan pecahan rasional Q.',
+      formal: 'Penjumlahan beda penyebut: konversi ke penyebut bersama bd menghasilkan a/b + c/d = (ad + bc)/(bd).',
     },
     whyChain: [
       'Tidak bisa menjumlahkan 1 meter dan 2 sentimeter menjadi 3 apa pun tanpa konversi satuan.',
@@ -666,13 +707,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '10-12',
     developmentalStage: 'Operasional Formal (10 - 12 Thn)',
+    assessmentModality: 'relational_manipulation',
     description: 'Mengurangkan dua pecahan berukuran partisi berbeda setelah keduanya dikonversi ke penyebut bersama.',
     prerequisites: ['math-frac-22-add-diff-denom', 'math-frac-21-sub-same-denom'],
     explanationLevels: {
       concrete: 'Punya 3/4 liter minyak, dituang 1/2 liter (2/4 liter) untuk memasak, bersisa 1/4 liter.',
       visual: 'Bar model 3/4 diiris menjadi per-delapan atau disejajarkan dengan bar 2/4.',
       symbolic: '3/4 - 1/2 = 3/4 - 2/4 = 1/4.',
-      formal: 'a/b - c/d = (ad - bc)/(bd).',
+      formal: 'Pengurangan beda penyebut: a/b - c/d = (ad - bc)/(bd) untuk ad ≥ bc.',
     },
     whyChain: [
       'Selisih hanya bermakna jika kedua kuantitas diukur dengan mistar bergaris ukur sama.',
@@ -688,6 +730,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.91,
     futureRelevance: 0.95,
+    activeSimulationId: 'number_line',
   },
   {
     id: 'math-frac-24-improper-fractions',
@@ -695,13 +738,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '7-9',
     developmentalStage: 'Operasional Konkret (7 - 9 Thn)',
+    assessmentModality: 'relational_manipulation',
     description: 'Pecahan di mana pembilang lebih besar dari penyebut, merepresentasikan kuantitas yang melampaui satu kesatuan utuh.',
     prerequisites: ['math-frac-11-fraction-one-whole', 'math-frac-12-number-line-fractions'],
     explanationLevels: {
       concrete: 'Membeli 5 potong pizza yang masing-masing berukuran 1/4 (dapat 1 pizza utuh + 1 potong sisa).',
       visual: 'Dua lingkaran penuh terbagi 4: satu lingkaran terarsir 4/4, lingkaran kedua terarsir 1/4 (total 5/4).',
       symbolic: '5/4 = 4/4 + 1/4 = 1 + 1/4.',
-      formal: 'Elemen q ∈ Q di mana |q| > 1.',
+      formal: 'Pecahan tidak murni a/b adalah bilangan rasional dengan pembilang a > b > 0 sehingga nilainya a/b > 1.',
     },
     whyChain: [
       'Pecahan tidak terbatas hanya pada angka kecil di bawah 1.',
@@ -717,6 +761,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.90,
     futureRelevance: 0.95,
+    activeSimulationId: 'number_line',
   },
   {
     id: 'math-frac-25-mixed-numbers',
@@ -724,13 +769,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '7-9',
     developmentalStage: 'Operasional Konkret (7 - 9 Thn)',
+    assessmentModality: 'relational_manipulation',
     description: 'Menuliskan kuantitas lebih dari satu sebagai kombinasi bilangan bulat dan pecahan murni (1 1/4).',
     prerequisites: ['math-frac-24-improper-fractions'],
     explanationLevels: {
       concrete: '1 buah apel utuh ditambah 1/2 apel yang dipotong.',
       visual: '1 lingkaran utuh penuh warna hijau berdampingan dengan setengah lingkaran.',
       symbolic: '1 1/2 = 1 + 1/2 = 3/2.',
-      formal: 'Dekomposisi bilangan rasional q ke fungsi lantai: q = ⌊q⌋ + {q}.',
+      formal: 'Bilangan campuran merepresentasikan q = n + a/b (dengan a < b) yang ditulis ringkas sebagai n a/b.',
     },
     whyChain: [
       'Di kehidupan nyata lebih mudah membayangkan "1 setengah loyang martabak" daripada "3 per dua loyang".',
@@ -746,6 +792,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.89,
     futureRelevance: 0.94,
+    activeSimulationId: 'bar_model',
   },
   {
     id: 'math-frac-26-mixed-operations',
@@ -753,13 +800,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '10-12',
     developmentalStage: 'Operasional Formal (10 - 12 Thn)',
+    assessmentModality: 'relational_manipulation',
     description: 'Menjumlahkan dan mengurangkan bilangan campuran termasuk meminjam 1 utuh menjadi pecahan (regrouping).',
     prerequisites: ['math-frac-25-mixed-numbers', 'math-frac-22-add-diff-denom'],
     explanationLevels: {
       concrete: 'Punya 3 loyang martabak, dimakan 1 1/4 loyang: potong 1 loyang utuh jadi 4/4 lalu ambil 1/4.',
       visual: 'Bar model dengan 3 balok utuh, memecah balok ke-3 menjadi 4 petak kecil sebelum dikurangkan.',
       symbolic: '3 - 1 1/4 = 2 4/4 - 1 1/4 = 1 3/4.',
-      formal: 'Aritmatika bilangan rasional campuran melalui representasi basis campuran.',
+      formal: 'Operasi campuran: n a/b ± m c/d dilakukan dengan memisahkan bagian bulat (n ± m) dan menyelaraskan bagian pecahan (a/b ± c/d).',
     },
     whyChain: [
       'Sama seperti pengurangan bilangan bulat meminjam puluhan, pecahan meminjam 1 utuh senilai n/n.',
@@ -775,6 +823,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.88,
     futureRelevance: 0.93,
+    activeSimulationId: 'bar_model',
   },
 
   // =========================================================================
@@ -786,13 +835,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '7-9',
     developmentalStage: 'Operasional Konkret (7 - 9 Thn)',
+    assessmentModality: 'relational_manipulation',
     description: 'Mengalikan bilangan bulat dengan pecahan sebagai penjumlahan berulang pecahan satuan (4 × 1/3 = 4/3).',
     prerequisites: ['math-frac-20-add-same-denom'],
     explanationLevels: {
       concrete: '4 anak masing-masing memegang 1/3 loyang pizza: kumpulkan semua potongan pizza ke satu meja.',
       visual: '4 strip balok berukuran 1/3 yang disusun berjejer membentuk panjang 4/3 (1 1/3).',
       symbolic: '4 × 1/3 = 1/3 + 1/3 + 1/3 + 1/3 = 4/3.',
-      formal: 'Aksi skalar bilangan bulat Z atas modul fraksi Q.',
+      formal: 'Perkalian bulat dengan pecahan: k × (a/b) = (k × a)/b, menyatakan penjumlahan pecahan a/b sebanyak k kali.',
     },
     whyChain: [
       'Perkalian bilangan bulat pada dasarnya adalah pengulangan kuantitas yang identik.',
@@ -808,6 +858,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.91,
     futureRelevance: 0.96,
+    activeSimulationId: 'bar_model',
   },
   {
     id: 'math-frac-28-fraction-of-quantity',
@@ -815,13 +866,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '7-9',
     developmentalStage: 'Operasional Konkret (7 - 9 Thn)',
+    assessmentModality: 'relational_manipulation',
     description: 'Memahami kata "dari" sebagai operator multiplikatif: 3/4 dari 20 = (20 ÷ 4) × 3 = 15.',
     prerequisites: ['math-frac-27-whole-times-fraction', 'math-frac-04-fraction-of-set'],
     explanationLevels: {
       concrete: 'Ada 20 kelereng, bagi ke 4 wadah sama rata (dapat 5 per wadah), ambil 3 wadah (15 kelereng).',
       visual: 'Bar model panjang total 20 dibagi 4 kotak (masing-masing 5), arsir 3 kotak.',
       symbolic: '3/4 × 20 = (20 / 4) × 3 = 15.',
-      formal: 'Operator linier penskalaan f(x) = (a/b) · x pada ruang vektor 1D.',
+      formal: 'Operasi (a/b) dari Q dihitung sebagai (Q ÷ b) × a atau (a × Q) ÷ b.',
     },
     whyChain: [
       'Pecahan berperan ganda: sebagai objek bilangan dan sebagai operator penskala aksi.',
@@ -837,6 +889,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.93,
     futureRelevance: 0.97,
+    activeSimulationId: 'bar_model',
   },
   {
     id: 'math-frac-29-fraction-times-fraction',
@@ -844,13 +897,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '10-12',
     developmentalStage: 'Operasional Formal (10 - 12 Thn)',
+    assessmentModality: 'socratic_feynman',
     description: 'Mengalikan pecahan dengan pecahan sebagai mencari luas persegi panjang berukuran panjang a/b dan lebar c/d.',
     prerequisites: ['math-frac-28-fraction-of-quantity'],
     explanationLevels: {
       concrete: 'Melipat kertas menjadi 1/2 secara vertikal, lalu melipat lagi 1/3 secara horizontal: arsir sudut pertemuannya.',
       visual: 'Persegi 1×1 dibagi 2 kolom vertikal dan 3 baris horizontal, membentuk 6 petak; 1 petak mewakili 1/6.',
       symbolic: '1/2 × 1/3 = (1×1)/(2×3) = 1/6; a/b × c/d = (ac)/(bd).',
-      formal: 'Definisi perkalian pada medan rasional Q melalui produk langsung kisi berukuran b × d.',
+      formal: 'Perkalian dua pecahan: (a/b) × (c/d) = (a × c)/(b × d), merepresentasikan luas perpotongan partisi kisi dua dimensi.',
     },
     whyChain: [
       'Penyebut dikalikan penyebut karena kisi partisi terbelah dua arah membentuk petak yang lebih kecil.',
@@ -866,6 +920,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.95,
     futureRelevance: 0.99,
+    activeSimulationId: 'bar_model',
   },
   {
     id: 'math-frac-30-multiplication-scaling',
@@ -873,13 +928,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '10-12',
     developmentalStage: 'Operasional Formal (10 - 12 Thn)',
+    assessmentModality: 'socratic_feynman',
     description: 'Membongkar miskonsepsi SD bahwa "perkalian selalu memperbesar angka"; mengalikan dengan pecahan murni justru menyusutkan nilai.',
     prerequisites: ['math-frac-29-fraction-times-fraction'],
     explanationLevels: {
       concrete: 'Resep miniatur: patung setinggi 10 cm dibuat skala 1/2 menghasilkan patung 5 cm yang lebih pendek.',
       visual: 'Garis bilangan: 1/2 × 8 melompat ke titik 4 (mundur mendekati 0 dibanding 8).',
       symbolic: 'Jika 0 < k < 1, maka k × x < x untuk setiap x > 0.',
-      formal: 'Kontraksi pemetaan (contraction mapping) dengan faktor Lipschitz k < 1.',
+      formal: 'Sifat penskalaan pecahan: jika 0 < k < 1 maka k × x < x untuk setiap x > 0.',
     },
     whyChain: [
       'Perkalian dengan faktor > 1 memperbesar; perkalian dengan faktor = 1 mempertahankan; perkalian dengan faktor < 1 menyusutkan.',
@@ -895,6 +951,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.94,
     futureRelevance: 0.98,
+    activeSimulationId: 'bar_model',
   },
   {
     id: 'math-frac-31-division-measurement',
@@ -902,13 +959,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '10-12',
     developmentalStage: 'Operasional Formal (10 - 12 Thn)',
+    assessmentModality: 'socratic_feynman',
     description: 'Memahami pembagian sebagai pengukuran: berapa banyak porsi ukuran c/d yang muat ke dalam a/b.',
     prerequisites: ['math-frac-30-multiplication-scaling'],
     explanationLevels: {
       concrete: 'Kamu punya 2 loyang pizza. Setiap anak makan 1/2 loyang. Berapa anak yang bisa makan? Ada 4 anak!',
       visual: '2 batang balok utuh dipotong-potong per-setengah: hitung ada 4 segmen.',
       symbolic: '2 ÷ 1/2 = 4 (bukan 1).',
-      formal: 'Pembagian pengukuran kuosien kardinalitas pada interval Euclidean: len(A) / len(B).',
+      formal: 'Pembagian ukuran A ÷ B mencari kelipatan q sedemikian hingga B × q = A; jika pembagi B < 1 maka hasil q > A.',
     },
     whyChain: [
       'Membagi dengan pecahan kecil menghasilkan jawaban besar karena ukuran porsinya sangat kecil.',
@@ -924,6 +982,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.93,
     futureRelevance: 0.98,
+    activeSimulationId: 'bar_model',
   },
   {
     id: 'math-frac-32-division-partition',
@@ -931,13 +990,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '10-12',
     developmentalStage: 'Operasional Formal (10 - 12 Thn)',
+    assessmentModality: 'socratic_feynman',
     description: 'Membagi pecahan yang ada kepada sejumlah penerima bilangan bulat: 1/2 loyang dibagi ke 3 orang = 1/6 loyang per orang.',
     prerequisites: ['math-frac-31-division-measurement'],
     explanationLevels: {
       concrete: 'Ada sisa 1/2 kue tart di kulkas, dibagi rata untuk 3 bersaudara.',
       visual: 'Ambil diagram 1/2 lingkaran lalu bagi menjadi 3 juring sama rata: tiap anak dapat 1/6 lingkaran utuh.',
       symbolic: '1/2 ÷ 3 = 1/2 × 1/3 = 1/6.',
-      formal: 'Dualitas pembagian partisi: x/n = x · (1/n).',
+      formal: 'Pembagian partisi (a/b) ÷ n membagi porsi ke n penerima sama banyak: (a/b) ÷ n = a / (b × n) = (a/b) × (1/n).',
     },
     whyChain: [
       'Ketika sebagian barang dibagi lagi ke banyak orang, tiap orang pasti mendapat bagian yang makin mungil.',
@@ -953,6 +1013,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.89,
     futureRelevance: 0.95,
+    activeSimulationId: 'bar_model',
   },
   {
     id: 'math-frac-33-reciprocal-inverse',
@@ -960,13 +1021,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '10-12',
     developmentalStage: 'Operasional Formal (10 - 12 Thn)',
+    assessmentModality: 'socratic_feynman',
     description: 'Menyingkap alasan matematika di balik trik mekanis "membalik pecahan dan mengalikan": (a/b) ÷ (c/d) = (a/b) × (d/c).',
     prerequisites: ['math-frac-31-division-measurement', 'math-frac-32-division-partition'],
     explanationLevels: {
       concrete: 'Membagi dengan 1/4 menghasilkan 4 kali lipat banyaknya potongan.',
       visual: 'Pecahan bertingkat (a/b) / (c/d) dikalikan (d/c)/(d/c) pada pembilang dan penyebut hingga penyebut bawahnya bernilai 1.',
       symbolic: '(a/b) ÷ (c/d) = [(a/b) × (d/c)] / [(c/d) × (d/c)] = [(a/b) × (d/c)] / 1 = (ad)/(bc).',
-      formal: 'Sifat elemen invers multiplikatif medan Q: pembagian didefinisikan sebagai x · y^(-1).',
+      formal: 'Balikan perkalian (reciprocal) dari c/d adalah d/c karena (c/d) × (d/c) = 1; sehingga (a/b) ÷ (c/d) = (a/b) × (d/c).',
     },
     whyChain: [
       'Aturan "kali kebalikan" bukan sihir hafalan tanpa dasar.',
@@ -982,6 +1044,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.96,
     futureRelevance: 0.99,
+    activeSimulationId: 'number_line',
   },
 
   // =========================================================================
@@ -993,13 +1056,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '7-9',
     developmentalStage: 'Operasional Konkret (7 - 9 Thn)',
+    assessmentModality: 'relational_manipulation',
     description: 'Memperluas nilai tempat basis sepuluh ke kanan tanda koma: 0.1 adalah 1/10 dan 0.01 adalah 1/100.',
     prerequisites: ['math-frac-12-number-line-fractions'],
     explanationLevels: {
       concrete: 'Uang koin: 1 rupiah, uang 10 sen (0.1), dan uang 1 sen (0.01).',
       visual: 'Papan petak seratus (10×10): 1 kolom penuh bernilai 0.1, 1 kotak kecil bernilai 0.01.',
       symbolic: '0.1 = 1/10; 0.01 = 1/100; 0.25 = 2/10 + 5/100 = 25/100.',
-      formal: 'Ekspansi deret basis 10 negatif: ∑_{i=1}^k d_i · 10^(-i).',
+      formal: 'Notasi desimal berakar pada sistem nilai tempat desimal: 0.a = a/10 dan 0.ab = a/10 + b/100 = (10a + b)/100.',
     },
     whyChain: [
       'Sistem desimal adalah pecahan khusus yang penyebutnya selalu kelipatan sepuluh (10, 100, 1000).',
@@ -1015,6 +1079,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.92,
     futureRelevance: 0.97,
+    activeSimulationId: 'number_line',
   },
   {
     id: 'math-dec-35-fraction-decimal-link',
@@ -1022,13 +1087,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '7-9',
     developmentalStage: 'Operasional Konkret (7 - 9 Thn)',
+    assessmentModality: 'relational_manipulation',
     description: 'Mengubah pecahan menjadi desimal melalui pembagian atau ekuivalensi penyebut 10/100 (1/2 = 0.5, 1/4 = 0.25).',
     prerequisites: ['math-dec-34-tenths-hundredths', 'math-frac-14-multiplicative-scaling'],
     explanationLevels: {
       concrete: 'Membelah 1 uang kertas bernilai 100 rupiah menjadi 4 bagian masing-masing bernilai 25 rupiah (0.25).',
       visual: 'Garis bilangan ganda: sisi atas berlabel 1/4, 1/2, 3/4; sisi bawah berlabel 0.25, 0.50, 0.75.',
       symbolic: '1/4 = (1×25)/(4×25) = 25/100 = 0.25.',
-      formal: 'Isomorfisme representasi antara elemen medan rasional Q dan bilangan desimal berulang/berakhir.',
+      formal: 'Konversi pecahan ke desimal: a/b dikonversi dengan membagi a oleh b atau membentuk pecahan sejenis berpenyebut 10^k.',
     },
     whyChain: [
       'Pecahan dan desimal hanyalah dua dialek bahasa yang menceritakan besaran kuantitas yang persis sama.',
@@ -1044,6 +1110,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.91,
     futureRelevance: 0.96,
+    activeSimulationId: 'number_line',
   },
   {
     id: 'math-dec-36-comparing-decimals',
@@ -1051,13 +1118,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '7-9',
     developmentalStage: 'Operasional Konkret (7 - 9 Thn)',
+    assessmentModality: 'relational_manipulation',
     description: 'Membandingkan desimal berdasarkan nilai tempat paling kiri, bukan panjangnya digit karakter (0.4 > 0.35).',
     prerequisites: ['math-dec-34-tenths-hundredths'],
     explanationLevels: {
       concrete: 'Timbangan digital: beban 0.4 kg lebih berat daripada beban 0.35 kg.',
       visual: 'Papan petak seratus: 4 kolom penuh (40 kotak) lebih luas daripada 3 kolom + 5 kotak (35 kotak).',
       symbolic: '0.4 = 0.40 > 0.35.',
-      formal: 'Urutan leksikografis standar pada ruang deret desimal terurut.',
+      formal: 'Perbandingan desimal dilakukan dari nilai tempat tertinggi ke terendah: 0.40 > 0.35 karena 4 per-sepuluhan > 3 per-sepuluhan.',
     },
     whyChain: [
       'Pada bilangan bulat angka lebih panjang bernilai lebih besar (35 > 4).',
@@ -1073,6 +1141,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.90,
     futureRelevance: 0.95,
+    activeSimulationId: 'number_line',
   },
   {
     id: 'math-pct-37-percentage-per-hundred',
@@ -1080,13 +1149,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '10-12',
     developmentalStage: 'Operasional Formal (10 - 12 Thn)',
+    assessmentModality: 'socratic_feynman',
     description: 'Memahami persen (%) secara harfiah sebagai "persen = per-seratus" dengan standar acuan 100.',
     prerequisites: ['math-dec-34-tenths-hundredths'],
     explanationLevels: {
       concrete: 'Baterai ponsel terisi 50%: setengah kapasitas baterai penuh.',
       visual: 'Kisi petak 10×10 (100 petak): mewarnai 25 petak berarti 25%.',
       symbolic: 'p% = p/100 = 0.0p.',
-      formal: 'Penskalaan rasio termormalisasi ke modulus 100.',
+      formal: 'Persen didefinisikan sebagai perbandingan dengan acuan penyebut tetap 100: p% = p/100.',
     },
     whyChain: [
       'Manusia kesulitan membandingkan pecahan berpenyebut aneh (17/43 vs 29/71).',
@@ -1102,6 +1172,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.92,
     futureRelevance: 0.97,
+    activeSimulationId: 'bar_model',
   },
   {
     id: 'math-pct-38-percent-frac-dec-triangle',
@@ -1109,13 +1180,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '10-12',
     developmentalStage: 'Operasional Formal (10 - 12 Thn)',
+    assessmentModality: 'socratic_feynman',
     description: 'Transformasi bebas tanpa hambatan antara representasi pecahan, desimal, dan persentase (1/2 ↔ 0.5 ↔ 50%).',
     prerequisites: ['math-pct-37-percentage-per-hundred', 'math-dec-35-fraction-decimal-link'],
     explanationLevels: {
       concrete: 'Diskon 50% di toko = bayar setengah harga = bayar 0.5 dari harga normal.',
       visual: 'Diagram segitiga tiga sudut dengan panah bolak-balik: Pecahan (3/4), Desimal (0.75), Persen (75%).',
       symbolic: '3/4 = 75/100 = 0.75 = 75%.',
-      formal: 'Transformasi koordinat identik pada aljabar representasi Q.',
+      formal: 'Segitiga kesetaraan rasional: nilai kuantitas sama dapat diekspresikan sebagai pecahan a/b, desimal d, atau persentase p%.',
     },
     whyChain: [
       'Kelenturan representasi kognitif (Bruner) memungkinkan otak memilih bentuk termudah untuk masalah tertentu.',
@@ -1131,6 +1203,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.93,
     futureRelevance: 0.98,
+    activeSimulationId: 'bar_model',
   },
   {
     id: 'math-pct-39-percent-of-number',
@@ -1138,13 +1211,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '10-12',
     developmentalStage: 'Operasional Formal (10 - 12 Thn)',
+    assessmentModality: 'socratic_feynman',
     description: 'Menghitung nilai riil dari persentase: 20% dari 150.000 rupiah = (20/100) × 150.000 = 30.000 rupiah.',
     prerequisites: ['math-pct-38-percent-frac-dec-triangle', 'math-frac-28-fraction-of-quantity'],
     explanationLevels: {
       concrete: 'Menghitung potongan diskon belanja di kasir toko buku.',
       visual: 'Bar model 100% senilai 150.000, dipecah menjadi 5 blok 20% yang masing-masing bernilai 30.000.',
       symbolic: 'Nilai = (P / 100) × Total.',
-      formal: 'Aplikasi fungsional linier f(x) = c · x dengan koefisien skalar rasional.',
+      formal: 'Perhitungan persentase kuantitas: p% dari W = (p / 100) × W.',
     },
     whyChain: [
       'Ini adalah literasi finansial paling dasar di dunia nyata (pajak, bunga, diskon).',
@@ -1160,6 +1234,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.91,
     futureRelevance: 0.96,
+    activeSimulationId: 'bar_model',
   },
 
   // =========================================================================
@@ -1171,13 +1246,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '10-12',
     developmentalStage: 'Operasional Formal (10 - 12 Thn)',
+    assessmentModality: 'socratic_feynman',
     description: 'Membedakan rasio yang membandingkan dua bagian terpisah (2 sirup : 3 air) dengan pecahan bagian terhadap total (2 sirup dari 5 total minuman).',
     prerequisites: ['math-frac-01-part-whole'],
     explanationLevels: {
       concrete: 'Membuat minuman sirup: 2 sendok sirup dicampur 3 gelas air.',
       visual: 'Bar model: 2 kotak merah (sirup) dan 3 kotak biru (air), total panjang 5 kotak.',
       symbolic: 'Rasio sirup : air = 2 : 3. Fraksi sirup = 2/5 dari total campuran.',
-      formal: 'Karakterisasi proyektif ruang afin: koordinat homogen [x : y] vs afinitas x/(x+y).',
+      formal: 'Rasio a : b membandingkan dua bagian mandiri; bagian a terhadap total keseluruhan adalah a / (a + b).',
     },
     whyChain: [
       'Pecahan biasa biasanya bagian terhadap utuh (part-to-whole).',
@@ -1193,6 +1269,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.92,
     futureRelevance: 0.97,
+    activeSimulationId: 'bar_model',
   },
   {
     id: 'math-rat-41-multiplicative-thinking',
@@ -1200,13 +1277,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '10-12',
     developmentalStage: 'Operasional Formal (10 - 12 Thn)',
+    assessmentModality: 'socratic_feynman',
     description: 'Menjaga invarian rasio dengan mengalikan skala, bukan menambahkan angka yang sama ke kedua kuantitas.',
     prerequisites: ['math-rat-40-ratio-part-to-part', 'math-frac-14-multiplicative-scaling'],
     explanationLevels: {
       concrete: 'Cat ungu dibuat dari 2 kaleng merah dan 3 kaleng biru. Untuk membuat porsi dua kali lipat butuh 4 merah dan 6 biru.',
       visual: 'Tabel perbandingan dua kolom yang dikalikan pengali k yang sama.',
       symbolic: 'a : b = (a × k) : (b × k); 2 : 3 = 4 : 6 (bukan 4 : 5).',
-      formal: 'Grup aksi skalar multiplikatif pada sinar ruang vektor real R+.',
+      formal: 'Rasio a : b setara dengan (a × k) : (b × k) untuk k > 0; penambahan skalar a + c : b + c merusak kesetaraan rasio.',
     },
     whyChain: [
       'Kepekatan rasa sirup atau warna cat adalah sifat intensif yang tidak bergantung pada volume total.',
@@ -1222,6 +1300,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.94,
     futureRelevance: 0.98,
+    activeSimulationId: 'bar_model',
   },
   {
     id: 'math-rat-42-ratio-tables',
@@ -1229,13 +1308,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '10-12',
     developmentalStage: 'Operasional Formal (10 - 12 Thn)',
+    assessmentModality: 'socratic_feynman',
     description: 'Menyusun tabel rasio dua baris untuk mencari kuantitas yang tidak diketahui secara fleksibel melalui kelipatan bertahap.',
     prerequisites: ['math-rat-41-multiplicative-thinking'],
     explanationLevels: {
       concrete: 'Resep kue untuk 4 orang butuh 200 gram terigu. Jika untuk 12 orang butuh berapa gram terigu?',
       visual: 'Tabel dua baris dengan panah pengali ×3 di atas dan di bawah.',
       symbolic: 'Orang: [4, 8, 12]; Terigu: [200, 400, 600].',
-      formal: 'Pemetaan tabel linier T: V → W yang melestarikan operasi ruang vektor.',
+      formal: 'Tabel rasio menyusun baris koordinat terhubung (x, y) di mana rasio y/x bernilai konstan untuk setiap kolom.',
     },
     whyChain: [
       'Tabel rasio mencegah kesalahan perhitungan acak dan memberi rekam jejak penalaran eksplisit.',
@@ -1251,6 +1331,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.89,
     futureRelevance: 0.94,
+    activeSimulationId: 'number_line',
   },
   {
     id: 'math-rat-43-unit-rate',
@@ -1258,13 +1339,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '10-12',
     developmentalStage: 'Operasional Formal (10 - 12 Thn)',
+    assessmentModality: 'socratic_feynman',
     description: 'Menghitung nilai per 1 satuan kuantitas dasar untuk mempermudah perbandingan harga dan kecepatan.',
     prerequisites: ['math-rat-42-ratio-tables'],
     explanationLevels: {
       concrete: 'Membeli paket 5 buku seharga 50.000 rupiah: 1 buku berharga 10.000 rupiah.',
       visual: 'Grafik garis lurus jarak vs waktu, kemiringan garis menunjukkan kecepatan per jam.',
       symbolic: 'Unit Rate = Total Besaran / Total Satuan = 120 km / 2 jam = 60 km/jam.',
-      formal: 'Turunan rata-rata diferensial Δy / Δx pada interval waktu diskret.',
+      formal: 'Laju satuan r menyatakan rasio kuantitas y per satu satuan kuantitas x: r = y / x.',
     },
     whyChain: [
       'Laju satuan adalah jembatan paling kokoh dari aritmatika menuju konsep kemiringan garis (gradien aljabar).',
@@ -1280,6 +1362,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.93,
     futureRelevance: 0.98,
+    activeSimulationId: 'bar_model',
   },
   {
     id: 'math-rat-44-proportional-reasoning',
@@ -1287,13 +1370,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '10-12',
     developmentalStage: 'Operasional Formal (10 - 12 Thn)',
+    assessmentModality: 'socratic_feynman',
     description: 'Menyelesaikan persamaan proporsi a/b = c/d dan memahami mengapa perkalian silang a·d = b·c bekerja secara logis.',
     prerequisites: ['math-rat-43-unit-rate', 'math-frac-14-multiplicative-scaling'],
     explanationLevels: {
       concrete: 'Miniatur mobil mainan panjang 5 cm mewakili mobil asli 200 cm. Jika pintu miniatur 1 cm, berapa pintu asli?',
       visual: 'Dua segitiga sebangun dengan rasio sisi yang identik.',
       symbolic: 'a/b = c/d ➔ kedua ruas dikali (b·d) ➔ a·d = b·c.',
-      formal: 'Solusi persamaan proporsionalitas pada medan pecahan: penentuan determinan matriks 2×2 ad - bc = 0.',
+      formal: 'Proporsi a/b = c/d menghasilkan persamaan perkalian silang a·d = b·c melalui pengalian kedua ruas dengan penyebut bersama bd.',
     },
     whyChain: [
       'Perkalian silang bukan rumus ajaib tanpa alasan.',
@@ -1309,6 +1393,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.95,
     futureRelevance: 0.99,
+    activeSimulationId: 'number_line',
   },
   {
     id: 'math-rat-45-constant-proportionality',
@@ -1316,13 +1401,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '10-12',
     developmentalStage: 'Operasional Formal (10 - 12 Thn)',
+    assessmentModality: 'socratic_feynman',
     description: 'Menghubungkan rasio dengan fungsi aljabar: rasio tetap k yang menghubungkan variabel masukan x dan keluaran y.',
     prerequisites: ['math-rat-44-proportional-reasoning'],
     explanationLevels: {
       concrete: 'Tarif taksi: setiap 1 kilometer perjalanan membayar 5.000 rupiah. Biaya = 5.000 × kilometer.',
       visual: 'Grafik garis lurus melalui titik pusat asal (0, 0) dengan kecuraman gradien k.',
       symbolic: 'y = kx di mana k = y/x adalah konstanta proporsionalitas.',
-      formal: 'Fungsi linear homogen f: R → R di bawah grup transformasi dilatasi.',
+      formal: 'Hubungan proporsional dinyatakan dalam persamaan aljabar y = kx, di mana k = y/x adalah konstanta proporsionalitas.',
     },
     whyChain: [
       'Konstanta proporsionalitas adalah jembatan langsung dari rasio SD menuju fungsi linear SMP/SMA.',
@@ -1338,6 +1424,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.94,
     futureRelevance: 0.99,
+    activeSimulationId: 'qualitative_balance',
   },
 
   // =========================================================================
@@ -1349,13 +1436,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '10-12',
     developmentalStage: 'Operasional Formal (10 - 12 Thn)',
+    assessmentModality: 'socratic_feynman',
     description: 'Membongkar miskonsepsi bahwa "=" berarti "tulis jawabannya sekarang"; tanda = adalah neraca kesetaraan dua ruas.',
     prerequisites: ['math-frac-11-fraction-one-whole'],
     explanationLevels: {
       concrete: 'Timbangan dua lengan: sisi kiri ada 7 kelereng, sisi kanan ada 3 kelereng + 4 kelereng; neraca sejajar seimbang.',
       visual: 'Simbol neraca dengan piringan kiri dan kanan yang harus bernilai total identik.',
       symbolic: '8 + 4 = □ + 5 (jawabannya 7, bukan 12).',
-      formal: 'Relasi ekuivalensi yang memenuhi sifat refleksif, simetris, dan transitif.',
+      formal: 'Simbol "=" menyatakan relasi kesetaraan simetris: ruas kiri dan ruas kanan mewakili nilai kuantitas yang bernilai identik (A = B).',
     },
     whyChain: [
       'Di kalkulator "=" berarti tombol eksekusi; di matematika sejati "=" adalah pernyataan hubungan kesetaraan statis.',
@@ -1371,7 +1459,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.96,
     futureRelevance: 1.0,
-    activeSimulationId: 'qualitative_balance',
+    activeSimulationId: 'bar_model',
   },
   {
     id: 'math-alg-47-bar-model-algebra',
@@ -1379,13 +1467,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '10-12',
     developmentalStage: 'Operasional Formal (10 - 12 Thn)',
+    assessmentModality: 'socratic_feynman',
     description: 'Menggunakan balok visual panjang untuk merepresentasikan variabel x yang belum diketahui nilainya.',
     prerequisites: ['math-alg-46-relational-equals'],
     explanationLevels: {
       concrete: 'Balok kayu panjang bertanda tanya disandingkan dengan balok angka 3 membentuk panjang balok 10.',
       visual: 'Bar model horizontal: balok x + balok 3 = balok total 10.',
       symbolic: 'x + 3 = 10 ➔ x = 10 - 3 = 7.',
-      formal: 'Partisi interval relasional affine 1D.',
+      formal: 'Representasi aljabar batang: kuantitas tidak diketahui x diposisikan dalam relasi panjang balok x + a = b sehingga x = b - a.',
     },
     whyChain: [
       'Anak tidak takut pada gambar balok, tetapi sering kali takut pada huruf x.',
@@ -1401,7 +1490,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.92,
     futureRelevance: 0.97,
-    activeSimulationId: 'bar_model',
+    activeSimulationId: 'qualitative_balance',
   },
   {
     id: 'math-alg-48-balance-scale-unknown',
@@ -1409,13 +1498,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '10-12',
     developmentalStage: 'Operasional Formal (10 - 12 Thn)',
+    assessmentModality: 'socratic_feynman',
     description: 'Menemukan berat kantong misteri x dengan membuang beban yang sama dari kedua piringan neraca.',
     prerequisites: ['math-alg-47-bar-model-algebra'],
     explanationLevels: {
       concrete: 'Di piringan kiri ada 1 kantong kelereng (x) dan 2 kelereng lepas. Di kanan ada 6 kelereng lepas. Ambil 2 dari kiri dan 2 dari kanan.',
       visual: 'Simulasi timbangan digital interaktif dengan tombol "buang beban bersama".',
       symbolic: 'x + 2 = 6 ➔ (x + 2) - 2 = 6 - 2 ➔ x = 4.',
-      formal: 'Transformasi invarian invarian grup aditif: f(x) = g(x) ⇔ f(x) - c = g(x) - c.',
+      formal: 'Invarian kesetaraan neraca: jika A = B, maka A - c = B - c untuk sembarang kuantitas c yang sama di kedua piringan.',
     },
     whyChain: [
       'Apapun perlakuan pada piringan kiri harus dilakukan persis sama pada piringan kanan agar keseimbangan tetap terjaga.',
@@ -1431,7 +1521,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.95,
     futureRelevance: 0.99,
-    activeSimulationId: 'bar_model',
+    activeSimulationId: 'qualitative_balance',
   },
   {
     id: 'math-alg-49-one-step-addition',
@@ -1439,13 +1529,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '10-12',
     developmentalStage: 'Operasional Formal (10 - 12 Thn)',
+    assessmentModality: 'socratic_feynman',
     description: 'Menyelesaikan x + a = b atau x - a = b dengan melakukan operasi balikan (inverse operation) di kedua ruas.',
     prerequisites: ['math-alg-48-balance-scale-unknown'],
     explanationLevels: {
       concrete: 'Membuka ikatan tali: jika x diikat dengan tambahan 5, lepaskan dengan mengurangkan 5.',
       visual: 'Diagram panah alir maju dan alir mundur: [x] --(+5)--> [12] ➔ [12] --(-5)--> [7].',
       symbolic: 'x + 5 = 12 ➔ x = 12 - 5 = 7; y - 4 = 9 ➔ y = 9 + 4 = 13.',
-      formal: 'Aplikasi elemen invers aditif -a pada grup Abel (R, +).',
+      formal: 'Menyelesaikan x + a = b dilakukan dengan menambahkan balikan aditif (-a) pada kedua ruas: (x + a) - a = b - a ➔ x = b - a.',
     },
     whyChain: [
       'Operasi penjumlahan dibatalkan dengan pengurangan; operasi pengurangan dibatalkan dengan penjumlahan.',
@@ -1461,6 +1552,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.94,
     futureRelevance: 0.99,
+    activeSimulationId: 'qualitative_balance',
   },
   {
     id: 'math-alg-50-one-step-multiplication',
@@ -1468,13 +1560,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '10-12',
     developmentalStage: 'Operasional Formal (10 - 12 Thn)',
+    assessmentModality: 'socratic_feynman',
     description: 'Menyelesaikan ax = b atau x/a = b dengan membagi atau mengalikan kedua ruas dengan koefisien yang sama.',
     prerequisites: ['math-alg-49-one-step-addition'],
     explanationLevels: {
       concrete: '3 kantong misteri identik (3x) beratnya 15 kg. Berarti 1 kantong beratnya 15 dibagi 3 = 5 kg.',
       visual: 'Bar model dengan 3 kotak berlabel x yang panjang totalnya 15.',
       symbolic: '3x = 15 ➔ (3x)/3 = 15/3 ➔ x = 5; x/4 = 3 ➔ x = 3 × 4 = 12.',
-      formal: 'Aplikasi elemen invers perkalian a^(-1) pada lapangan F.',
+      formal: 'Menyelesaikan ax = b (a ≠ 0) dilakukan dengan mengalikan kedua ruas dengan balikan perkalian (1/a): x = b/a.',
     },
     whyChain: [
       'Perkalian dibatalkan dengan pembagian; pembagian dibatalkan dengan perkalian.',
@@ -1490,6 +1583,7 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.93,
     futureRelevance: 0.98,
+    activeSimulationId: 'bar_model',
   },
   {
     id: 'math-alg-51-two-step-linear',
@@ -1497,13 +1591,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '10-12',
     developmentalStage: 'Operasional Formal (10 - 12 Thn)',
+    assessmentModality: 'socratic_feynman',
     description: 'Menyelesaikan ax + b = c secara sistematis dengan membatalkan penjumlahan/pengurangan terlebih dahulu, baru kemudian membatalkan perkalian.',
     prerequisites: ['math-alg-50-one-step-multiplication'],
     explanationLevels: {
       concrete: 'Membongkar kado berlapis: lepas pita luar (+b) dulu sebelum membuka bungkus kotak dalam (ax).',
       visual: 'Diagram alur mundur: [x] --(×2)--> [2x] --(+3)--> [11] ➔ mundur: (11 - 3) = 8, lalu 8 ÷ 2 = 4.',
       symbolic: '2x + 3 = 11 ➔ 2x = 11 - 3 = 8 ➔ x = 8 / 2 = 4.',
-      formal: 'Inversi komposisi pemetaan afin tak-singular f(x) = ax + b: f^(-1)(c) = a^(-1)(c - b).',
+      formal: 'Menyelesaikan ax + b = c: pertama kurangkan b dari kedua ruas (ax = c - b), lalu bagi dengan koefisien a menghasilkan x = (c - b)/a.',
     },
     whyChain: [
       'Urutan operasi balikan membalik urutan PEMDAS (KABATAKU mundur).',
@@ -1527,13 +1622,14 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     domain: 'Matematika',
     ageBracket: '10-12',
     developmentalStage: 'Operasional Formal (10 - 12 Thn)',
+    assessmentModality: 'socratic_feynman',
     description: 'Mengumpulkan suku sejenis bervariabel ke satu ruas dan konstanta ke ruas lain, serta menguraikan kurung a(x + b).',
     prerequisites: ['math-alg-51-two-step-linear'],
     explanationLevels: {
       concrete: 'Dua timbangan: di kiri ada 3 kantong x dan 2 batu; di kanan ada 1 kantong x dan 8 batu. Buang 1 kantong x dari kedua piringan!',
       visual: 'Bar model ganda dengan ruas kiri dan ruas kanan disejajarkan untuk melihat selisih kotak x.',
       symbolic: '3x + 2 = x + 8 ➔ 3x - x = 8 - 2 ➔ 2x = 6 ➔ x = 3; 2(x + 3) = 2x + 6.',
-      formal: 'Teorema struktur gelanggang komutatif dengan sifat distributif perkalian terhadap penjumlahan.',
+      formal: 'Sifat distributif a(x + b) = ax + ab; persamaan ax + b = cx + d diselesaikan dengan mengelompokkan suku variabel: (a - c)x = d - b.',
     },
     whyChain: [
       'Variabel x adalah kuantitas nyata yang bisa digabungkan atau dikurangkan sesama suku x.',

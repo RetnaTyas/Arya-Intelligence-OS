@@ -1,4 +1,5 @@
 import {
+  AssessmentModality,
   FeynmanDiagnosisResult,
   LearnerNodeState,
   MasteryHierarchy,
@@ -103,9 +104,31 @@ export function triangulateEvidence(
     childUtteranceWordCount?: number;
     parentAudit?: ParentAuditAssessment;
     parentCalibration?: ParentCalibrationSettings;
+    assessmentModality?: AssessmentModality;
   } = {}
 ): TriangulatedAssessmentResult {
-  const weights = options.customWeights || DEFAULT_TRIANGULATION_WEIGHTS;
+  const modality = options.assessmentModality || 'socratic_feynman';
+  
+  // Penyesuaian bobot otomatis berdasarkan modalitas usia anak (Developmental Alignment)
+  let weights = options.customWeights || DEFAULT_TRIANGULATION_WEIGHTS;
+  if (!options.customWeights) {
+    if (modality === 'behavioral_observation') {
+      // Tier I (1-3): Mengutamakan manipulasi fisik & observasi langsung, bukan dialog AI
+      weights = {
+        EMPIRICAL_SIMULATION: 0.70,
+        TRANSFER_CHALLENGE: 0.20,
+        FEYNMAN_AI_DIALOG: 0.10,
+      };
+    } else if (modality === 'visual_manipulation') {
+      // Tier II (4-6): Kombinasi manipulasi visual dan intuisi konkret
+      weights = {
+        EMPIRICAL_SIMULATION: 0.65,
+        TRANSFER_CHALLENGE: 0.20,
+        FEYNMAN_AI_DIALOG: 0.15,
+      };
+    }
+  }
+
   const wordCount = options.childUtteranceWordCount ?? 20;
   const parentCalibration = options.parentCalibration || DEFAULT_PARENT_CALIBRATION;
   const parentAudit = options.parentAudit;
@@ -133,8 +156,10 @@ export function triangulateEvidence(
   if (feynman) {
     rawAiScore = (feynman.conceptualUnderstanding * 0.5) + (feynman.causalReasoning * 0.5);
 
-    // Filter A: Deteksi kalimat terlalu singkat (terlalu sedikit data untuk analisis bahasa bermakna)
-    if (wordCount < DISCREPANCY_THRESHOLDS.MIN_WORD_COUNT_FOR_AI) {
+    // Filter A: Deteksi kalimat terlalu singkat
+    // Hanya berlaku untuk anak Tier III-IV (socratic_feynman). Untuk batita/balita, manipulasi tindakan adalah kuncinya.
+    const isVerbalExpected = modality === 'socratic_feynman' || modality === 'relational_manipulation';
+    if (isVerbalExpected && wordCount < DISCREPANCY_THRESHOLDS.MIN_WORD_COUNT_FOR_AI) {
       isAiNoiseSuspect = true;
       discrepancyNote = `Kalimat anak terlalu singkat (${wordCount} kata). AI diagnosis diragukan karena kurangnya konteks linguistik.`;
       rawAiScore = empiricalScore; // Downweight: ikuti bukti empiris

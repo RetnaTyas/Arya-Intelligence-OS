@@ -169,6 +169,30 @@ Audit independen terhadap implementasi kode menemukan kesenjangan struktural ant
 
 ---
 
+### 🟢 Temuan 10: Asimetri Delivery Empiris pada Korridor 52-Node & Overshoot Layer Formal (Remediasi Tuntas)
+* **Status**: ✅ **Tuntas Diremediasi & Diverifikasi Otomatis (Ronde 5)**
+* **Kondisi Awal yang Diungkap Audit Mandiri**:
+  1. **Asimetri Delivery Empiris (85% Node Tanpa Lab)**: Sebelumnya, hanya 8 dari 52 node (15%) di korridor `narrowMathDomain.ts` yang memiliki properti `activeSimulationId`. Akibatnya, bobot empiris 60% pada `evidenceTriangulation.ts` runtuh menjadi konstanta default (0.5), dan evaluasi 44 node lainnya praktis bergantung 100% pada verbal Feynman AI — persis risiko Single Point of Failure (SPOF) yang ingin dicegah oleh desain triangulasi.
+  2. **Layer Formal Mengalami Overshoot Pascasarjana**: Pada sejumlah simpul usia 4-6 tahun dan SD awal, properti `formal` melompat ke peristilahan teori ukuran dan aljabar tingkat lanjut (seperti *"Lebesgue-invariant measure"*, *"modul bebas berdimensi 1 atas gelanggang bilangan bulat"*, *"pembagian himpunan terukur S ke b partisi ekuivalen"*, *"inversi pemetaan afin tak-singular"*, *"faktor Lipschitz"*). Bahasa ini tidak proporsional dan tidak usable bagi anak, guru, maupun orang tua.
+  3. **Modalitas Asesmen Belum Disesuaikan dengan Tahap Kognitif**: Batita dan balita (Tier I & II) sebelumnya dipaksa menghadapi filter panjang kata verbal AI (`MIN_WORD_COUNT_FOR_AI = 12`), padahal indikator pemahaman sejati untuk kelompok usia tersebut adalah observasi tindakan, manipulasi fisik, dan partisi visual.
+* **Tindakan Remediasi**:
+  1. **Cakupan Penuh Delivery Lab Empiris (52/52 Node, 100%)**:
+     - Memetakan seluruh 52 node ke 4 lab interaktif matematika yang aktif di runtime (`LabHub.tsx`):
+       - `part_whole`: Part-whole, equal sharing, unit fractions, dan discrete sets (Tier II).
+       - `number_line`: Garis bilangan, desimal, persen, perbandingan pecahan, improper fractions, dan unit rate (Tier III & IV).
+       - `bar_model`: Model batang pecahan, penjumlahan/pengurangan beda penyebut, perkalian/pembagian luas 2D, rasio, proporsi, dan aljabar linear (Tier III & IV).
+       - `qualitative_balance`: Neraca relasional kesetaraan `=`, timbangan aritmetika, dan persamaan linear satu langkah (Tier IV).
+       - `piaget_conservation`: Simetri setengah dan kekekalan luas.
+  2. **Pembersihan Layer Formal Proporsional**:
+     - Seluruh peristilahan pascasarjana telah dibersihkan 100% dari 52 node dan digantikan dengan formulasi deduktif logis matematis yang terhubung langsung dengan layer `symbolic` (misal $ax + b = c \Rightarrow ax = c - b \Rightarrow x = (c - b)/a$ untuk $a \neq 0$).
+  3. **Penegasan Modalitas Asesmen Perkembangan (`assessmentModality`)**:
+     - Ditambahkan tipe `AssessmentModality` (`behavioral_observation`, `visual_manipulation`, `relational_manipulation`, `socratic_feynman`) pada `types.ts` dan 52 node.
+     - Fungsi `triangulateEvidence` disesuaikan: anak pada modalitas behavioral/visual diprioritaskan melalui bukti manipulasi empiris dan observasi orang tua tanpa penalti kata pendek.
+  4. **Verifikasi Otomatis**:
+     - Ditambahkan assertion Suite 1.6 pada `tests/epistemic-os-tester.ts` yang memvalidasi 52/52 `activeSimulationId`, 52/52 `assessmentModality`, dan 0 kata kunci jargon pascasarjana. Hasil: **23 / 23 tes lolos (100.0%)**.
+
+---
+
 ## 3. Status Gerbang Tahap 1 & Tahap 2 (Checklist Kepatuhan Roadmap)
 
 > Rujukan kriteria: `intelligence-os-foundation.md` Bagian 12.
@@ -234,3 +258,4 @@ Bagian ini melacak evolusi audit dari ronde ke ronde. Tujuannya agar pembaca bis
 | **Re-audit lanjutan (putaran 2)** | Temuan 6–8: penandaan *out-of-sequence* untuk lab di luar domain aktif, perluasan benchmark ke skala penuh 52-node + grounding literatur, eliminasi template generik pada probe | Ketiganya diremediasi tuntas; Bagian 3 disimpulkan **"Tahap 1 & Tahap 2 TUNTAS & TERVERIFIKASI PENUH"** | Ditulis sebagai Temuan 6–8, status 🟢/✅; checklist Bagian 3 diisi ✅ di semua baris |
 | **Audit lanjutan (Ronde 3)** | Temuan 9: `humanExpertDiagnosis` pada benchmark 52-node ternyata gold-standard sintetis (deterministik), bukan rating manusia riil — mengoreksi satu baris checklist Tahap 2 dari putaran sebelumnya | Baris checklist dan kesimpulan Tahap 2 di Bagian 3 **dianulir melalui anotasi**, bukan dihapus; ditambahkan status Tahap 2 yang akurat: infrastruktur tuntas, validasi empiris belum | Ditulis sebagai Temuan 9, status 🔴; Bagian 1 dan Bagian 3 diberi paragraf/baris koreksi eksplisit |
 | **Pembaruan Arsitektural (Ronde 4)** | Penyesuaian kriteria Gerbang Tahap 2 ke realitas arsitektur kedaulatan data: pembangunan antarmuka rating manusia riil (`HumanVsAiAuditDashboard.tsx`), penyimpanan lokal `STORES.HUMAN_RATINGS`, pemisahan tegas vs synthetic probe, dan dashboard Zero-Lie | Jalur rating manusia dan dashboard komparasi live/fallback siap pakai; Temuan 9 direklasifikasi dari blocker mutlak menjadi metrik yang berjalan berkelanjutan; Tahap 2 dinyatakan siap untuk perluasan materi multi-tier | Bagian 2 (Temuan 9), Bagian 3 (Checklist & Kesimpulan), dan Bagian 6 diperbarui secara transparan tanpa menghapus riwayat sebelumnya |
+| **Audit Mandiri Materi & Delivery (Ronde 5 — dokumen ini)** | Temuan 10: Asimetri delivery empiris (85% node tanpa lab), overshoot bahasa pascasarjana pada layer formal, dan belum selarasnya modalitas asesmen perkembangan (Tier I–IV) | 100% node (52/52) dipetakan ke lab interaktif aktif; 100% istilah pascasarjana dibersihkan dari layer formal; modalitas perkembangan diikat ke `assessmentModality` dan `triangulateEvidence`; verifikasi otomatis 23/23 lulus | Ditulis sebagai Temuan 10 di Bagian 2 (status 🟢/✅); penegasan komitmen delivery empiris di Bagian 4 & 5 |
