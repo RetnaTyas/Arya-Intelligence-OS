@@ -134,7 +134,7 @@ export const EpistemicAutomatedTester: React.FC<EpistemicAutomatedTesterProps> =
               className="px-5 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-500 hover:to-teal-500 text-white shadow-lg shadow-cyan-900/30 flex items-center gap-2 transition disabled:opacity-50"
             >
               <Play className={`w-4 h-4 ${isRunning ? 'animate-spin' : ''}`} />
-              {isRunning ? 'Menjalankan Tes...' : 'Jalankan Semua 17 Pengujian'}
+              {isRunning ? 'Menjalankan Tes...' : 'Jalankan Semua 20 Pengujian'}
             </button>
           </div>
         </div>

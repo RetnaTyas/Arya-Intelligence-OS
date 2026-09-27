@@ -70,15 +70,21 @@ export interface PerturbationEvaluationResult {
   source?: string;
 }
 
-// Re-export Matriks Benchmark Skala Penuh 52-Node & Grounding Literatur Empiris (Temuan 7)
+// Re-export Matriks Benchmark Skala Penuh 52-Node & Grounding Literatur Empiris (Temuan 7 & 8)
 export {
   FULL_SCALE_52_NODE_BENCHMARK,
   CLUSTER_DEFINITIONS,
   EMPIRICAL_LITERATURE_GROUNDING,
   TAHAP2_FULL_SCALE_GATE_CRITERIA,
   evaluateFullScaleDomainCoverage,
+  evaluateFullScale52Execution,
+  generateDeterministic52NodeProbeEvaluations,
 } from './domain52BenchmarkMatrix';
-export type { ClusterBenchmarkCoverage, Domain52BenchmarkItem } from './domain52BenchmarkMatrix';
+export type {
+  ClusterBenchmarkCoverage,
+  Domain52BenchmarkItem,
+  FullScale52ExecutionSummary,
+} from './domain52BenchmarkMatrix';
 
 // 20 Kasus Uji Ground Truth Standar Emas Pakar Pendidikan Matematika
 // Meliputi Pecahan, Rasio, Timbangan Aljabar, dan Kasus Kontrol Positif (anak yang benar-benar paham)
@@ -1030,3 +1036,4 @@ export function evaluateDiagnosticAgreementAndPerturbation(
     source,
   };
 }
+

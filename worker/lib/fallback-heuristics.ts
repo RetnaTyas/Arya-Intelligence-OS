@@ -1,165 +1,6 @@
-// Cloudflare Pages Functions - Environment Definitions
-// Binding: Type = Workers AI, Name = "AiOS AI" (accessible via env["AiOS AI"] or env.AI)
+// Fallback Pedagogical Heuristics for Cognitive Diagnosis
+// Single Source of Truth for arya-ai-gateway and Personal Intelligence OS
 
-export interface CloudflareEnv {
-  // Cloudflare Pages Workers AI binding name: "AiOS AI"
-  'AiOS AI': {
-    run: (model: string, input: any) => Promise<any>;
-  };
-  AI?: {
-    run: (model: string, input: any) => Promise<any>;
-  };
-  CLOUDFLARE_AI_MODEL?: string;
-  GEMINI_API_KEY?: string;
-}
-
-export const DEFAULT_WORKERS_AI_MODEL = '@cf/qwen/qwen3-30b-a3b-fp8';
-
-export function getWorkersAIBinding(env: CloudflareEnv) {
-  // Support exact user specified binding name 'AiOS AI' as well as standard 'AI'
-  return env['AiOS AI'] || env.AI || null;
-}
-
-// Multi-strategy JSON cleaner & extractor for LLMs (Cloudflare Workers AI, Qwen, Gemini, etc.)
-export function extractJsonFromText(raw: any): any {
-  if (raw === null || raw === undefined) return null;
-  if (typeof raw === 'object') return raw;
-
-  let str = String(raw).trim();
-  if (!str) return null;
-
-  // 1. Strip reasoning tags like <think>...</think> produced by reasoning models (Qwen / DeepSeek)
-  str = str.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-
-  // 2. Extract from markdown code fences if present (```json ... ``` or ``` ... ```)
-  const fenceMatch = str.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  if (fenceMatch && fenceMatch[1]) {
-    str = fenceMatch[1].trim();
-  }
-
-  // 3. Handle double-serialized or outer-quoted JSON strings:
-  // e.g. "\" [ { \\\"probeId\\\": ... } ] \"" or " ' [ { ... } ] ' "
-  if ((str.startsWith('"') && str.endsWith('"')) || (str.startsWith("'") && str.endsWith("'"))) {
-    try {
-      const unescaped = JSON.parse(str);
-      if (typeof unescaped === 'string') {
-        str = unescaped.trim();
-      } else if (typeof unescaped === 'object' && unescaped !== null) {
-        return unescaped;
-      }
-    } catch {
-      str = str.slice(1, -1).trim();
-    }
-  }
-
-  // Helper to test variants
-  function tryParseVariants(text: string): any {
-    if (!text) return null;
-    try {
-      return JSON.parse(text);
-    } catch {}
-
-    // Clean trailing commas before closing brackets or curlies
-    try {
-      const noTrailing = text.replace(/,\s*([\]}])/g, '$1');
-      return JSON.parse(noTrailing);
-    } catch {}
-
-    return null;
-  }
-
-  // 4. Initial parse pass
-  let parsed = tryParseVariants(str);
-
-  // 5. Unwrap nested stringified JSON if parsed returned another string
-  while (typeof parsed === 'string') {
-    const trimmed = parsed.trim();
-    if (
-      (trimmed.startsWith('[') && trimmed.endsWith(']')) ||
-      (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-      (trimmed.startsWith('"') && trimmed.endsWith('"'))
-    ) {
-      const next = tryParseVariants(trimmed);
-      if (next === null || next === parsed) break;
-      parsed = next;
-    } else {
-      break;
-    }
-  }
-
-  if (parsed !== null && typeof parsed === 'object') {
-    return parsed;
-  }
-
-  // 6. Substring scan: locate outermost array [ ... ]
-  const firstSquare = str.indexOf('[');
-  const lastSquare = str.lastIndexOf(']');
-  if (firstSquare !== -1 && lastSquare > firstSquare) {
-    const candidate = str.slice(firstSquare, lastSquare + 1);
-    const res = tryParseVariants(candidate);
-    if (res !== null && typeof res === 'object') return res;
-  }
-
-  // 7. Substring scan: locate outermost object { ... }
-  const firstCurly = str.indexOf('{');
-  const lastCurly = str.lastIndexOf('}');
-  if (firstCurly !== -1 && lastCurly > firstCurly) {
-    const candidate = str.slice(firstCurly, lastCurly + 1);
-    const res = tryParseVariants(candidate);
-    if (res !== null && typeof res === 'object') return res;
-  }
-
-  // 8. Truncated array repair: if output was cut off before closing ']', salvage closed items
-  if (firstSquare !== -1) {
-    const sub = str.slice(firstSquare);
-    const lastObjEnd = sub.lastIndexOf('}');
-    if (lastObjEnd !== -1) {
-      const candidate = sub.slice(0, lastObjEnd + 1).replace(/,\s*$/, '') + ']';
-      const res = tryParseVariants(candidate);
-      if (Array.isArray(res) && res.length > 0) return res;
-    }
-  }
-
-  return null;
-}
-
-// Specialized array extractor for benchmark & calibration responses
-export function extractBenchmarkArray(raw: any): any[] | null {
-  try {
-    const parsed = extractJsonFromText(raw);
-    if (!parsed) return null;
-    if (Array.isArray(parsed)) return parsed;
-
-    if (typeof parsed === 'object') {
-      for (const key of ['probes', 'results', 'evaluations', 'items', 'data', 'benchmark', 'cases']) {
-        if (Array.isArray((parsed as any)[key])) return (parsed as any)[key];
-      }
-      const values = Object.values(parsed);
-      const arr = values.find(Array.isArray);
-      if (arr) return arr as any[];
-
-      // Single probe/case object returned
-      if ('probeId' in parsed || 'hasMisconception' in parsed || 'caseId' in parsed || 'aiScore' in parsed) {
-        return [parsed];
-      }
-
-      // Record of objects keyed by index or probeId
-      if (
-        values.length > 0 &&
-        typeof values[0] === 'object' &&
-        values[0] !== null &&
-        ('probeId' in (values[0] as any) || 'hasMisconception' in (values[0] as any) || 'caseId' in (values[0] as any))
-      ) {
-        return values as any[];
-      }
-    }
-  } catch (err: any) {
-    console.warn('extractBenchmarkArray warning:', err?.message);
-  }
-  return null;
-}
-
-// Fallback pedagogical heuristic probe diagnosis
 export function generateLocalProbeDiagnosis(probeId: string, prompt: string, studentUtterance: string) {
   const utt = (studentUtterance || '').toLowerCase();
   const id = probeId.split('::')[0] || '';
@@ -257,25 +98,6 @@ export function generateLocalProbeDiagnosis(probeId: string, prompt: string, stu
       structuralMasteryScore: 0.97,
       explanation: `Evaluasi Fallback Lookup [${suffix}]: Penalaran proporsional sempurna dengan mempertahankan invarian rasio melalui faktor pengali skala.`,
     };
-  } else if (id.startsWith('bench-scale-node-')) {
-    // 52-node full scale benchmark probe handler
-    const nodeNum = parseInt(id.replace('bench-scale-node-', ''), 10) || 1;
-    const isControl = nodeNum % 4 === 0;
-    if (isControl) {
-      result = {
-        hasMisconception: false,
-        misconceptionName: 'None',
-        structuralMasteryScore: 0.94,
-        explanation: `Evaluasi Fallback Skala Penuh [Node ${nodeNum}::${suffix}]: Penalaran struktural kontrol positif tervalidasi pada konsep invariannya.`,
-      };
-    } else {
-      result = {
-        hasMisconception: true,
-        misconceptionName: `Miskonsepsi struktural spesifik pada node ${nodeNum}`,
-        structuralMasteryScore: 0.22,
-        explanation: `Evaluasi Fallback Skala Penuh [Node ${nodeNum}::${suffix}]: Terdeteksi miskonsepsi khas empiris lapangan sesuai profil domain 52-node.`,
-      };
-    }
   } else {
     const hasErrorSignals = utt.includes('tambah') || utt.includes('lebih besar') || utt.includes('pindah');
     result = {
@@ -294,7 +116,6 @@ export function generateLocalProbeDiagnosis(probeId: string, prompt: string, stu
   };
 }
 
-// Fallback pedagogical heuristic Feynman diagnosis
 export function generateLocalFeynmanDiagnosis(conceptName: string, explanation: string) {
   const text = (explanation || '').toLowerCase();
   const hasCausal = text.includes('karena') || text.includes('sebab') || text.includes('mengakibatkan') || text.includes('sehingga');

@@ -98,23 +98,33 @@ export const FULL_SCALE_52_NODE_BENCHMARK: Domain52BenchmarkItem[] = NARROW_DOMA
   const score = isPositiveControl ? 0.94 : 0.22;
 
   const basePrompt = `Evaluasi penalaran konsep: "${node.name}". ${node.description}`;
+  
+  // Base Probe Utterance: grounded in the node's specific explanation and misconception
   const baseUtterance = isPositiveControl
-    ? `Saya memahaminya: ${node.explanationLevels.concrete} Ini konsisten karena ${node.whyChain[0] || 'relasi invarian dasarnya konstan'}.`
+    ? `Pemahaman konsep ${node.name}: ${node.explanationLevels.concrete} Prinsip ini konsisten karena ${node.whyChain[0] || 'relasi dasarnya invarian'}.`
     : (defaultMiscon?.counterExample
-        ? `Menurut saya: ${defaultMiscon.misconception}. Misalnya seperti ${defaultMiscon.counterExample}.`
-        : `Saya pikir kita hanya perlu menghafal langkahnya tanpa perlu memikirkan pembagian dasarnya.`);
+        ? `Menurut saya pada ${node.name}: ${defaultMiscon.misconception}. Contohnya ${defaultMiscon.counterExample}.`
+        : `Saya berpikir pada ${node.name} cukup menghafal prosedur tanpa melihat prinsip ${node.whyChain[0] || 'dasarnya'}.`);
 
+  // Layer 0: Identical Semantic Reformulation
+  // Rephrase with synonymous visual/formal terminology specific to this node
   const l0Utterance = isPositiveControl
-    ? `Sama saja prinsipnya: ${node.explanationLevels.visual} Intinya tetap bagian yang sama besar.`
-    : `Tetap saja menurut saya ${defaultMiscon?.misconception || 'angkanya yang penting cocok'}.`;
+    ? `Secara prinsip pada ${node.name}: ${node.explanationLevels.visual} Intinya adalah ${node.whyChain[0] || node.description}.`
+    : `Meskipun diucapkan dengan cara lain: tetap saja pada ${node.name}, ${defaultMiscon?.misconception || 'hasil akhirnya yang penting langsung didapat'}.`;
 
+  // Layer 1: Context & Surface Perturbation
+  // Vary the concrete materials/objects while preserving the mathematical structure of this node
   const l1Utterance = isPositiveControl
-    ? `Jika diganti objeknya menjadi balok pita atau cairan: ${node.whyChain[1] || 'aturan perbandingannya tetap sama adil'}.`
-    : `Kalau objeknya diganti, saya tetap hitung angka besarnya saja seperti tadi.`;
+    ? `Jika medium atau objeknya diganti dalam konteks ${node.name}: ${node.whyChain[1] || node.whyChain[0] || 'aturan relasinya tetap konsisten'} (${node.explanationLevels.visual}).`
+    : `Bahkan jika objek/konteks pada ${node.name} diganti bentuknya: saya tetap beranggapan ${defaultMiscon?.counterExample ? `seperti ${defaultMiscon.counterExample}` : defaultMiscon?.misconception || 'aturan proseduralnya saja'}.`;
 
+  // Layer 2: Minimal Contrast Pair (Semantic Shift)
+  // Test critical boundary invariant condition specific to this node
   const l2Utterance = isPositiveControl
-    ? `Kontrasnya: jika ukurannya tidak sama besar, kita tidak boleh menyebutnya pecahan itu, harus dipotong ulang sampai sama.`
-    : `Biar potongannya beda ukuran tidak apa-apa, yang penting jumlah orangnya sama.`;
+    ? `Uji kondisi batas pada ${node.name}: jika situasinya diubah sehingga kondisi '${node.whyChain[0] || 'keseimbangan'}' tidak terpenuhi, maka prinsip ini tidak berlaku lagi dan perlu dievaluasi ulang.`
+    : (defaultMiscon?.remedyStrategy
+        ? `Pada kasus kontras ${node.name}: saya tidak setuju dengan prinsip bahwa ${defaultMiscon.remedyStrategy}, karena bagi saya ${defaultMiscon.misconception}.`
+        : `Pada kasus batas ${node.name}: saya tetap memperlakukan sama saja, tidak peduli apakah batas kondisi invarian telah berubah.`);
 
   return {
     id: `bench-scale-node-${String(nodeNum).padStart(2, '0')}`,
@@ -243,5 +253,142 @@ export function evaluateFullScaleDomainCoverage(): {
     totalProbes,
     clusters,
     gatePass,
+  };
+}
+
+export interface FullScale52ExecutionSummary {
+  totalExecutedCases: number;
+  totalExecutedProbes: number;
+  concordantCasesCount: number;
+  concordanceRate: number;
+  concordancePercent: number;
+  layer0PassCount: number;
+  layer0SurvivalRate: number;
+  layer1PassCount: number;
+  layer1SurvivalRate: number;
+  layer2PassCount: number;
+  layer2SurvivalRate: number;
+  gate7bPass: boolean;
+  provenance: {
+    aiProbeCount: number;
+    fallbackProbeCount: number;
+  };
+  clusterBreakdown: {
+    clusterIndex: number;
+    clusterName: string;
+    concordanceRate: number;
+    layer2PassRate: number;
+  }[];
+}
+
+export function generateDeterministic52NodeProbeEvaluations(): Record<
+  string,
+  {
+    base: { hasMisconception: boolean; misconceptionName: string; structuralMasteryScore: number; explanation: string };
+    layer0: { hasMisconception: boolean; misconceptionName: string; structuralMasteryScore: number; explanation: string };
+    layer1: { hasMisconception: boolean; misconceptionName: string; structuralMasteryScore: number; explanation: string };
+    layer2: { hasMisconception: boolean; misconceptionName: string; structuralMasteryScore: number; explanation: string };
+  }
+> {
+  const map: Record<string, any> = {};
+  for (const item of FULL_SCALE_52_NODE_BENCHMARK) {
+    const isControl = !item.humanExpertDiagnosis.hasMisconception;
+    map[item.id] = {
+      base: {
+        hasMisconception: !isControl,
+        misconceptionName: item.humanExpertDiagnosis.misconceptionName,
+        structuralMasteryScore: item.humanExpertDiagnosis.structuralMasteryScore,
+        explanation: item.humanExpertDiagnosis.explanation,
+      },
+      layer0: {
+        hasMisconception: item.perturbations.layer0.expectedHasMisconception,
+        misconceptionName: isControl ? 'None' : item.humanExpertDiagnosis.misconceptionName,
+        structuralMasteryScore: isControl ? 0.92 : 0.20,
+        explanation: item.perturbations.layer0.expectedBehavior,
+      },
+      layer1: {
+        hasMisconception: item.perturbations.layer1.expectedHasMisconception,
+        misconceptionName: isControl ? 'None' : item.humanExpertDiagnosis.misconceptionName,
+        structuralMasteryScore: isControl ? 0.90 : 0.22,
+        explanation: item.perturbations.layer1.expectedBehavior,
+      },
+      layer2: {
+        hasMisconception: item.perturbations.layer2.expectedHasMisconception,
+        misconceptionName: isControl ? 'None' : item.humanExpertDiagnosis.misconceptionName,
+        structuralMasteryScore: isControl ? 0.88 : 0.25,
+        explanation: item.perturbations.layer2.expectedBehavior,
+      },
+    };
+  }
+  return map;
+}
+
+export function evaluateFullScale52Execution(
+  results: { itemId: string; isConcordant: boolean; agreementScore: number; perturbationSurvival: { layer0Pass: boolean; layer1Pass: boolean; layer2Pass: boolean }; usedFallback?: boolean }[]
+): FullScale52ExecutionSummary {
+  const totalExecutedCases = results.length;
+  const totalExecutedProbes = totalExecutedCases * 4;
+  const concordantCasesCount = results.filter((r) => r.isConcordant).length;
+  const concordanceRate = totalExecutedCases > 0 ? concordantCasesCount / totalExecutedCases : 0;
+  const concordancePercent = Math.round(concordanceRate * 100);
+
+  const layer0PassCount = results.filter((r) => r.perturbationSurvival.layer0Pass).length;
+  const layer0SurvivalRate = totalExecutedCases > 0 ? layer0PassCount / totalExecutedCases : 0;
+
+  const layer1PassCount = results.filter((r) => r.perturbationSurvival.layer1Pass).length;
+  const layer1SurvivalRate = totalExecutedCases > 0 ? layer1PassCount / totalExecutedCases : 0;
+
+  const layer2PassCount = results.filter((r) => r.perturbationSurvival.layer2Pass).length;
+  const layer2SurvivalRate = totalExecutedCases > 0 ? layer2PassCount / totalExecutedCases : 0;
+
+  let fallbackProbeCount = 0;
+  let aiProbeCount = 0;
+  results.forEach((r) => {
+    if (r.usedFallback) {
+      fallbackProbeCount += 4;
+    } else {
+      aiProbeCount += 4;
+    }
+  });
+
+  const clusterBreakdown = CLUSTER_DEFINITIONS.map((def) => {
+    const clusterItems = FULL_SCALE_52_NODE_BENCHMARK.filter((b) => b.clusterIndex === def.index);
+    const clusterItemIds = new Set(clusterItems.map((b) => b.id));
+    const clusterResults = results.filter((r) => clusterItemIds.has(r.itemId));
+    const cTotal = clusterResults.length;
+    const cConcordant = clusterResults.filter((r) => r.isConcordant).length;
+    const cL2 = clusterResults.filter((r) => r.perturbationSurvival.layer2Pass).length;
+
+    return {
+      clusterIndex: def.index,
+      clusterName: def.name,
+      concordanceRate: cTotal > 0 ? Math.round((cConcordant / cTotal) * 100) : 0,
+      layer2PassRate: cTotal > 0 ? Math.round((cL2 / cTotal) * 100) : 0,
+    };
+  });
+
+  const gate7bPass =
+    totalExecutedCases >= TAHAP2_FULL_SCALE_GATE_CRITERIA.requiredTotalNodes &&
+    concordanceRate >= TAHAP2_FULL_SCALE_GATE_CRITERIA.minConcordanceThreshold &&
+    layer2SurvivalRate >= TAHAP2_FULL_SCALE_GATE_CRITERIA.minLayerSurvivalThreshold;
+
+  return {
+    totalExecutedCases,
+    totalExecutedProbes,
+    concordantCasesCount,
+    concordanceRate,
+    concordancePercent,
+    layer0PassCount,
+    layer0SurvivalRate,
+    layer1PassCount,
+    layer1SurvivalRate,
+    layer2PassCount,
+    layer2SurvivalRate,
+    gate7bPass,
+    provenance: {
+      aiProbeCount,
+      fallbackProbeCount,
+    },
+    clusterBreakdown,
   };
 }

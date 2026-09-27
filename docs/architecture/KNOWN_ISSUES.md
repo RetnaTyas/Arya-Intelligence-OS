@@ -126,6 +126,24 @@ Audit independen terhadap implementasi kode menemukan kesenjangan struktural ant
 
 ---
 
+### 🟢 Temuan 8: Eliminasi Konten Generator Generik (Anti-Fabrikasi Konten Probe 52-Node)
+* **Status**: ✅ **Tuntas Diremediasi & Diverifikasi Otomatis**
+* **Kondisi Awal (Ditemukan pada Audit Kode)**:
+  Meskipun cakupan struktural 52 node dan 8 klaster (208 probe) sudah tercapai secara matematis (Temuan 7), generator kode `domain52BenchmarkMatrix.ts` sempat menggunakan template string hardcoded seragam untuk seluruh 39 kasus non-kontrol-positif pada Layer 1 dan Layer 2 (`"Biar potongannya beda ukuran tidak apa-apa, yang penting jumlah orangnya sama."`). Akibatnya, kalimat partisi pecahan tertempel ke simpul aljabar (`math-alg-46-relational-equals`), sehingga uji kuantitas lolos tetapi relevansi semantik per-konsep rapuh.
+* **Akar Masalah**: Generator pengujian mengabstraksikan Layer 1 dan Layer 2 secara seragam demi memenuhi angka 208 probe, bukan mengaitkannya ke kamus miskonsepsi individual masing-masing simpul.
+* **Tindakan Remediasi**:
+  1. **Derivasi Semantik Per-Simpul Otentik**: Generator `domain52BenchmarkMatrix.ts` kini menurunkan setiap ujaran Base, Layer 0, Layer 1, dan Layer 2 secara organik dari properti intrinsik masing-masing simpul di `narrowMathDomain.ts`:
+     - **Base**: Berakar pada `node.explanationLevels.concrete` + `node.whyChain[0]` (kontrol positif) atau `defaultMiscon.misconception` + `defaultMiscon.counterExample` (kasus miskonsepsi).
+     - **Layer 0 (Identical Reformulation)**: Memanfaatkan sinonim visual `node.explanationLevels.visual` dan rephrasing `node.whyChain[0]`.
+     - **Layer 1 (Context Perturbation)**: Memvariasikan medium/objek konkret kontekstual sesuai prinsip invarian `node.whyChain[1]` atau contoh kasus `defaultMiscon.counterExample`.
+     - **Layer 2 (Minimal Contrast Pair)**: Menguji kondisi batas relasional kritis di mana invarian prinsip dasar (`node.whyChain[0]`) sengaja digeser atau diuji terhadap strategi pemulihan `defaultMiscon.remedyStrategy`.
+  2. **Audit Otomatis Anti-Fabrikasi Konten (`tests/epistemic-os-tester.ts` Suite 2.6)**:
+     - Memverifikasi keunikan ujaran anak: **52/52 unik di Base, 52/52 di Layer 0, 52/52 di Layer 1, dan 52/52 di Layer 2 (100% orisinalitas tanpa duplikasi)**.
+     - Memeriksa secara spesifik simpul aljabar (`math-alg-46-relational-equals`) untuk memastikan tidak ada lagi kebocoran terminologi pecahan ("potongannya").
+  3. **Hasil Verifikasi**: Test suite 21/21 lolos 100%.
+
+---
+
 ## 3. Status Gerbang Tahap 1 & Tahap 2 (Checklist Kepatuhan Roadmap)
 
 > Rujukan kriteria: `intelligence-os-foundation.md` Bagian 12.

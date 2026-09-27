@@ -9,6 +9,12 @@ import {
 export const onRequestPost = async (context: { request: Request; env: CloudflareEnv }) => {
   const { request, env } = context;
 
+  // 1. Service Binding Forwarding to arya-ai-gateway Worker
+  if (env.AI_GATEWAY && typeof env.AI_GATEWAY.fetch === 'function') {
+    return await env.AI_GATEWAY.fetch(request);
+  }
+
+  // 2. Direct Binding Fallback
   try {
     const body: any = await request.json();
     const conceptName = body.conceptName || body.concept || 'Konsep Umum';
