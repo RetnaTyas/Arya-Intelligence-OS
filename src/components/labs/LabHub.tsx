@@ -1284,6 +1284,7 @@ export const LabHub: React.FC<LabHubProps> = ({
         {/* Ages 4 - 6 */}
         {activeLabId === 'qualitative_balance' && (
           <QualitativeBalanceLab
+            key={activeNode?.id || 'qualitative_balance'}
             nodeId={activeNode?.id}
             activeNode={activeNode}
             onMasteryEvidence={(concept, details) => onMasteryEvidence(concept, details)}
@@ -1293,6 +1294,7 @@ export const LabHub: React.FC<LabHubProps> = ({
 
         {activeLabId === 'number_line' && (
           <NumberLineLab
+            key={activeNode?.id || 'number_line'}
             nodeId={activeNode?.id}
             activeNode={activeNode}
             onMasteryEvidence={(concept, details) => onMasteryEvidence(concept, details)}

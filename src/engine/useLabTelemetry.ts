@@ -43,7 +43,21 @@ export function useLabTelemetry(simulationId: string) {
     };
   }, []);
 
+  const beginScenario = useCallback(
+    (scenarioId: string, expectedMinParamChanges = 0) => {
+      sessionRef.current = {
+        simulationId,
+        scenarioId,
+        expectedMinParamChanges,
+        startedAt: Date.now(),
+        events: [],
+      };
+    },
+    [simulationId]
+  );
+
   return {
+    beginScenario,
     recordParameterChange,
     recordVerificationAttempt,
     recordHintRequested,

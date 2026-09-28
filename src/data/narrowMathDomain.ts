@@ -2,8 +2,9 @@
 // Memenuhi Gerbang Keluar Tahap 1 Peta Jalan (Bagian 12 & KNOWN_ISSUES.md Temuan 5)
 
 import { KnowledgeNode } from '../types';
+import { SIMULATION_ROUTING, alignmentOf } from './simulationRouting';
 
-export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
+const RAW_NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
   // =========================================================================
   // CLUSTER 1: PART-WHOLE, PARTISI ADIL & FRAKSI SATUAN (USIA 4-6, TIER II)
   // =========================================================================
@@ -371,8 +372,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.91,
     futureRelevance: 0.96,
     activeSimulationId: 'number_line',
-    simulationAlignment: 'direct',
-    simulationNote: 'Simulasi interaktif langsung (1-to-1 fidelity) untuk konsep ini.',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Analogi pencapaian target jarak; lompatan mendarat di 5 satuan bulat, bukan partisi n/n = 1.',
   },
   {
     id: 'math-frac-12-number-line-fractions',
@@ -1513,8 +1514,8 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     centrality: 0.94,
     futureRelevance: 0.99,
     activeSimulationId: 'qualitative_balance',
-    simulationAlignment: 'direct',
-    simulationNote: 'Simulasi interaktif langsung (1-to-1 fidelity) untuk konsep ini.',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Analogi kesetimbangan dasar; melatih keseimbangan massa namun belum memodelkan konstanta proporsionalitas formal k pada y = kx.',
   },
 
   // =========================================================================
@@ -1582,9 +1583,9 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     ],
     centrality: 0.92,
     futureRelevance: 0.97,
-    activeSimulationId: 'qualitative_balance',
-    simulationAlignment: 'direct',
-    simulationNote: 'Simulasi interaktif langsung (1-to-1 fidelity) untuk konsep ini.',
+    activeSimulationId: 'bar_model',
+    simulationAlignment: 'analogy',
+    simulationNote: 'Lab bar model saat ini memodelkan persamaan 2x+4=14 formal, bukan eksplorasi bebas diagram balok aljabar murni.',
   },
   {
     id: 'math-alg-48-balance-scale-unknown',
@@ -1750,3 +1751,15 @@ export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = [
     activeSimulationId: 'bar_model',
   },
 ];
+
+export const NARROW_DOMAIN_MATH_NODES: KnowledgeNode[] = RAW_NARROW_DOMAIN_MATH_NODES.map((n) => {
+  const r = SIMULATION_ROUTING[n.id];
+  return r
+    ? {
+        ...n,
+        activeSimulationId: r.labId,
+        simulationAlignment: alignmentOf(r),
+        simulationNote: r.rationale,
+      }
+    : n;
+});

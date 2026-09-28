@@ -6,7 +6,7 @@
 // Domain Aktif Resmi Tahap 1: Matematika Sempit (Pecahan → Persamaan Linear: narrowMathDomain.ts)
 // ============================================================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Scale,
   Sparkles,
@@ -24,6 +24,7 @@ import { useLabTelemetry } from '../../engine/useLabTelemetry';
 import { deriveEmpiricalEvidenceFromTelemetry } from '../../engine/empiricalEvidenceDerivation';
 import { EmpiricalSimulationEvidence } from '../../engine/evidenceTriangulation';
 import { KnowledgeNode } from '../../types';
+import { getRoute } from '../../data/simulationRouting';
 
 interface ItemType {
   id: string;
@@ -42,55 +43,6 @@ const AVAILABLE_ITEMS: ItemType[] = [
   { id: 'metal', name: 'Batu Besi Kecil (Kecil tapi Berat!)', weight: 4, emoji: '🔩', color: 'bg-slate-500/20 text-slate-200 border-slate-500/40', size: 'sm' },
 ];
 
-export type FitQuality = 'strong' | 'weak';
-
-export interface BalanceMapping {
-  challengeIndex: number;
-  fit: FitQuality;
-  rationale: string;
-}
-
-export const BALANCE_NODE_MAPPING: Record<string, BalanceMapping> = {
-  // --- Fit kuat: Tantangan menguji konsep secara langsung ---
-  'math-alg-46-relational-equals': {
-    challengeIndex: 0,
-    fit: 'strong',
-    rationale: 'Tantangan 1 (Kiri = Kanan) adalah representasi langsung tanda sama dengan sebagai neraca relasional seimbang.',
-  },
-  'math-alg-48-balance-scale-unknown': {
-    challengeIndex: 2,
-    fit: 'strong',
-    rationale: 'Tantangan 3 menguji nilai tak diketahui x (anak beruang) pada neraca timbangan.',
-  },
-
-  // --- Fit lemah: Analogi representasional ---
-  'math-rat-45-constant-proportionality': {
-    challengeIndex: 0,
-    fit: 'weak',
-    rationale: 'Analogi kesetimbangan dasar; melatih keseimbangan massa namun belum memodelkan konstanta proporsionalitas formal.',
-  },
-  'math-alg-47-bar-model-algebra': {
-    challengeIndex: 2,
-    fit: 'weak',
-    rationale: 'Analogi neraca untuk aljabar; lab ini adalah timbangan fisik kualitatif, bukan diagram balok batang (bar model).',
-  },
-  'math-alg-49-one-step-addition': {
-    challengeIndex: 2,
-    fit: 'weak',
-    rationale: 'Analogi kesetaraan beban; belum memodelkan algoritma operasi penjumlahan formal satu langkah.',
-  },
-  'math-alg-50-one-step-multiplication': {
-    challengeIndex: 2,
-    fit: 'weak',
-    rationale: 'Analogi penyeimbangan beban; belum memodelkan operasi perkalian koefisien satu langkah.',
-  },
-};
-
-export function getChallengeIndexForNode(nodeId?: string): number {
-  if (!nodeId) return 0;
-  return BALANCE_NODE_MAPPING[nodeId]?.challengeIndex ?? 0;
-}
-
 interface QualitativeBalanceLabProps {
   onMasteryEvidence?: (concept: string, details: string) => void;
   onEmpiricalEvidence?: (evidence: EmpiricalSimulationEvidence) => void;
@@ -105,7 +57,8 @@ export const QualitativeBalanceLab: React.FC<QualitativeBalanceLabProps> = ({
   activeNode,
 }) => {
   const telemetry = useLabTelemetry('qualitative_balance');
-  const initialIndex = getChallengeIndexForNode(nodeId);
+  const route = getRoute(nodeId, 'qualitative_balance');
+  const initialIndex = route?.scenarioIndex ?? 0;
   const [leftPan, setLeftPan] = useState<ItemType[]>(() =>
     initialIndex === 2 ? [AVAILABLE_ITEMS[2]] : [AVAILABLE_ITEMS[0]]
   );
@@ -113,9 +66,20 @@ export const QualitativeBalanceLab: React.FC<QualitativeBalanceLabProps> = ({
   const [activeChallengeIndex, setActiveChallengeIndex] = useState<number>(() => initialIndex);
   const [challengeResolved, setChallengeResolved] = useState<boolean>(false);
 
-  const activeMapping = nodeId ? BALANCE_NODE_MAPPING[nodeId] : undefined;
-  // Sumber kebenaran tunggal: ikuti activeNode.simulationAlignment
-  const isDirect = activeNode?.simulationAlignment === 'direct';
+  // Sumber kebenaran tunggal: sinkron dengan SIMULATION_ROUTING / activeNode.simulationAlignment
+  const isDirect = route ? route.fit === 'strong' : (activeNode?.simulationAlignment === 'direct');
+
+  useEffect(() => {
+    telemetry.beginScenario(`Tantangan #${initialIndex + 1}`, 2);
+  }, []);
+
+  const selectChallenge = (idx: number) => {
+    setActiveChallengeIndex(idx);
+    setLeftPan(idx === 2 ? [AVAILABLE_ITEMS[2]] : [AVAILABLE_ITEMS[0]]);
+    setRightPan([]);
+    setChallengeResolved(false);
+    telemetry.beginScenario(`Tantangan #${idx + 1}`, 2);
+  };
 
   const leftWeight = leftPan.reduce((sum, item) => sum + item.weight, 0);
   const rightWeight = rightPan.reduce((sum, item) => sum + item.weight, 0);
@@ -266,7 +230,7 @@ export const QualitativeBalanceLab: React.FC<QualitativeBalanceLabProps> = ({
 
       {/* Challenge Box */}
       <div className="bg-slate-950/70 p-4 rounded-xl border border-purple-500/30 space-y-2">
-        {activeMapping && (
+        {route && (
           <div className={`p-2 rounded-lg text-[11px] flex items-center justify-between gap-2 border ${
             isDirect
               ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
@@ -276,7 +240,7 @@ export const QualitativeBalanceLab: React.FC<QualitativeBalanceLabProps> = ({
               🎯 Rute Otomatis Konsep: {isDirect ? 'Kesesuaian Langsung (1-to-1 Fidelity)' : 'Mode Analogi Representasi'}
             </span>
             <span className="text-[10px] text-slate-300 italic truncate max-w-[65%]">
-              {activeMapping.rationale}
+              {route.rationale}
             </span>
           </div>
         )}
@@ -290,10 +254,7 @@ export const QualitativeBalanceLab: React.FC<QualitativeBalanceLabProps> = ({
             {challenges.map((_, idx) => (
               <button
                 key={idx}
-                onClick={() => {
-                  setActiveChallengeIndex(idx);
-                  setChallengeResolved(false);
-                }}
+                onClick={() => selectChallenge(idx)}
                 className={`w-6 h-6 rounded text-[11px] font-bold transition ${
                   activeChallengeIndex === idx
                     ? 'bg-purple-600 text-white shadow'

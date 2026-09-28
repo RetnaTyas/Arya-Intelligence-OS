@@ -1,5 +1,6 @@
 import { KnowledgeNode } from '../types';
 import { NARROW_DOMAIN_MATH_NODES } from './narrowMathDomain';
+import { SIMULATION_ROUTING, alignmentOf } from './simulationRouting';
 
 const BASE_KNOWLEDGE_GRAPH: KnowledgeNode[] = [
   // ==========================================
@@ -1080,7 +1081,19 @@ const BASE_KNOWLEDGE_GRAPH: KnowledgeNode[] = [
   },
 ];
 
-export const INITIAL_KNOWLEDGE_GRAPH: KnowledgeNode[] = [
+const RAW_GRAPH: KnowledgeNode[] = [
   ...BASE_KNOWLEDGE_GRAPH,
   ...NARROW_DOMAIN_MATH_NODES,
 ];
+
+export const INITIAL_KNOWLEDGE_GRAPH: KnowledgeNode[] = RAW_GRAPH.map((n) => {
+  const r = SIMULATION_ROUTING[n.id];
+  return r
+    ? {
+        ...n,
+        activeSimulationId: r.labId,
+        simulationAlignment: alignmentOf(r),
+        simulationNote: r.rationale,
+      }
+    : n;
+});

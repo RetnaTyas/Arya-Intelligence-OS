@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Sparkles,
   RotateCcw,
@@ -9,130 +9,151 @@ import {
   TrendingUp,
   Brain,
   Activity,
+  CheckSquare,
+  Square,
+  AlertCircle,
 } from 'lucide-react';
 import { useLabTelemetry } from '../../engine/useLabTelemetry';
 import { deriveEmpiricalEvidenceFromTelemetry } from '../../engine/empiricalEvidenceDerivation';
 import { EmpiricalSimulationEvidence } from '../../engine/evidenceTriangulation';
 import { KnowledgeNode } from '../../types';
+import { getRoute } from '../../data/simulationRouting';
 
-export type FitQuality = 'strong' | 'weak';
+export type PathRule =
+  | { kind: 'equal_jumps'; size: number; count: number }
+  | { kind: 'monotonic'; dir: 'left' | 'right' };
 
-export interface MissionMapping {
-  missionIndex: number;
-  fit: FitQuality;
-  rationale: string;
+export interface IdentifySpec {
+  prompt: string;
+  options: { label: string; correct: boolean }[];
 }
 
-export const NUMBER_LINE_NODE_MAPPING: Record<string, MissionMapping> = {
-  // --- Fit kuat: struktur misi memang mencerminkan konsep node secara langsung ---
-  'math-frac-12-number-line-fractions': {
-    missionIndex: 4,
-    fit: 'strong',
-    rationale: 'Node ini secara harfiah tentang titik pecahan di antara dua bilangan bulat (titik 1/2 = 0.5).',
-  },
-  'math-frac-18-benchmark-half': {
-    missionIndex: 4,
-    fit: 'strong',
-    rationale: 'Misi ini secara presisi menguji patokan tolok ukur setengah (1/2 = 0.5) di antara 0 dan 1.',
-  },
-  'math-frac-24-improper-fractions': {
-    missionIndex: 5,
-    fit: 'strong',
-    rationale: 'Lompatan melewati angka 1 (menuju 1.5 atau 3/2) mendemonstrasikan pecahan tak murni > 1.',
-  },
-  'math-frac-25-mixed-numbers': {
-    missionIndex: 5,
-    fit: 'strong',
-    rationale: 'Posisi 1 1/2 (1 utuh + 1/2 = 1.5) membuktikan dekomposisi bilangan campuran pada garis spasial.',
-  },
-  'math-frac-13-equivalent-visual': {
-    missionIndex: 6,
-    fit: 'strong',
-    rationale: 'Menunjukkan ekuivalensi koordinat: titik 2.5 setara dengan 5/2 atau 2 1/2 pada sumbu kontinu.',
-  },
-  'math-dec-35-fraction-decimal-link': {
-    missionIndex: 4,
-    fit: 'strong',
-    rationale: 'Menghubungkan 1/2 pecahan dengan 0.5 desimal di titik koordinat yang identik.',
-  },
-
-  // --- Fit lemah: analogi representasional, konten lab belum menguji konsep target secara presisi ---
-  'math-dec-34-tenths-hundredths': {
-    missionIndex: 4,
-    fit: 'weak',
-    rationale: 'Analogi segmen garis [0, 1]; lab saat ini menguji 0.5 dan belum menyediakan partisi mikro perseratusan.',
-  },
-  'math-dec-36-comparing-decimals': {
-    missionIndex: 6,
-    fit: 'weak',
-    rationale: 'Analogi posisi desimal tunggal (2.5); lab belum memuat antarmuka perbandingan dua nilai desimal berdampingan.',
-  },
-  'math-rat-42-ratio-tables': {
-    missionIndex: 3,
-    fit: 'weak',
-    rationale: 'Analogi kelipatan; lompatan +2 berulang melatih intuisi kelipatan dasar, bukan tabel rasio formal.',
-  },
-  'math-rat-43-unit-rate': {
-    missionIndex: 3,
-    fit: 'weak',
-    rationale: 'Analogi laju kelipatan; lab melatih langkah seragam namun belum mengisolasi variabel waktu/satuan.',
-  },
-  'math-rat-44-proportional-reasoning': {
-    missionIndex: 3,
-    fit: 'weak',
-    rationale: 'Analogi kelipatan konstan; penalaran proporsional kompleks disederhanakan ke deret lompatan +2.',
-  },
-  'math-rat-45-constant-proportionality': {
-    missionIndex: 3,
-    fit: 'weak',
-    rationale: 'Analogi translasi linear k; belum memuat parameterisasi konstanta kemiringan y = kx.',
-  },
-  'math-frac-33-reciprocal-inverse': {
-    missionIndex: 3,
-    fit: 'weak',
-    rationale: 'Analogi keterbalikan; lompatan maju/mundur belum memodelkan balikan perkalian (reciprocal) pecahan.',
-  },
-  'math-frac-11-fraction-one-whole': {
-    missionIndex: 0,
-    fit: 'weak',
-    rationale: 'Analogi pencapaian target jarak; lompatan mendarat di 5 satuan bulat, bukan partisi n/n = 1.',
-  },
-  'math-frac-23-sub-diff-denom': {
-    missionIndex: 2,
-    fit: 'weak',
-    rationale: 'Analogi arah pengurangan mundur (8 - 3); menggunakan bilangan bulat, bukan operasi pecahan beda penyebut.',
-  },
-  'math-frac-07-num-denom-roles': {
-    missionIndex: 4,
-    fit: 'weak',
-    rationale: 'Analogi spasial titik 1/2; manipulasi belum memisahkan peran pembilang dan penyebut secara terisolasi.',
-  },
-  'math-frac-15-simplifying-fractions': {
-    missionIndex: 6,
-    fit: 'weak',
-    rationale: 'Analogi koordinat titik 2.5; lab belum memuat reduksi pembilang dan penyebut ke bentuk paling sederhana.',
-  },
-  'math-frac-16-comparing-same-denom': {
-    missionIndex: 4,
-    fit: 'weak',
-    rationale: 'Analogi urutan sumbu horizontal; belum menyediakan perbandingan dua pecahan berpenyebut sama.',
-  },
-  'math-frac-17-comparing-same-num': {
-    missionIndex: 4,
-    fit: 'weak',
-    rationale: 'Analogi urutan sumbu horizontal; belum membandingkan dua pecahan berpembilang sama.',
-  },
-  'math-pct-37-percentage-per-hundred': {
-    missionIndex: 4,
-    fit: 'weak',
-    rationale: 'Analogi patokan separuh (0.5 = 50%); belum memuat kisi perseratusan skala penuh.',
-  },
-};
-
-export function getMissionIndexForNode(nodeId?: string): number {
-  if (!nodeId) return 0;
-  return NUMBER_LINE_NODE_MAPPING[nodeId]?.missionIndex ?? 0;
+export interface Mission {
+  title: string;
+  prompt: string;
+  startPos: number;
+  targetPos: number;
+  hint: string;
+  pathRule?: PathRule;
+  identify?: IdentifySpec;
 }
+
+const JUMP_DELTAS = [-1, -0.5, 0.5, 1, 2, 3, 4];
+
+export function minHops(start: number, target: number, maxTick = 10): number {
+  const q: [number, number][] = [[start, 0]];
+  const seen = new Set([start]);
+  while (q.length) {
+    const [pos, d] = q.shift()!;
+    if (Math.abs(pos - target) < 0.05) return d;
+    for (const dx of JUMP_DELTAS) {
+      const n = Math.round((pos + dx) * 10) / 10;
+      if (n >= 0 && n <= maxTick && !seen.has(n)) {
+        seen.add(n);
+        q.push([n, d + 1]);
+      }
+    }
+  }
+  return 1;
+}
+
+export function checkPathRule(rule?: PathRule, jumps: number[] = []): boolean {
+  if (!rule) return true;
+  if (rule.kind === 'monotonic') {
+    if (jumps.length === 0) return false;
+    return rule.dir === 'right' ? jumps.every((d) => d > 0) : jumps.every((d) => d < 0);
+  }
+  if (rule.kind === 'equal_jumps') {
+    if (jumps.length !== rule.count) return false;
+    return jumps.every((d) => Math.abs(d - rule.size) < 0.05);
+  }
+  return true;
+}
+
+const MISSIONS: Mission[] = [
+  {
+    title: 'Kardinalitas Jarak',
+    prompt: 'Bantu katak melompat dari 0 menuju teratai angka 5.',
+    startPos: 0,
+    targetPos: 5,
+    hint: 'Setiap 1 lompatan adalah penambahan 1 satuan jarak fisik ke arah kanan.',
+    pathRule: { kind: 'monotonic', dir: 'right' },
+  },
+  {
+    title: 'Penjumlahan Spasial (3 + 4)',
+    prompt: 'Mulai dari angka 3, lompat maju 4 langkah! Perhatikan di angka berapa katak mendarat.',
+    startPos: 3,
+    targetPos: 7,
+    hint: 'Penjumlahan (3 + 4) di alam nyata adalah gabungan dua interval jarak searah.',
+    pathRule: { kind: 'monotonic', dir: 'right' },
+  },
+  {
+    title: 'Operasi Pengurangan Spasial (Invers Lompatan)',
+    prompt: 'Dari angka 8, lompat mundur sejauh 3 langkah (8 - 3).',
+    startPos: 8,
+    targetPos: 5,
+    hint: 'Pengurangan adalah melangkah ke arah sebaliknya (kiri) pada sumbu ruang!',
+    pathRule: { kind: 'monotonic', dir: 'left' },
+  },
+  {
+    title: 'Lompatan Berkelipatan (+2, +2, +2)',
+    prompt: 'Lakukan lompatan genap ganda 2 langkah sebanyak 3 kali dari 0 hingga mencapai teratai 6.',
+    startPos: 0,
+    targetPos: 6,
+    hint: 'Lompatan berulang dengan interval sama (+2) adalah akar intuitif dari perkalian (3 × 2)! Setiap lompatan harus persis +2.',
+    pathRule: { kind: 'equal_jumps', size: 2, count: 3 },
+  },
+  {
+    title: 'Pecahan di Antara Bilangan Bulat (Titik 1/2 = 0.5)',
+    prompt: 'Katak harus mendarat TEPAT di antara teratai 0 dan 1 — di titik tengah 1/2 (atau 0.5)!',
+    startPos: 0,
+    targetPos: 0.5,
+    hint: 'Garis antara dua bilangan bulat bisa dibagi jadi bagian-bagian sama besar — itulah pecahan.',
+    identify: {
+      prompt: 'Konfirmasi Pemahaman: Pilih semua nama matematis yang bernilai persis sama dengan titik koordinat ini (0.5):',
+      options: [
+        { label: '1/2', correct: true },
+        { label: '0.5', correct: true },
+        { label: '2/1', correct: false },
+        { label: '1/5', correct: false },
+      ],
+    },
+  },
+  {
+    title: 'Pecahan Tak Murni & Bilangan Campuran (1 1/2 = 1.5)',
+    prompt: 'Lompati angka 1 utuh lalu tambah setengah langkah lagi (1 + 1/2 = 1.5) untuk membuktikan pecahan tidak murni!',
+    startPos: 0,
+    targetPos: 1.5,
+    hint: 'Pecahan tak murni dan bilangan campuran berada melampaui angka 1 pada garis bilangan yang sama.',
+    identify: {
+      prompt: 'Konfirmasi Representasi: Pilih semua bentuk kuantitas yang setara dengan titik ini (1.5):',
+      options: [
+        { label: '3/2', correct: true },
+        { label: '1 1/2', correct: true },
+        { label: '1.5', correct: true },
+        { label: '2/3', correct: false },
+        { label: '1/5', correct: false },
+      ],
+    },
+  },
+  {
+    title: 'Ekuivalensi & Skala Desimal (Titik 2.5 atau 5/2)',
+    prompt: 'Lompat ke titik 2.5 (setara dengan 5/2 atau 2 1/2) untuk mengamati ekuivalensi desimal dan pecahan!',
+    startPos: 0,
+    targetPos: 2.5,
+    hint: '2.5, 2 1/2, dan 5/2 adalah titik koordinat yang persis sama pada garis bilangan kontinu.',
+    identify: {
+      prompt: 'Konfirmasi Ekuivalensi: Pilih semua nama representasi yang mewakili titik yang sama (2.5):',
+      options: [
+        { label: '5/2', correct: true },
+        { label: '2 1/2', correct: true },
+        { label: '2.5', correct: true },
+        { label: '2/5', correct: false },
+        { label: '2.05', correct: false },
+      ],
+    },
+  },
+];
 
 interface NumberLineLabProps {
   onMasteryEvidence?: (concept: string, details: string) => void;
@@ -148,118 +169,150 @@ export const NumberLineLab: React.FC<NumberLineLabProps> = ({
   activeNode,
 }) => {
   const telemetry = useLabTelemetry('number_line');
-  const initialIndex = getMissionIndexForNode(nodeId);
+  const route = getRoute(nodeId, 'number_line');
+  const initialIndex = route?.scenarioIndex ?? 0;
+
   const [activeMissionIndex, setActiveMissionIndex] = useState<number>(() => initialIndex);
-
-  const missions = [
-    {
-      title: 'Kardinalitas Jarak',
-      prompt: 'Bantu katak melompat dari 0 menuju teratai angka 5.',
-      startPos: 0,
-      targetPos: 5,
-      hint: 'Setiap 1 lompatan adalah penambahan 1 satuan jarak fisik.',
-    },
-    {
-      title: 'Penjumlahan Spasial (3 + 4)',
-      prompt: 'Mulai dari angka 3, lompat maju 4 langkah! Perhatikan di angka berapa katak mendarat.',
-      startPos: 3,
-      targetPos: 7,
-      hint: 'Penjumlahan (3 + 4) di alam nyata adalah gabungan dua interval jarak: 3 langkah + 4 langkah = 7 langkah.',
-    },
-    {
-      title: 'Operasi Pengurangan Spasial (Invers Lompatan)',
-      prompt: 'Dari angka 8, lompat mundur sejauh 3 langkah (8 - 3).',
-      startPos: 8,
-      targetPos: 5,
-      hint: 'Pengurangan adalah melangkah ke arah sebaliknya (kiri) pada sumbu ruang!',
-    },
-    {
-      title: 'Lompatan Berkelipatan (+2, +2, +2)',
-      prompt: 'Lakukan lompatan genap ganda 2 langkah sebanyak 3 kali dari 0 hingga mencapai teratai 6.',
-      startPos: 0,
-      targetPos: 6,
-      hint: 'Lompatan berulang dengan interval sama (+2) adalah akar intuitif dari perkalian (3 × 2)!',
-    },
-    {
-      title: 'Pecahan di Antara Bilangan Bulat (Titik 1/2 = 0.5)',
-      prompt: 'Katak harus mendarat TEPAT di antara teratai 0 dan 1 — di titik tengah 1/2 (atau 0.5)!',
-      startPos: 0,
-      targetPos: 0.5,
-      hint: 'Garis antara dua bilangan bulat bisa dibagi jadi bagian-bagian sama besar — itulah pecahan.',
-    },
-    {
-      title: 'Pecahan Tak Murni & Bilangan Campuran (1 1/2 = 1.5)',
-      prompt: 'Lompati angka 1 utuh lalu tambah setengah langkah lagi (1 + 1/2 = 1.5) untuk membuktikan pecahan tidak murni!',
-      startPos: 0,
-      targetPos: 1.5,
-      hint: 'Pecahan tak murni dan bilangan campuran berada melampaui angka 1 pada garis bilangan yang sama.',
-    },
-    {
-      title: 'Ekuivalensi & Skala Desimal (Titik 2.5 atau 5/2)',
-      prompt: 'Lompat ke titik 2.5 (setara dengan 5/2 atau 2 1/2) untuk mengamati ekuivalensi desimal dan pecahan!',
-      startPos: 0,
-      targetPos: 2.5,
-      hint: '2.5, 2 1/2, dan 5/2 adalah titik koordinat yang persis sama pada garis bilangan.',
-    },
-  ];
-
-  const initialStart = missions[initialIndex]?.startPos ?? 0;
+  const initialStart = MISSIONS[initialIndex]?.startPos ?? 0;
   const [currentPosition, setCurrentPosition] = useState<number>(() => initialStart);
   const [historyTrail, setHistoryTrail] = useState<number[]>([initialStart]);
+  const [attemptJumps, setAttemptJumps] = useState<number[]>([]);
   const [missionComplete, setMissionComplete] = useState<boolean>(false);
+  const [stage, setStage] = useState<'jump' | 'identify'>('jump');
+  const [selectedOptions, setSelectedOptions] = useState<Set<string>>(new Set());
+  const [feedback, setFeedback] = useState<string | null>(null);
 
-  const activeMapping = nodeId ? NUMBER_LINE_NODE_MAPPING[nodeId] : undefined;
-  // Sumber kebenaran tunggal: ikuti activeNode.simulationAlignment
-  const isDirect = activeNode?.simulationAlignment === 'direct';
+  // Sumber kebenaran tunggal: sinkron dengan SIMULATION_ROUTING / activeNode.simulationAlignment
+  const isDirect = route ? route.fit === 'strong' : (activeNode?.simulationAlignment === 'direct');
 
   const maxTicks = 10;
   const ticks = Array.from({ length: maxTicks + 1 }, (_, i) => i);
 
+  // Inisialisasi skenario telemetri pada mount
+  useEffect(() => {
+    const m = MISSIONS[initialIndex];
+    const hops = minHops(m.startPos, m.targetPos);
+    telemetry.beginScenario(m.title, hops);
+  }, []);
+
+  const selectMission = (idx: number) => {
+    setActiveMissionIndex(idx);
+    const m = MISSIONS[idx];
+    const start = m.startPos ?? 0;
+    setCurrentPosition(start);
+    setHistoryTrail([start]);
+    setAttemptJumps([]);
+    setStage('jump');
+    setSelectedOptions(new Set());
+    setFeedback(null);
+    setMissionComplete(false);
+
+    const hops = minHops(start, m.targetPos);
+    telemetry.beginScenario(m.title, hops);
+  };
+
   const handleJump = (delta: number) => {
+    if (missionComplete || stage === 'identify') return;
     const nextPos = Math.max(0, Math.min(maxTicks, Math.round((currentPosition + delta) * 10) / 10));
     setCurrentPosition(nextPos);
     setHistoryTrail((prev) => [...prev.slice(-6), nextPos]);
+    setAttemptJumps((prev) => [...prev, delta]);
+    setFeedback(null);
 
+    // 1 lompatan = 1 parameter_change (TIDAK ADA verification_attempt di sini)
     telemetry.recordParameterChange('frog_jump_delta', delta);
-    telemetry.recordParameterChange('frog_position', nextPos);
-
-    const activeM = missions[activeMissionIndex];
-    const distance = Math.abs(nextPos - activeM.targetPos);
-    const isCorrect = distance < 0.05;
-
-    telemetry.recordVerificationAttempt(isCorrect, Math.min(1, distance / 5));
-
-    if (isCorrect && !missionComplete) {
-      setMissionComplete(true);
-      const session = telemetry.finalizeSession();
-      const evidence = deriveEmpiricalEvidenceFromTelemetry(session);
-      if (onEmpiricalEvidence) {
-        onEmpiricalEvidence(evidence);
-      }
-      if (onMasteryEvidence) {
-        onMasteryEvidence(
-          activeNode?.name || 'Garis Bilangan Spasial & Kardinalitas',
-          `Anak menyelesaikan Misi "${activeM.title}" di posisi ${nextPos} (Akurasi: ${(evidence.accuracyScore * 100).toFixed(0)}%, Presisi: ${(evidence.manipulationPrecision * 100).toFixed(0)}%).`
-        );
-      }
-    }
   };
 
   const handleResetToStart = () => {
     telemetry.recordReset();
-    const start = missions[activeMissionIndex].startPos ?? 0;
+    const start = MISSIONS[activeMissionIndex].startPos ?? 0;
     setCurrentPosition(start);
     setHistoryTrail([start]);
+    setAttemptJumps([]);
+    setFeedback(null);
+    setStage('jump');
+    setSelectedOptions(new Set());
     setMissionComplete(false);
   };
 
-  const selectMission = (idx: number) => {
-    setActiveMissionIndex(idx);
-    const start = missions[idx].startPos ?? 0;
-    setCurrentPosition(start);
-    setHistoryTrail([start]);
-    setMissionComplete(false);
+  const confirmArrival = () => {
+    if (missionComplete || stage === 'identify') return;
+    const m = MISSIONS[activeMissionIndex];
+    const span = Math.max(Math.abs(m.targetPos - m.startPos), 0.5);
+    const offBy = Math.abs(currentPosition - m.targetPos);
+    const landed = offBy < 0.05;
+    const pathOk = checkPathRule(m.pathRule, attemptJumps);
+    const isCorrect = landed && pathOk;
+
+    // Normalisasi jarak: dibagi rentang span, bukan nilai konstan
+    const distance = landed ? (pathOk ? 0 : 0.5) : Math.min(1, offBy / span);
+    telemetry.recordVerificationAttempt(isCorrect, distance);
+
+    if (!isCorrect) {
+      if (landed && !pathOk) {
+        setFeedback('Katak sampai di angka target, tetapi pola lompatan belum sesuai instruksi misi. Coba ulangi dengan langkah yang diminta.');
+      } else {
+        setFeedback(`Katak saat ini di posisi ${currentPosition}, sedangkan target adalah ${m.targetPos}. Lanjutkan melompat!`);
+      }
+      return;
+    }
+
+    if (m.identify) {
+      setStage('identify');
+      setFeedback(null);
+      return;
+    }
+
+    completeMission();
   };
+
+  const toggleOption = (label: string) => {
+    setSelectedOptions((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) {
+        next.delete(label);
+      } else {
+        next.add(label);
+      }
+      return next;
+    });
+  };
+
+  const confirmIdentification = () => {
+    const m = MISSIONS[activeMissionIndex];
+    if (!m.identify) return;
+    const options = m.identify.options;
+    const missedOrWrong = options.filter((opt) => selectedOptions.has(opt.label) !== opt.correct).length;
+    const isCorrect = missedOrWrong === 0;
+    const distance = missedOrWrong / options.length;
+
+    telemetry.recordVerificationAttempt(isCorrect, distance);
+
+    if (!isCorrect) {
+      setFeedback('Pilihan bentuk representasi belum tepat. Periksa kembali nama pecahan murni, campuran, atau desimal yang senilai.');
+      return;
+    }
+
+    completeMission();
+  };
+
+  const completeMission = () => {
+    setMissionComplete(true);
+    setFeedback(null);
+    const session = telemetry.finalizeSession();
+    const evidence = deriveEmpiricalEvidenceFromTelemetry(session);
+    if (onEmpiricalEvidence) {
+      onEmpiricalEvidence(evidence);
+    }
+    if (onMasteryEvidence) {
+      onMasteryEvidence(
+        activeNode?.name || 'Garis Bilangan Spasial & Kardinalitas',
+        `Anak menyelesaikan Misi "${MISSIONS[activeMissionIndex].title}" (Akurasi: ${(evidence.accuracyScore * 100).toFixed(0)}%, Presisi: ${(evidence.manipulationPrecision * 100).toFixed(0)}%).`
+      );
+    }
+  };
+
+  const activeMission = MISSIONS[activeMissionIndex];
 
   return (
     <div id="number-line-lab" className="bg-[#0b0f1d] rounded-2xl border border-slate-800 p-5 space-y-6">
@@ -268,7 +321,7 @@ export const NumberLineLab: React.FC<NumberLineLabProps> = ({
         <div>
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-              Umur 4 - 6 Tahun (Pra-Operasional)
+              Umur 4 - 6 & 7 - 9 Tahun
             </span>
             <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-300">
               Domain: Matematika
@@ -276,10 +329,10 @@ export const NumberLineLab: React.FC<NumberLineLabProps> = ({
           </div>
           <h3 className="text-lg font-bold text-white mt-1 flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-indigo-400" />
-            <span>Garis Bilangan Spasial & Kardinalitas (Number Line Jump Lab)</span>
+            <span>Garis Bilangan Spasial, Kardinalitas & Pecahan</span>
           </h3>
           <p className="text-xs text-slate-400 mt-0.5">
-            Membongkar miskonsepsi: Berhitung bukan sekadar nyanyian hafalan kata, melainkan perpindahan jarak fisik dan kumpulan kuantitas nyata!
+            Membongkar miskonsepsi: Berhitung bukan hafalan kata, melainkan perpindahan jarak fisik dan koordinat kontinu!
           </p>
         </div>
 
@@ -288,23 +341,25 @@ export const NumberLineLab: React.FC<NumberLineLabProps> = ({
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs border border-slate-700 transition self-start md:self-auto"
         >
           <RotateCcw className="w-3.5 h-3.5" />
-          <span>Kembali ke Awal</span>
+          <span>Ulangi Misi</span>
         </button>
       </div>
 
       {/* Mission Card */}
       <div className="bg-slate-950/70 p-4 rounded-xl border border-indigo-500/30 space-y-2.5">
-        {activeMapping && (
-          <div className={`p-2 rounded-lg text-[11px] flex items-center justify-between gap-2 border ${
-            isDirect
-              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-              : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
-          }`}>
+        {route && (
+          <div
+            className={`p-2 rounded-lg text-[11px] flex items-center justify-between gap-2 border ${
+              isDirect
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+            }`}
+          >
             <span className="font-semibold shrink-0">
               🎯 Rute Otomatis Konsep: {isDirect ? 'Kesesuaian Langsung (1-to-1 Fidelity)' : 'Mode Analogi Representasi'}
             </span>
             <span className="text-[10px] text-slate-300 italic truncate max-w-[65%]">
-              {activeMapping.rationale}
+              {route.rationale}
             </span>
           </div>
         )}
@@ -312,10 +367,10 @@ export const NumberLineLab: React.FC<NumberLineLabProps> = ({
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
             <Sparkles className="w-4 h-4 text-indigo-400" />
-            <span>Tantangan Belajar #{activeMissionIndex + 1}: {missions[activeMissionIndex].title}</span>
+            <span>Tantangan Belajar #{activeMissionIndex + 1}: {activeMission.title}</span>
           </span>
           <div className="flex gap-1.5">
-            {missions.map((_, idx) => (
+            {MISSIONS.map((_, idx) => (
               <button
                 key={idx}
                 onClick={() => selectMission(idx)}
@@ -331,16 +386,23 @@ export const NumberLineLab: React.FC<NumberLineLabProps> = ({
           </div>
         </div>
 
-        <p className="text-xs text-slate-200 font-medium">{missions[activeMissionIndex].prompt}</p>
+        <p className="text-xs text-slate-200 font-medium">{activeMission.prompt}</p>
         <div className="flex items-center justify-between text-[11px]">
-          <span className="text-slate-400 italic">💡 {missions[activeMissionIndex].hint}</span>
+          <span className="text-slate-400 italic">💡 {activeMission.hint}</span>
           {missionComplete && (
             <span className="text-emerald-400 font-bold flex items-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>Target Tercapai!</span>
+              <span>Target Tercapai & Terbukti!</span>
             </span>
           )}
         </div>
+
+        {feedback && (
+          <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{feedback}</span>
+          </div>
+        )}
       </div>
 
       {/* Main Interactive Stage: Pond & Lily Pads on a Linear Number Line */}
@@ -402,13 +464,13 @@ export const NumberLineLab: React.FC<NumberLineLabProps> = ({
           </div>
 
           {/* Fractional Target Marker if targetPos is non-integer */}
-          {missions[activeMissionIndex].targetPos % 1 !== 0 && (
+          {activeMission.targetPos % 1 !== 0 && (
             <div
               className="absolute top-10 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center z-15 pointer-events-none"
-              style={{ left: `${(missions[activeMissionIndex].targetPos / maxTicks) * 100}%` }}
+              style={{ left: `${(activeMission.targetPos / maxTicks) * 100}%` }}
             >
               <div className="w-8 h-8 rounded-full bg-amber-500/40 text-amber-200 border-2 border-dashed border-amber-400 flex items-center justify-center font-bold text-[10px] animate-pulse shadow-lg">
-                {missions[activeMissionIndex].targetPos}
+                {activeMission.targetPos}
               </div>
               <span className="text-[9px] text-amber-300 font-bold mt-1 uppercase tracking-wider">
                 Target
@@ -416,49 +478,26 @@ export const NumberLineLab: React.FC<NumberLineLabProps> = ({
             </div>
           )}
 
-          {/* Ticks & Lily Pads */}
+          {/* Ticks & Lily Pads (Teleport tertutup: hanya highlight target & visualisasi jarak) */}
           <div className="flex justify-between w-full absolute top-10 left-0 px-4 -translate-y-1/2">
             {ticks.map((tick) => {
-              const isTarget = missions[activeMissionIndex].targetPos === tick;
+              const isTarget = activeMission.targetPos === tick;
               const isCurrent = Math.abs(currentPosition - tick) < 0.05;
 
               return (
                 <div key={tick} className="flex flex-col items-center -translate-x-1/2">
-                  {/* Lily Pad Circle */}
-                  <button
-                    onClick={() => {
-                      setCurrentPosition(tick);
-                      setHistoryTrail((prev) => [...prev.slice(-6), tick]);
-                      telemetry.recordParameterChange('frog_click_position', tick);
-                      const distance = Math.abs(tick - missions[activeMissionIndex].targetPos);
-                      const isCorrect = distance < 0.05;
-                      telemetry.recordVerificationAttempt(isCorrect, Math.min(1, distance / 5));
-
-                      if (isCorrect && !missionComplete) {
-                        setMissionComplete(true);
-                        const session = telemetry.finalizeSession();
-                        const evidence = deriveEmpiricalEvidenceFromTelemetry(session);
-                        if (onEmpiricalEvidence) {
-                          onEmpiricalEvidence(evidence);
-                        }
-                        if (onMasteryEvidence) {
-                          onMasteryEvidence(
-                            activeNode?.name || 'Garis Bilangan Spasial & Kardinalitas',
-                            `Anak menyelesaikan Misi "${missions[activeMissionIndex].title}" di posisi ${tick} (Akurasi: ${(evidence.accuracyScore * 100).toFixed(0)}%, Presisi: ${(evidence.manipulationPrecision * 100).toFixed(0)}%).`
-                          );
-                        }
-                      }
-                    }}
-                    className={`w-9 h-9 sm:w-11 sm:h-11 rounded-full flex flex-col items-center justify-center font-bold text-xs transition-all ${
+                  <div
+                    className={`w-9 h-9 sm:w-11 sm:h-11 rounded-full flex flex-col items-center justify-center font-bold text-xs transition-all select-none ${
                       isCurrent
                         ? 'bg-emerald-500 text-slate-950 ring-4 ring-emerald-400/40 shadow-lg scale-110'
                         : isTarget
                         ? 'bg-amber-500/30 text-amber-200 border-2 border-dashed border-amber-400 animate-pulse'
-                        : 'bg-slate-900 text-slate-300 border border-slate-700 hover:bg-slate-800'
+                        : 'bg-slate-900 text-slate-300 border border-slate-700'
                     }`}
+                    title={`Teratai ${tick}`}
                   >
                     <span>{tick}</span>
-                  </button>
+                  </div>
 
                   {/* Tick Line down */}
                   <div className="w-0.5 h-2 bg-slate-700 mt-1" />
@@ -491,78 +530,135 @@ export const NumberLineLab: React.FC<NumberLineLabProps> = ({
         </div>
       </div>
 
-      {/* Control Buttons (Jump Controls) */}
-      <div className="space-y-3">
-        <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-          <Brain className="w-3.5 h-3.5 text-indigo-400" />
-          <span>Aksi Lompatan Katak (Manipulasi Spasial & Pecahan)</span>
-        </h4>
+      {/* Bagian 5: Langkah Identifikasi Representasi Pecahan/Desimal (Jika dalam stage identify) */}
+      {stage === 'identify' && activeMission.identify && !missionComplete && (
+        <div className="bg-slate-900/90 border-2 border-indigo-500/60 rounded-xl p-5 space-y-4 shadow-xl animate-fade-in">
+          <div className="flex items-center gap-2 text-indigo-300 font-bold text-sm">
+            <Brain className="w-4 h-4 text-indigo-400" />
+            <span>Langkah Verifikasi Identifikasi Kognitif: Pecahan Senilai & Desimal</span>
+          </div>
+          <p className="text-xs text-slate-200">{activeMission.identify.prompt}</p>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
-          <button
-            onClick={() => handleJump(-0.5)}
-            disabled={currentPosition <= 0.4}
-            className="p-2.5 rounded-xl bg-slate-900 hover:bg-rose-950/60 disabled:opacity-40 text-rose-300 border border-slate-800 hover:border-rose-500/40 text-xs font-semibold flex items-center justify-center gap-1 transition"
-          >
-            <ArrowLeft className="w-3 h-3" />
-            <span>-1/2 (-0.5)</span>
-          </button>
-
-          <button
-            onClick={() => handleJump(-1)}
-            disabled={currentPosition <= 0}
-            className="p-2.5 rounded-xl bg-slate-900 hover:bg-rose-950/60 disabled:opacity-40 text-rose-300 border border-slate-800 hover:border-rose-500/40 text-xs font-semibold flex items-center justify-center gap-1.5 transition"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Mundur 1 (-1)</span>
-          </button>
-
-          <button
-            onClick={() => handleJump(0.5)}
-            disabled={currentPosition >= maxTicks - 0.4}
-            className="p-2.5 rounded-xl bg-slate-900 hover:bg-cyan-950/60 disabled:opacity-40 text-cyan-300 border border-slate-800 hover:border-cyan-500/40 text-xs font-semibold flex items-center justify-center gap-1 transition"
-          >
-            <span>+1/2 (+0.5)</span>
-            <ArrowRight className="w-3 h-3" />
-          </button>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {activeMission.identify.options.map((opt) => {
+              const isSelected = selectedOptions.has(opt.label);
+              return (
+                <button
+                  key={opt.label}
+                  onClick={() => toggleOption(opt.label)}
+                  className={`p-3 rounded-xl border text-xs font-semibold flex items-center justify-between transition ${
+                    isSelected
+                      ? 'bg-indigo-600/30 border-indigo-400 text-indigo-200 ring-2 ring-indigo-500/40'
+                      : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700'
+                  }`}
+                >
+                  <span className="font-mono text-sm">{opt.label}</span>
+                  {isSelected ? (
+                    <CheckSquare className="w-4 h-4 text-indigo-400" />
+                  ) : (
+                    <Square className="w-4 h-4 text-slate-600" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
 
           <button
-            onClick={() => handleJump(1)}
-            disabled={currentPosition >= maxTicks}
-            className="p-2.5 rounded-xl bg-slate-900 hover:bg-indigo-950/60 disabled:opacity-40 text-indigo-300 border border-slate-800 hover:border-indigo-500/40 text-xs font-semibold flex items-center justify-center gap-1.5 transition"
+            onClick={confirmIdentification}
+            className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg transition flex items-center justify-center gap-2"
           >
-            <span>Maju 1 (+1)</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-
-          <button
-            onClick={() => handleJump(2)}
-            disabled={currentPosition >= maxTicks - 1}
-            className="p-2.5 rounded-xl bg-slate-900 hover:bg-indigo-950/60 disabled:opacity-40 text-indigo-300 border border-slate-800 hover:border-indigo-500/40 text-xs font-semibold flex items-center justify-center gap-1.5 transition"
-          >
-            <span>Maju 2 (+2)</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-
-          <button
-            onClick={() => handleJump(3)}
-            disabled={currentPosition >= maxTicks - 2}
-            className="p-2.5 rounded-xl bg-slate-900 hover:bg-emerald-950/60 disabled:opacity-40 text-emerald-300 border border-slate-800 hover:border-emerald-500/40 text-xs font-semibold flex items-center justify-center gap-1.5 transition"
-          >
-            <span>Maju 3 (+3)</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-
-          <button
-            onClick={() => handleJump(4)}
-            disabled={currentPosition >= maxTicks - 3}
-            className="p-2.5 rounded-xl bg-slate-900 hover:bg-cyan-950/60 disabled:opacity-40 text-cyan-300 border border-slate-800 hover:border-cyan-500/40 text-xs font-semibold flex items-center justify-center gap-1.5 transition"
-          >
-            <span>Maju 4 (+4)</span>
-            <ArrowRight className="w-3.5 h-3.5" />
+            <CheckCircle2 className="w-4 h-4" />
+            <span>Konfirmasi Bentuk Ekuivalen</span>
           </button>
         </div>
-      </div>
+      )}
+
+      {/* Control Buttons (Jump Controls & Tombol Konfirmasi Mendarat) */}
+      {stage === 'jump' && (
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+              <Brain className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Aksi Lompatan Katak (Manipulasi Spasial & Pecahan)</span>
+            </h4>
+
+            {/* Tombol Konfirmasi Eksplisit Satu-Satunya */}
+            <button
+              onClick={confirmArrival}
+              disabled={missionComplete}
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-1.5 self-start sm:self-auto"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              <span>Aku Sudah Sampai! (Verifikasi Posisi)</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
+            <button
+              onClick={() => handleJump(-0.5)}
+              disabled={currentPosition <= 0.4 || missionComplete}
+              className="p-2.5 rounded-xl bg-slate-900 hover:bg-rose-950/60 disabled:opacity-40 text-rose-300 border border-slate-800 hover:border-rose-500/40 text-xs font-semibold flex items-center justify-center gap-1 transition"
+            >
+              <ArrowLeft className="w-3 h-3" />
+              <span>-1/2 (-0.5)</span>
+            </button>
+
+            <button
+              onClick={() => handleJump(-1)}
+              disabled={currentPosition <= 0 || missionComplete}
+              className="p-2.5 rounded-xl bg-slate-900 hover:bg-rose-950/60 disabled:opacity-40 text-rose-300 border border-slate-800 hover:border-rose-500/40 text-xs font-semibold flex items-center justify-center gap-1.5 transition"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Mundur 1 (-1)</span>
+            </button>
+
+            <button
+              onClick={() => handleJump(0.5)}
+              disabled={currentPosition >= maxTicks - 0.4 || missionComplete}
+              className="p-2.5 rounded-xl bg-slate-900 hover:bg-cyan-950/60 disabled:opacity-40 text-cyan-300 border border-slate-800 hover:border-cyan-500/40 text-xs font-semibold flex items-center justify-center gap-1 transition"
+            >
+              <span>+1/2 (+0.5)</span>
+              <ArrowRight className="w-3 h-3" />
+            </button>
+
+            <button
+              onClick={() => handleJump(1)}
+              disabled={currentPosition >= maxTicks || missionComplete}
+              className="p-2.5 rounded-xl bg-slate-900 hover:bg-indigo-950/60 disabled:opacity-40 text-indigo-300 border border-slate-800 hover:border-indigo-500/40 text-xs font-semibold flex items-center justify-center gap-1.5 transition"
+            >
+              <span>Maju 1 (+1)</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              onClick={() => handleJump(2)}
+              disabled={currentPosition >= maxTicks - 1 || missionComplete}
+              className="p-2.5 rounded-xl bg-slate-900 hover:bg-indigo-950/60 disabled:opacity-40 text-indigo-300 border border-slate-800 hover:border-indigo-500/40 text-xs font-semibold flex items-center justify-center gap-1.5 transition"
+            >
+              <span>Maju 2 (+2)</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              onClick={() => handleJump(3)}
+              disabled={currentPosition >= maxTicks - 2 || missionComplete}
+              className="p-2.5 rounded-xl bg-slate-900 hover:bg-emerald-950/60 disabled:opacity-40 text-emerald-300 border border-slate-800 hover:border-emerald-500/40 text-xs font-semibold flex items-center justify-center gap-1.5 transition"
+            >
+              <span>Maju 3 (+3)</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              onClick={() => handleJump(4)}
+              disabled={currentPosition >= maxTicks - 3 || missionComplete}
+              className="p-2.5 rounded-xl bg-slate-900 hover:bg-cyan-950/60 disabled:opacity-40 text-cyan-300 border border-slate-800 hover:border-cyan-500/40 text-xs font-semibold flex items-center justify-center gap-1.5 transition"
+            >
+              <span>Maju 4 (+4)</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

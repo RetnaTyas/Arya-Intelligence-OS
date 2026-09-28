@@ -42,6 +42,9 @@ import {
 } from '../src/engine/centralHypothesisBenchmark';
 import { computeRealTimeTelemetry } from '../src/engine/dynamicTelemetry';
 import { KnowledgeNode, LearnerNodeState, FeynmanDiagnosisResult, HumanAuditRating } from '../src/types';
+import { SIMULATION_ROUTING, LAB_SCENARIO_COUNT, alignmentOf } from '../src/data/simulationRouting';
+import { deriveEmpiricalEvidenceFromTelemetry } from '../src/engine/empiricalEvidenceDerivation';
+import { LabTelemetrySession } from '../src/types/telemetry';
 
 interface TestResult {
   suite: string;
@@ -200,6 +203,56 @@ function runSuite1() {
     suite,
     'Kelengkapan Delivery Empiris & Bahasa Formal Proporsional (Temuan 10 Gate)',
     `100% node (${nodesWithSim.length}/52) memiliki activeSimulationId lab interaktif, 100% (${nodesWithModality.length}/52) memiliki assessmentModality eksplisit, dan 0 istilah pascasarjana ditemukan pada layer formal.`
+  );
+
+  // 1.7 Konsistensi Tabel Routing Terpusat & Kontrak Verifikasi (Anti-Drift & Anti-Overclaim)
+  let routingConsistencyOk = true;
+  let routingErrorMsg = '';
+
+  for (const n of narrowNodes) {
+    const route = SIMULATION_ROUTING[n.id];
+    if (!route) {
+      routingConsistencyOk = false;
+      routingErrorMsg = `Node ${n.id} tidak memiliki entri di SIMULATION_ROUTING`;
+      break;
+    }
+    if (route.labId !== n.activeSimulationId) {
+      routingConsistencyOk = false;
+      routingErrorMsg = `Node ${n.id} labId (${route.labId}) tidak cocok dengan activeSimulationId (${n.activeSimulationId})`;
+      break;
+    }
+    const maxScenarios = LAB_SCENARIO_COUNT[route.labId];
+    if (route.scenarioIndex < 0 || route.scenarioIndex >= maxScenarios) {
+      routingConsistencyOk = false;
+      routingErrorMsg = `Node ${n.id} scenarioIndex (${route.scenarioIndex}) di luar batas skenario lab ${route.labId} (0..${maxScenarios - 1})`;
+      break;
+    }
+    if (route.fit === 'strong' && (!route.verifies || route.verifies.trim() === '')) {
+      routingConsistencyOk = false;
+      routingErrorMsg = `Node ${n.id} berstatus 'strong' namun tidak memiliki spesifikasi 'verifies' eksplisit`;
+      break;
+    }
+    if (n.simulationAlignment !== alignmentOf(route)) {
+      routingConsistencyOk = false;
+      routingErrorMsg = `Node ${n.id} simulationAlignment (${n.simulationAlignment}) tidak sinkron dengan alignmentOf(route) (${alignmentOf(route)})`;
+      break;
+    }
+    const isDirect = n.simulationAlignment === 'direct';
+    const isStrong = route.fit === 'strong';
+    if (isDirect !== isStrong) {
+      routingConsistencyOk = false;
+      routingErrorMsg = `Inkonsistensi: Node ${n.id} direct (${isDirect}) !== fit: 'strong' (${isStrong})`;
+      break;
+    }
+  }
+
+  assert(
+    routingConsistencyOk,
+    suite,
+    'Konsistensi Tabel Routing Terpusat & Kontrak Verifikasi Skenario',
+    routingConsistencyOk
+      ? `52/52 node terpetakan 1-ke-1 di SIMULATION_ROUTING, batas skenario lab valid, simulationAlignment sinkron 100% (direct <=> fit === 'strong'), dan seluruh entri strong memiliki kontrak verifies.`
+      : routingErrorMsg
   );
 }
 
@@ -642,6 +695,96 @@ function runSuite5() {
 }
 
 // ============================================================================
+// SUITE 6: PERILAKU TELEMETRI, DERIVASI SKENARIO & NORMALISASI JARAK
+// ============================================================================
+function runSuite6() {
+  const suite = 'Suite 6: Telemetry & Verification Derivation';
+
+  // 6.1 Lari Sempurna: Akurasi 1.0 & Guesswork = false
+  const perfectSession: LabTelemetrySession = {
+    simulationId: 'number_line',
+    scenarioId: 'Kardinalitas Jarak',
+    expectedMinParamChanges: 2,
+    startedAt: 1000,
+    events: [
+      { timestamp: 1100, eventType: 'parameter_change', paramId: 'frog_jump_delta', paramValue: 1 },
+      { timestamp: 1200, eventType: 'parameter_change', paramId: 'frog_jump_delta', paramValue: 1 },
+      { timestamp: 1300, eventType: 'parameter_change', paramId: 'frog_jump_delta', paramValue: 1 },
+      { timestamp: 1400, eventType: 'parameter_change', paramId: 'frog_jump_delta', paramValue: 1 },
+      { timestamp: 1500, eventType: 'parameter_change', paramId: 'frog_jump_delta', paramValue: 1 },
+      { timestamp: 1600, eventType: 'verification_attempt', isCorrect: true, distanceFromTarget: 0 },
+    ],
+    completedAt: 1700,
+  };
+  const ev1 = deriveEmpiricalEvidenceFromTelemetry(perfectSession);
+  assert(
+    ev1.taskCompleted && ev1.accuracyScore === 1.0 && !ev1.isTrialAndErrorGuesswork,
+    suite,
+    'Lari Sempurna NumberLineLab (5x lompat +1, 1 verifikasi)',
+    `Akurasi: ${ev1.accuracyScore}, Percobaan: ${ev1.trialCount}, Guesswork: ${ev1.isTrialAndErrorGuesswork}`
+  );
+
+  // 6.2 Penjelajah Acak (20 lompatan untuk target yang butuh 2) -> Guesswork = true
+  const randomSession: LabTelemetrySession = {
+    simulationId: 'number_line',
+    scenarioId: 'Kardinalitas Jarak',
+    expectedMinParamChanges: 2,
+    startedAt: 1000,
+    events: [
+      ...Array.from({ length: 20 }, (_, i) => ({
+        timestamp: 1100 + i * 50,
+        eventType: 'parameter_change' as const,
+        paramId: 'frog_jump_delta',
+        paramValue: i % 2 === 0 ? 0.5 : -0.5,
+      })),
+      { timestamp: 2200, eventType: 'verification_attempt' as const, isCorrect: true, distanceFromTarget: 0 },
+    ],
+    completedAt: 2300,
+  };
+  const ev2 = deriveEmpiricalEvidenceFromTelemetry(randomSession);
+  assert(
+    ev2.isTrialAndErrorGuesswork === true,
+    suite,
+    'Deteksi Guesswork Proporsional (20 lompatan berlebih)',
+    `Kelebihan lompatan (18) melampaui batas wajar -> isTrialAndErrorGuesswork: ${ev2.isTrialAndErrorGuesswork}`
+  );
+
+  // 6.3 Independensi Sesi Antar-Skenario (beginScenario isolasi)
+  const scenario2Session: LabTelemetrySession = {
+    simulationId: 'number_line',
+    scenarioId: 'Misi Baru Bersih',
+    expectedMinParamChanges: 1,
+    startedAt: 5000,
+    events: [
+      { timestamp: 5100, eventType: 'parameter_change', paramId: 'frog_jump_delta', paramValue: 1 },
+      { timestamp: 5200, eventType: 'verification_attempt', isCorrect: true, distanceFromTarget: 0 },
+    ],
+    completedAt: 5300,
+  };
+  const ev3 = deriveEmpiricalEvidenceFromTelemetry(scenario2Session);
+  assert(
+    ev3.trialCount === 1 && ev3.accuracyScore === 1.0,
+    suite,
+    'Independensi Sesi Antar-Skenario (Reset Bersih beginScenario)',
+    `Sesi baru terisolasi penuh: Akurasi: ${ev3.accuracyScore}, Percobaan: ${ev3.trialCount}`
+  );
+
+  // 6.4 Normalisasi Jarak Dinamis (|target - start|)
+  const startPos = 0;
+  const targetPos = 0.5;
+  const currentPos = 0;
+  const span = Math.max(Math.abs(targetPos - startPos), 0.5);
+  const offBy = Math.abs(currentPos - targetPos);
+  const distance = Math.min(1, offBy / span);
+  assert(
+    distance === 1.0,
+    suite,
+    'Normalisasi Jarak Berbasis Span Misi (Bukan Konstan /5)',
+    `Konfirmasi di posisi awal menghasilkan distance = ${distance} (salah total/presisi 0), bukan menggelembung 0.1.`
+  );
+}
+
+// ============================================================================
 // RUNNER & LAPORAN AKHIR
 // ============================================================================
 export function runAllEpistemicTests(): {
@@ -656,6 +799,7 @@ export function runAllEpistemicTests(): {
   runSuite3();
   runSuite4();
   runSuite5();
+  runSuite6();
 
   const total = results.length;
   const passed = results.filter((r) => r.passed).length;

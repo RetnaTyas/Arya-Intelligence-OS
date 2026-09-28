@@ -14,6 +14,8 @@ export interface LabInteractionEvent {
 
 export interface LabTelemetrySession {
   simulationId: string;
+  scenarioId?: string;
+  expectedMinParamChanges?: number;
   startedAt: number;
   events: LabInteractionEvent[];
   completedAt?: number;

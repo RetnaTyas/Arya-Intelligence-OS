@@ -47,10 +47,12 @@ export function deriveEmpiricalEvidenceFromTelemetry(
     distances.length > 0 ? distances.reduce((a, b) => a + b, 0) / distances.length : 0.5;
   const manipulationPrecision = Math.max(0, Math.min(1, 1 - avgDistance));
 
-  // isTrialAndErrorGuesswork: banyak perubahan parameter per satu verifikasi,
-  // DAN tidak ada tren distanceFromTarget mengecil (artinya bukan penyesuaian terarah)
+  // isTrialAndErrorGuesswork: kelebihan perubahan parameter di luar batas minimum wajar
+  // per satu verifikasi, DAN tidak ada tren distanceFromTarget mengecil (bukan penyesuaian terarah)
+  const expected = session.expectedMinParamChanges ?? 0;
+  const excessChanges = Math.max(0, paramChanges.length - expected);
   const changeRatio =
-    verifications.length > 0 ? paramChanges.length / verifications.length : paramChanges.length;
+    verifications.length > 0 ? excessChanges / verifications.length : excessChanges;
   const isConverging =
     distances.length >= 2 && distances[distances.length - 1] < distances[0];
   const isTrialAndErrorGuesswork = changeRatio > P.GUESSWORK_PARAM_CHANGE_RATIO && !isConverging;
