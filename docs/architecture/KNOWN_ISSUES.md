@@ -195,7 +195,12 @@ Audit independen terhadap implementasi kode menemukan kesenjangan struktural ant
      - **Perlindungan Sinyal di `App.tsx`**: Telemetri dari lab analogi hanya menaikkan aplikasi representasional tanpa menaikkan `understanding` spesifik, sehingga *Evidence Log* dan learner state terlindung dari pencemaran klaim semu.
   5. **Prompt Dinamis Socratic Tutor Berbasis Skema Node**:
      - Template saran pertanyaan statis (yang sebelumnya hardcoded soal kapal induk & aljabar division by zero untuk semua usia) diganti menjadi **generator dinamis** dari `activeNode.whyChain`, `activeNode.commonMisconceptions`, dan `activeNode.ageBracket`. Anak usia 4-6 kini disajikan prompt konkret ramah balita, sementara siswa 10-12 disajikan penalaran aljabar logis.
-  6. **Verifikasi Otomatis**:
+  6. **Routing Otomatis Node ke Misi/Tantangan Spesifik di `NumberLineLab` & `QualitativeBalanceLab`**:
+     - `LabHub.tsx` kini meneruskan `nodeId={activeNode?.id}` ke `NumberLineLab` dan `QualitativeBalanceLab`.
+     - **`QualitativeBalanceLab.tsx`**: Ditambahkan `BALANCE_NODE_MAPPING` (`FitQuality: 'strong' | 'weak'`) dan inisialisasi state via lazy-initializer `getChallengeIndexForNode(nodeId)`. Node $x$ seperti `math-alg-47` dan `math-alg-48` langsung membuka Tantangan 3 (beban misteri anak beruang).
+     - **`NumberLineLab.tsx`**: Ditambahkan 3 misi baru pecahan/desimal (Titik 1/2 = 0.5, Pecahan Tak Murni 1.5, dan Ekuivalensi Desimal 2.5) serta kontrol lompatan pecahan (`-1/2` dan `+1/2`). `NUMBER_LINE_NODE_MAPPING` merutekan 14 node pecahan/desimal/rasio ke misi yang relevan, mengubah mayoritas node yang sebelumnya berstatus `weak` menjadi kecocokan konten kuat (`strong`).
+     - Kartu tantangan/misi pada kedua lab menampilkan badge rute otomatis transparan (`Kesesuaian Kuat` vs `Analogi Konseptual`) beserta alasan pedagogisnya.
+  7. **Verifikasi Otomatis**:
      - Ditambahkan assertion Suite 1.6 pada `tests/epistemic-os-tester.ts` yang memvalidasi 52/52 `activeSimulationId`, 52/52 `assessmentModality`, dan 0 kata kunci jargon pascasarjana. Hasil: **23 / 23 tes lolos (100.0%)**.
 
 ---

@@ -37,15 +37,70 @@ const AVAILABLE_ITEMS: ItemType[] = [
   { id: 'metal', name: 'Batu Besi Kecil (Kecil tapi Berat!)', weight: 4, emoji: '🔩', color: 'bg-slate-500/20 text-slate-200 border-slate-500/40', size: 'sm' },
 ];
 
-interface QualitativeBalanceLabProps {
-  onMasteryEvidence?: (concept: string, details: string) => void;
+export type FitQuality = 'strong' | 'weak';
+
+export interface BalanceMapping {
+  challengeIndex: number;
+  fit: FitQuality;
+  rationale: string;
 }
 
-export const QualitativeBalanceLab: React.FC<QualitativeBalanceLabProps> = ({ onMasteryEvidence }) => {
-  const [leftPan, setLeftPan] = useState<ItemType[]>([AVAILABLE_ITEMS[0]]); // 1 apple
+export const BALANCE_NODE_MAPPING: Record<string, BalanceMapping> = {
+  'math-alg-46-relational-equals': {
+    challengeIndex: 0,
+    fit: 'strong',
+    rationale: 'Tantangan 1 (Kiri = Kanan) adalah perwujudan harfiah tanda sama dengan sebagai neraca relasional seimbang.',
+  },
+  'math-rat-45-constant-proportionality': {
+    challengeIndex: 0,
+    fit: 'strong',
+    rationale: 'Kesetimbangan dasar (kiri = kanan) adalah fondasi konsep k pada y = kx.',
+  },
+  'math-alg-47-bar-model-algebra': {
+    challengeIndex: 2,
+    fit: 'strong',
+    rationale: 'Tantangan 3 (Beruang = 3 = Balok 2 + Apel 1) secara harfiah adalah pemodelan nilai tak diketahui x.',
+  },
+  'math-alg-48-balance-scale-unknown': {
+    challengeIndex: 2,
+    fit: 'strong',
+    rationale: 'Tantangan 3 dirancang khusus untuk konsep neraca dengan beban misteri x (anak beruang).',
+  },
+  'math-alg-49-one-step-addition': {
+    challengeIndex: 2,
+    fit: 'weak',
+    rationale: 'Tantangan 3 menyentuh nilai tak diketahui, namun belum spesifik ke operasi penambahan/pengurangan formal satu langkah.',
+  },
+  'math-alg-50-one-step-multiplication': {
+    challengeIndex: 2,
+    fit: 'weak',
+    rationale: 'Tantangan 3 menyentuh penyeimbangan beban kombinasi, namun belum spesifik ke perkalian/pembagian koefisien satu langkah.',
+  },
+};
+
+export function getChallengeIndexForNode(nodeId?: string): number {
+  if (!nodeId) return 0;
+  return BALANCE_NODE_MAPPING[nodeId]?.challengeIndex ?? 0;
+}
+
+interface QualitativeBalanceLabProps {
+  onMasteryEvidence?: (concept: string, details: string) => void;
+  nodeId?: string;
+}
+
+export const QualitativeBalanceLab: React.FC<QualitativeBalanceLabProps> = ({
+  onMasteryEvidence,
+  nodeId,
+}) => {
+  const initialIndex = getChallengeIndexForNode(nodeId);
+  const [leftPan, setLeftPan] = useState<ItemType[]>(() =>
+    initialIndex === 2 ? [AVAILABLE_ITEMS[2]] : [AVAILABLE_ITEMS[0]]
+  );
   const [rightPan, setRightPan] = useState<ItemType[]>([]);
-  const [activeChallengeIndex, setActiveChallengeIndex] = useState<number>(0);
+  const [activeChallengeIndex, setActiveChallengeIndex] = useState<number>(() => initialIndex);
   const [challengeResolved, setChallengeResolved] = useState<boolean>(false);
+
+  const activeMapping = nodeId ? BALANCE_NODE_MAPPING[nodeId] : undefined;
 
   const leftWeight = leftPan.reduce((sum, item) => sum + item.weight, 0);
   const rightWeight = rightPan.reduce((sum, item) => sum + item.weight, 0);
@@ -185,6 +240,21 @@ export const QualitativeBalanceLab: React.FC<QualitativeBalanceLabProps> = ({ on
 
       {/* Challenge Box */}
       <div className="bg-slate-950/70 p-4 rounded-xl border border-purple-500/30 space-y-2">
+        {activeMapping && (
+          <div className={`p-2 rounded-lg text-[11px] flex items-center justify-between gap-2 border ${
+            activeMapping.fit === 'strong'
+              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+              : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+          }`}>
+            <span className="font-semibold">
+              🎯 Rute Otomatis Konsep: {activeMapping.fit === 'strong' ? 'Kesesuaian Kuat' : 'Analogi Konseptual'}
+            </span>
+            <span className="text-[10px] text-slate-300 italic truncate max-w-[65%]">
+              {activeMapping.rationale}
+            </span>
+          </div>
+        )}
+
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
             <Sparkles className="w-4 h-4 text-purple-400" />

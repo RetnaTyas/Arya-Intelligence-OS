@@ -1284,12 +1284,14 @@ export const LabHub: React.FC<LabHubProps> = ({
         {/* Ages 4 - 6 */}
         {activeLabId === 'qualitative_balance' && (
           <QualitativeBalanceLab
+            nodeId={activeNode?.id}
             onMasteryEvidence={(concept, details) => onMasteryEvidence(concept, details)}
           />
         )}
 
         {activeLabId === 'number_line' && (
           <NumberLineLab
+            nodeId={activeNode?.id}
             onMasteryEvidence={(concept, details) => onMasteryEvidence(concept, details)}
           />
         )}

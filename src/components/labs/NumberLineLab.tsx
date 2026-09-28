@@ -10,23 +10,144 @@ import {
   Brain,
 } from 'lucide-react';
 
-interface NumberLineLabProps {
-  onMasteryEvidence?: (concept: string, details: string) => void;
+export type FitQuality = 'strong' | 'weak';
+
+export interface MissionMapping {
+  missionIndex: number;
+  fit: FitQuality;
+  rationale: string;
 }
 
-export const NumberLineLab: React.FC<NumberLineLabProps> = ({ onMasteryEvidence }) => {
-  const [currentPosition, setCurrentPosition] = useState<number>(0);
-  const [historyTrail, setHistoryTrail] = useState<number[]>([0]);
-  const [activeMissionIndex, setActiveMissionIndex] = useState<number>(0);
-  const [missionComplete, setMissionComplete] = useState<boolean>(false);
+export const NUMBER_LINE_NODE_MAPPING: Record<string, MissionMapping> = {
+  // --- Fit kuat: struktur misi memang mencerminkan konsep node ---
+  'math-frac-11-fraction-one-whole': {
+    missionIndex: 0,
+    fit: 'strong',
+    rationale: 'Mendarat tepat di posisi target teratai utuh = analogi "mencapai satu utuh" (n/n=1).',
+  },
+  'math-frac-12-number-line-fractions': {
+    missionIndex: 4,
+    fit: 'strong',
+    rationale: 'Node ini secara harfiah tentang titik pecahan di antara dua bilangan bulat (titik 1/2 = 0.5).',
+  },
+  'math-frac-08-denominator-inversion': {
+    missionIndex: 4,
+    fit: 'strong',
+    rationale: 'Melihat posisi titik partisi di antara 0 dan 1 menunjukkan hubungan ukuran kebalikan penyebut.',
+  },
+  'math-frac-13-equivalent-visual': {
+    missionIndex: 6,
+    fit: 'strong',
+    rationale: 'Menunjukkan ekuivalensi koordinat: titik 2.5 setara dengan 5/2 atau 2 1/2 pada sumbu kontinu.',
+  },
+  'math-frac-23-sub-diff-denom': {
+    missionIndex: 2,
+    fit: 'strong',
+    rationale: 'Operasi pengurangan dan lompatan mundur pada sumbu ruang mencerminkan inversi aditif.',
+  },
+  'math-frac-24-improper-fractions': {
+    missionIndex: 5,
+    fit: 'strong',
+    rationale: 'Lompatan melewati angka 1 (menuju 1.5 atau 3/2) mendemonstrasikan pecahan tak murni > 1.',
+  },
+  'math-frac-25-mixed-numbers': {
+    missionIndex: 5,
+    fit: 'strong',
+    rationale: 'Posisi 1 1/2 (1 utuh + 1/2) membuktikan dekomposisi bilangan campuran pada garis spasial.',
+  },
+  'math-dec-34-tenths-hundredths': {
+    missionIndex: 4,
+    fit: 'strong',
+    rationale: 'Mengenali posisi desimal 0.5 sebagai jembatan nilai per-sepuluhan di garis kontinu.',
+  },
+  'math-dec-35-fraction-decimal-link': {
+    missionIndex: 4,
+    fit: 'strong',
+    rationale: 'Menghubungkan 1/2 pecahan dengan 0.5 desimal di titik koordinat yang identik.',
+  },
+  'math-dec-36-comparing-decimals': {
+    missionIndex: 6,
+    fit: 'strong',
+    rationale: 'Membandingkan koordinat desimal (2.5) dengan nilai bulat di sekitarnya.',
+  },
+  'math-pct-37-percentage-per-hundred': {
+    missionIndex: 4,
+    fit: 'strong',
+    rationale: '0.5 mewakili 50% jarak interval utuh [0, 1] sebagai acuan persentase.',
+  },
+  'math-rat-42-ratio-tables': {
+    missionIndex: 3,
+    fit: 'strong',
+    rationale: 'Penskalaan rasio = lompatan berkelipatan tetap (+2, +2, +2), sama seperti struktur misi 4.',
+  },
+  'math-rat-43-unit-rate': {
+    missionIndex: 3,
+    fit: 'strong',
+    rationale: 'Laju satuan diukur dari interval konstan perpindahan jarak per satuan waktu.',
+  },
+  'math-rat-44-proportional-reasoning': {
+    missionIndex: 3,
+    fit: 'strong',
+    rationale: 'Penalaran proporsional berakar dari lompatan berkelipatan pada garis bilangan.',
+  },
+  'math-rat-45-constant-proportionality': {
+    missionIndex: 3,
+    fit: 'strong',
+    rationale: 'Perpindahan linear y = kx bermula dari lompatan berulang dengan laju konstan k.',
+  },
+  'math-frac-33-reciprocal-inverse': {
+    missionIndex: 3,
+    fit: 'strong',
+    rationale: 'Kebalikan perkalian/pembagian terkait erat dengan laju pembalikan lompatan berulang.',
+  },
 
-  const maxTicks = 10;
-  const ticks = Array.from({ length: maxTicks + 1 }, (_, i) => i);
+  // Node pecahan awal
+  'math-frac-07-num-denom-roles': {
+    missionIndex: 4,
+    fit: 'weak',
+    rationale: 'Analogi spasial titik 1/2 mendemonstrasikan ukuran penyebut 2, meski manipulasi belum memisahkan peran pembilang/penyebut secara terisolasi.',
+  },
+  'math-frac-15-simplifying-fractions': {
+    missionIndex: 6,
+    fit: 'weak',
+    rationale: 'Menunjukkan bentuk sederhana dan pecahan senilai di titik yang sama di garis bilangan.',
+  },
+  'math-frac-16-comparing-same-denom': {
+    missionIndex: 4,
+    fit: 'weak',
+    rationale: 'Analogi urutan posisi kiri-ke-kanan pada sumbu kontinu.',
+  },
+  'math-frac-17-comparing-same-num': {
+    missionIndex: 4,
+    fit: 'weak',
+    rationale: 'Analogi perbandingan jarak ke titik nol.',
+  },
+  'math-frac-18-benchmark-half': {
+    missionIndex: 4,
+    fit: 'strong',
+    rationale: 'Misi ini secara presisi menguji patokan tolok ukur setengah (1/2 = 0.5) di antara 0 dan 1.',
+  },
+};
+
+export function getMissionIndexForNode(nodeId?: string): number {
+  if (!nodeId) return 0;
+  return NUMBER_LINE_NODE_MAPPING[nodeId]?.missionIndex ?? 0;
+}
+
+interface NumberLineLabProps {
+  onMasteryEvidence?: (concept: string, details: string) => void;
+  nodeId?: string;
+}
+
+export const NumberLineLab: React.FC<NumberLineLabProps> = ({ onMasteryEvidence, nodeId }) => {
+  const initialIndex = getMissionIndexForNode(nodeId);
+  const [activeMissionIndex, setActiveMissionIndex] = useState<number>(() => initialIndex);
 
   const missions = [
     {
       title: 'Kardinalitas Jarak',
       prompt: 'Bantu katak melompat dari 0 menuju teratai angka 5.',
+      startPos: 0,
       targetPos: 5,
       hint: 'Setiap 1 lompatan adalah penambahan 1 satuan jarak fisik.',
     },
@@ -51,15 +172,46 @@ export const NumberLineLab: React.FC<NumberLineLabProps> = ({ onMasteryEvidence 
       targetPos: 6,
       hint: 'Lompatan berulang dengan interval sama (+2) adalah akar intuitif dari perkalian (3 × 2)!',
     },
+    {
+      title: 'Pecahan di Antara Bilangan Bulat (Titik 1/2 = 0.5)',
+      prompt: 'Katak harus mendarat TEPAT di antara teratai 0 dan 1 — di titik tengah 1/2 (atau 0.5)!',
+      startPos: 0,
+      targetPos: 0.5,
+      hint: 'Garis antara dua bilangan bulat bisa dibagi jadi bagian-bagian sama besar — itulah pecahan.',
+    },
+    {
+      title: 'Pecahan Tak Murni & Bilangan Campuran (1 1/2 = 1.5)',
+      prompt: 'Lompati angka 1 utuh lalu tambah setengah langkah lagi (1 + 1/2 = 1.5) untuk membuktikan pecahan tidak murni!',
+      startPos: 0,
+      targetPos: 1.5,
+      hint: 'Pecahan tak murni dan bilangan campuran berada melampaui angka 1 pada garis bilangan yang sama.',
+    },
+    {
+      title: 'Ekuivalensi & Skala Desimal (Titik 2.5 atau 5/2)',
+      prompt: 'Lompat ke titik 2.5 (setara dengan 5/2 atau 2 1/2) untuk mengamati ekuivalensi desimal dan pecahan!',
+      startPos: 0,
+      targetPos: 2.5,
+      hint: '2.5, 2 1/2, dan 5/2 adalah titik koordinat yang persis sama pada garis bilangan.',
+    },
   ];
 
+  const initialStart = missions[initialIndex]?.startPos ?? 0;
+  const [currentPosition, setCurrentPosition] = useState<number>(() => initialStart);
+  const [historyTrail, setHistoryTrail] = useState<number[]>([initialStart]);
+  const [missionComplete, setMissionComplete] = useState<boolean>(false);
+
+  const activeMapping = nodeId ? NUMBER_LINE_NODE_MAPPING[nodeId] : undefined;
+
+  const maxTicks = 10;
+  const ticks = Array.from({ length: maxTicks + 1 }, (_, i) => i);
+
   const handleJump = (delta: number) => {
-    const nextPos = Math.max(0, Math.min(maxTicks, currentPosition + delta));
+    const nextPos = Math.max(0, Math.min(maxTicks, Math.round((currentPosition + delta) * 10) / 10));
     setCurrentPosition(nextPos);
     setHistoryTrail((prev) => [...prev.slice(-6), nextPos]);
 
     const activeM = missions[activeMissionIndex];
-    if (nextPos === activeM.targetPos && !missionComplete) {
+    if (Math.abs(nextPos - activeM.targetPos) < 0.05 && !missionComplete) {
       setMissionComplete(true);
       if (onMasteryEvidence) {
         onMasteryEvidence(
@@ -118,10 +270,25 @@ export const NumberLineLab: React.FC<NumberLineLabProps> = ({ onMasteryEvidence 
 
       {/* Mission Card */}
       <div className="bg-slate-950/70 p-4 rounded-xl border border-indigo-500/30 space-y-2.5">
+        {activeMapping && (
+          <div className={`p-2 rounded-lg text-[11px] flex items-center justify-between gap-2 border ${
+            activeMapping.fit === 'strong'
+              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+              : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+          }`}>
+            <span className="font-semibold shrink-0">
+              🎯 Rute Otomatis Konsep: {activeMapping.fit === 'strong' ? 'Kesesuaian Kuat' : 'Analogi Konseptual'}
+            </span>
+            <span className="text-[10px] text-slate-300 italic truncate max-w-[65%]">
+              {activeMapping.rationale}
+            </span>
+          </div>
+        )}
+
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
             <Sparkles className="w-4 h-4 text-indigo-400" />
-            <span>Tantangan Belajar: {missions[activeMissionIndex].title}</span>
+            <span>Tantangan Belajar #{activeMissionIndex + 1}: {missions[activeMissionIndex].title}</span>
           </span>
           <div className="flex gap-1.5">
             {missions.map((_, idx) => (
@@ -159,20 +326,26 @@ export const NumberLineLab: React.FC<NumberLineLabProps> = ({ onMasteryEvidence 
           <div className="flex items-center gap-2">
             <span className="text-xs text-slate-400">Posisi Katak Sekarang:</span>
             <span className="text-sm font-mono font-bold text-indigo-300 bg-indigo-950/70 px-2 py-0.5 rounded border border-indigo-700/40">
-              Angka {currentPosition}
+              {currentPosition % 1 === 0 ? `Angka ${currentPosition}` : `Pecahan / Desimal ${currentPosition}`}
             </span>
           </div>
 
           <div className="flex items-center gap-2">
             <span className="text-xs text-slate-400">Representasi Kuantitas Fisik:</span>
-            <div className="flex gap-1">
-              {Array.from({ length: currentPosition }).map((_, i) => (
+            <div className="flex items-center gap-1">
+              {Array.from({ length: Math.floor(currentPosition) }).map((_, i) => (
                 <span
                   key={i}
                   className="w-3 h-3 rounded-full bg-emerald-400 border border-emerald-300 shadow-sm shadow-emerald-500/50"
-                  title={`Titik satuan #${i + 1}`}
+                  title={`1 Satuan Penuh #${i + 1}`}
                 />
               ))}
+              {currentPosition % 1 !== 0 && (
+                <span
+                  className="w-2.5 h-2.5 rounded-l-full bg-cyan-400 border-l border-y border-cyan-300 shadow-sm shadow-cyan-500/50"
+                  title="Setengah (1/2 atau 0.5) Satuan"
+                />
+              )}
               {currentPosition === 0 && (
                 <span className="text-[11px] text-slate-500 italic">0 = Kosong (Ketiadaan Kuantitas)</span>
               )}
@@ -191,30 +364,48 @@ export const NumberLineLab: React.FC<NumberLineLabProps> = ({ onMasteryEvidence 
             />
           </div>
 
+          {/* Floating Katak Avatar at continuous exact position */}
+          <div
+            className="absolute top-10 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-none transition-all duration-300 z-30"
+            style={{ left: `${(currentPosition / maxTicks) * 100}%` }}
+          >
+            <div className="absolute -top-12 animate-bounce flex flex-col items-center">
+              <span className="text-3xl filter drop-shadow">🐸</span>
+              <span className="text-[9px] font-bold text-emerald-300 bg-emerald-950 px-1.5 py-0.5 rounded border border-emerald-700 whitespace-nowrap shadow">
+                {currentPosition}
+              </span>
+            </div>
+          </div>
+
+          {/* Fractional Target Marker if targetPos is non-integer */}
+          {missions[activeMissionIndex].targetPos % 1 !== 0 && (
+            <div
+              className="absolute top-10 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center z-15 pointer-events-none"
+              style={{ left: `${(missions[activeMissionIndex].targetPos / maxTicks) * 100}%` }}
+            >
+              <div className="w-8 h-8 rounded-full bg-amber-500/40 text-amber-200 border-2 border-dashed border-amber-400 flex items-center justify-center font-bold text-[10px] animate-pulse shadow-lg">
+                {missions[activeMissionIndex].targetPos}
+              </div>
+              <span className="text-[9px] text-amber-300 font-bold mt-1 uppercase tracking-wider">
+                Target
+              </span>
+            </div>
+          )}
+
           {/* Ticks & Lily Pads */}
           <div className="flex justify-between w-full absolute top-10 left-0 px-4 -translate-y-1/2">
             {ticks.map((tick) => {
               const isTarget = missions[activeMissionIndex].targetPos === tick;
-              const isCurrent = currentPosition === tick;
+              const isCurrent = Math.abs(currentPosition - tick) < 0.05;
 
               return (
                 <div key={tick} className="flex flex-col items-center -translate-x-1/2">
-                  {/* Katak Avatar when on this tick */}
-                  {isCurrent && (
-                    <div className="absolute -top-12 animate-bounce flex flex-col items-center z-20">
-                      <span className="text-3xl filter drop-shadow">🐸</span>
-                      <span className="text-[9px] font-bold text-emerald-300 bg-emerald-950 px-1 rounded border border-emerald-700">
-                        Katak
-                      </span>
-                    </div>
-                  )}
-
                   {/* Lily Pad Circle */}
                   <button
                     onClick={() => {
                       setCurrentPosition(tick);
                       setHistoryTrail((prev) => [...prev.slice(-6), tick]);
-                      if (tick === missions[activeMissionIndex].targetPos && !missionComplete) {
+                      if (Math.abs(tick - missions[activeMissionIndex].targetPos) < 0.05 && !missionComplete) {
                         setMissionComplete(true);
                       }
                     }}
@@ -247,10 +438,10 @@ export const NumberLineLab: React.FC<NumberLineLabProps> = ({ onMasteryEvidence 
         {/* Trail History */}
         <div className="w-full flex items-center justify-center gap-2 text-xs text-slate-400 pt-4">
           <span>Jejak Lompatan:</span>
-          <div className="flex items-center gap-1.5 font-mono">
+          <div className="flex items-center gap-1.5 font-mono flex-wrap justify-center">
             {historyTrail.map((pos, idx) => (
               <React.Fragment key={idx}>
-                <span className="px-2 py-0.5 rounded bg-slate-800 text-indigo-300 font-bold border border-slate-700">
+                <span className="px-2 py-0.5 rounded bg-slate-800 text-indigo-300 font-bold border border-slate-700 text-xs">
                   {pos}
                 </span>
                 {idx < historyTrail.length - 1 && <span className="text-slate-600">➔</span>}
@@ -264,17 +455,17 @@ export const NumberLineLab: React.FC<NumberLineLabProps> = ({ onMasteryEvidence 
       <div className="space-y-3">
         <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
           <Brain className="w-3.5 h-3.5 text-indigo-400" />
-          <span>Aksi Lompatan Katak (Manipulasi Spasial)</span>
+          <span>Aksi Lompatan Katak (Manipulasi Spasial & Pecahan)</span>
         </h4>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
           <button
-            onClick={() => handleJump(-2)}
-            disabled={currentPosition <= 1}
-            className="p-2.5 rounded-xl bg-slate-900 hover:bg-rose-950/60 disabled:opacity-40 text-rose-300 border border-slate-800 hover:border-rose-500/40 text-xs font-semibold flex items-center justify-center gap-1.5 transition"
+            onClick={() => handleJump(-0.5)}
+            disabled={currentPosition <= 0.4}
+            className="p-2.5 rounded-xl bg-slate-900 hover:bg-rose-950/60 disabled:opacity-40 text-rose-300 border border-slate-800 hover:border-rose-500/40 text-xs font-semibold flex items-center justify-center gap-1 transition"
           >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Mundur 2 (-2)</span>
+            <ArrowLeft className="w-3 h-3" />
+            <span>-1/2 (-0.5)</span>
           </button>
 
           <button
@@ -284,6 +475,15 @@ export const NumberLineLab: React.FC<NumberLineLabProps> = ({ onMasteryEvidence 
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Mundur 1 (-1)</span>
+          </button>
+
+          <button
+            onClick={() => handleJump(0.5)}
+            disabled={currentPosition >= maxTicks - 0.4}
+            className="p-2.5 rounded-xl bg-slate-900 hover:bg-cyan-950/60 disabled:opacity-40 text-cyan-300 border border-slate-800 hover:border-cyan-500/40 text-xs font-semibold flex items-center justify-center gap-1 transition"
+          >
+            <span>+1/2 (+0.5)</span>
+            <ArrowRight className="w-3 h-3" />
           </button>
 
           <button
