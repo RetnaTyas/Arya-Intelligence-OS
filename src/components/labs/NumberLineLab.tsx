@@ -8,7 +8,12 @@ import {
   HelpCircle,
   TrendingUp,
   Brain,
+  Activity,
 } from 'lucide-react';
+import { useLabTelemetry } from '../../engine/useLabTelemetry';
+import { deriveEmpiricalEvidenceFromTelemetry } from '../../engine/empiricalEvidenceDerivation';
+import { EmpiricalSimulationEvidence } from '../../engine/evidenceTriangulation';
+import { KnowledgeNode } from '../../types';
 
 export type FitQuality = 'strong' | 'weak';
 
@@ -19,31 +24,16 @@ export interface MissionMapping {
 }
 
 export const NUMBER_LINE_NODE_MAPPING: Record<string, MissionMapping> = {
-  // --- Fit kuat: struktur misi memang mencerminkan konsep node ---
-  'math-frac-11-fraction-one-whole': {
-    missionIndex: 0,
-    fit: 'strong',
-    rationale: 'Mendarat tepat di posisi target teratai utuh = analogi "mencapai satu utuh" (n/n=1).',
-  },
+  // --- Fit kuat: struktur misi memang mencerminkan konsep node secara langsung ---
   'math-frac-12-number-line-fractions': {
     missionIndex: 4,
     fit: 'strong',
     rationale: 'Node ini secara harfiah tentang titik pecahan di antara dua bilangan bulat (titik 1/2 = 0.5).',
   },
-  'math-frac-08-denominator-inversion': {
+  'math-frac-18-benchmark-half': {
     missionIndex: 4,
     fit: 'strong',
-    rationale: 'Melihat posisi titik partisi di antara 0 dan 1 menunjukkan hubungan ukuran kebalikan penyebut.',
-  },
-  'math-frac-13-equivalent-visual': {
-    missionIndex: 6,
-    fit: 'strong',
-    rationale: 'Menunjukkan ekuivalensi koordinat: titik 2.5 setara dengan 5/2 atau 2 1/2 pada sumbu kontinu.',
-  },
-  'math-frac-23-sub-diff-denom': {
-    missionIndex: 2,
-    fit: 'strong',
-    rationale: 'Operasi pengurangan dan lompatan mundur pada sumbu ruang mencerminkan inversi aditif.',
+    rationale: 'Misi ini secara presisi menguji patokan tolok ukur setengah (1/2 = 0.5) di antara 0 dan 1.',
   },
   'math-frac-24-improper-fractions': {
     missionIndex: 5,
@@ -53,79 +43,89 @@ export const NUMBER_LINE_NODE_MAPPING: Record<string, MissionMapping> = {
   'math-frac-25-mixed-numbers': {
     missionIndex: 5,
     fit: 'strong',
-    rationale: 'Posisi 1 1/2 (1 utuh + 1/2) membuktikan dekomposisi bilangan campuran pada garis spasial.',
+    rationale: 'Posisi 1 1/2 (1 utuh + 1/2 = 1.5) membuktikan dekomposisi bilangan campuran pada garis spasial.',
   },
-  'math-dec-34-tenths-hundredths': {
-    missionIndex: 4,
+  'math-frac-13-equivalent-visual': {
+    missionIndex: 6,
     fit: 'strong',
-    rationale: 'Mengenali posisi desimal 0.5 sebagai jembatan nilai per-sepuluhan di garis kontinu.',
+    rationale: 'Menunjukkan ekuivalensi koordinat: titik 2.5 setara dengan 5/2 atau 2 1/2 pada sumbu kontinu.',
   },
   'math-dec-35-fraction-decimal-link': {
     missionIndex: 4,
     fit: 'strong',
     rationale: 'Menghubungkan 1/2 pecahan dengan 0.5 desimal di titik koordinat yang identik.',
   },
+
+  // --- Fit lemah: analogi representasional, konten lab belum menguji konsep target secara presisi ---
+  'math-dec-34-tenths-hundredths': {
+    missionIndex: 4,
+    fit: 'weak',
+    rationale: 'Analogi segmen garis [0, 1]; lab saat ini menguji 0.5 dan belum menyediakan partisi mikro perseratusan.',
+  },
   'math-dec-36-comparing-decimals': {
     missionIndex: 6,
-    fit: 'strong',
-    rationale: 'Membandingkan koordinat desimal (2.5) dengan nilai bulat di sekitarnya.',
-  },
-  'math-pct-37-percentage-per-hundred': {
-    missionIndex: 4,
-    fit: 'strong',
-    rationale: '0.5 mewakili 50% jarak interval utuh [0, 1] sebagai acuan persentase.',
+    fit: 'weak',
+    rationale: 'Analogi posisi desimal tunggal (2.5); lab belum memuat antarmuka perbandingan dua nilai desimal berdampingan.',
   },
   'math-rat-42-ratio-tables': {
     missionIndex: 3,
-    fit: 'strong',
-    rationale: 'Penskalaan rasio = lompatan berkelipatan tetap (+2, +2, +2), sama seperti struktur misi 4.',
+    fit: 'weak',
+    rationale: 'Analogi kelipatan; lompatan +2 berulang melatih intuisi kelipatan dasar, bukan tabel rasio formal.',
   },
   'math-rat-43-unit-rate': {
     missionIndex: 3,
-    fit: 'strong',
-    rationale: 'Laju satuan diukur dari interval konstan perpindahan jarak per satuan waktu.',
+    fit: 'weak',
+    rationale: 'Analogi laju kelipatan; lab melatih langkah seragam namun belum mengisolasi variabel waktu/satuan.',
   },
   'math-rat-44-proportional-reasoning': {
     missionIndex: 3,
-    fit: 'strong',
-    rationale: 'Penalaran proporsional berakar dari lompatan berkelipatan pada garis bilangan.',
+    fit: 'weak',
+    rationale: 'Analogi kelipatan konstan; penalaran proporsional kompleks disederhanakan ke deret lompatan +2.',
   },
   'math-rat-45-constant-proportionality': {
     missionIndex: 3,
-    fit: 'strong',
-    rationale: 'Perpindahan linear y = kx bermula dari lompatan berulang dengan laju konstan k.',
+    fit: 'weak',
+    rationale: 'Analogi translasi linear k; belum memuat parameterisasi konstanta kemiringan y = kx.',
   },
   'math-frac-33-reciprocal-inverse': {
     missionIndex: 3,
-    fit: 'strong',
-    rationale: 'Kebalikan perkalian/pembagian terkait erat dengan laju pembalikan lompatan berulang.',
+    fit: 'weak',
+    rationale: 'Analogi keterbalikan; lompatan maju/mundur belum memodelkan balikan perkalian (reciprocal) pecahan.',
   },
-
-  // Node pecahan awal
+  'math-frac-11-fraction-one-whole': {
+    missionIndex: 0,
+    fit: 'weak',
+    rationale: 'Analogi pencapaian target jarak; lompatan mendarat di 5 satuan bulat, bukan partisi n/n = 1.',
+  },
+  'math-frac-23-sub-diff-denom': {
+    missionIndex: 2,
+    fit: 'weak',
+    rationale: 'Analogi arah pengurangan mundur (8 - 3); menggunakan bilangan bulat, bukan operasi pecahan beda penyebut.',
+  },
   'math-frac-07-num-denom-roles': {
     missionIndex: 4,
     fit: 'weak',
-    rationale: 'Analogi spasial titik 1/2 mendemonstrasikan ukuran penyebut 2, meski manipulasi belum memisahkan peran pembilang/penyebut secara terisolasi.',
+    rationale: 'Analogi spasial titik 1/2; manipulasi belum memisahkan peran pembilang dan penyebut secara terisolasi.',
   },
   'math-frac-15-simplifying-fractions': {
     missionIndex: 6,
     fit: 'weak',
-    rationale: 'Menunjukkan bentuk sederhana dan pecahan senilai di titik yang sama di garis bilangan.',
+    rationale: 'Analogi koordinat titik 2.5; lab belum memuat reduksi pembilang dan penyebut ke bentuk paling sederhana.',
   },
   'math-frac-16-comparing-same-denom': {
     missionIndex: 4,
     fit: 'weak',
-    rationale: 'Analogi urutan posisi kiri-ke-kanan pada sumbu kontinu.',
+    rationale: 'Analogi urutan sumbu horizontal; belum menyediakan perbandingan dua pecahan berpenyebut sama.',
   },
   'math-frac-17-comparing-same-num': {
     missionIndex: 4,
     fit: 'weak',
-    rationale: 'Analogi perbandingan jarak ke titik nol.',
+    rationale: 'Analogi urutan sumbu horizontal; belum membandingkan dua pecahan berpembilang sama.',
   },
-  'math-frac-18-benchmark-half': {
+  'math-pct-37-percentage-per-hundred': {
     missionIndex: 4,
-    fit: 'strong',
-    rationale: 'Misi ini secara presisi menguji patokan tolok ukur setengah (1/2 = 0.5) di antara 0 dan 1.',
+    fit: 'weak',
+    rationale: 'Analogi patokan separuh (0.5 = 50%); belum memuat kisi perseratusan skala penuh.',
   },
 };
 
@@ -136,10 +136,18 @@ export function getMissionIndexForNode(nodeId?: string): number {
 
 interface NumberLineLabProps {
   onMasteryEvidence?: (concept: string, details: string) => void;
+  onEmpiricalEvidence?: (evidence: EmpiricalSimulationEvidence) => void;
   nodeId?: string;
+  activeNode?: KnowledgeNode;
 }
 
-export const NumberLineLab: React.FC<NumberLineLabProps> = ({ onMasteryEvidence, nodeId }) => {
+export const NumberLineLab: React.FC<NumberLineLabProps> = ({
+  onMasteryEvidence,
+  onEmpiricalEvidence,
+  nodeId,
+  activeNode,
+}) => {
+  const telemetry = useLabTelemetry('number_line');
   const initialIndex = getMissionIndexForNode(nodeId);
   const [activeMissionIndex, setActiveMissionIndex] = useState<number>(() => initialIndex);
 
@@ -201,6 +209,8 @@ export const NumberLineLab: React.FC<NumberLineLabProps> = ({ onMasteryEvidence,
   const [missionComplete, setMissionComplete] = useState<boolean>(false);
 
   const activeMapping = nodeId ? NUMBER_LINE_NODE_MAPPING[nodeId] : undefined;
+  // Sumber kebenaran tunggal: ikuti activeNode.simulationAlignment
+  const isDirect = activeNode?.simulationAlignment === 'direct';
 
   const maxTicks = 10;
   const ticks = Array.from({ length: maxTicks + 1 }, (_, i) => i);
@@ -210,19 +220,33 @@ export const NumberLineLab: React.FC<NumberLineLabProps> = ({ onMasteryEvidence,
     setCurrentPosition(nextPos);
     setHistoryTrail((prev) => [...prev.slice(-6), nextPos]);
 
+    telemetry.recordParameterChange('frog_jump_delta', delta);
+    telemetry.recordParameterChange('frog_position', nextPos);
+
     const activeM = missions[activeMissionIndex];
-    if (Math.abs(nextPos - activeM.targetPos) < 0.05 && !missionComplete) {
+    const distance = Math.abs(nextPos - activeM.targetPos);
+    const isCorrect = distance < 0.05;
+
+    telemetry.recordVerificationAttempt(isCorrect, Math.min(1, distance / 5));
+
+    if (isCorrect && !missionComplete) {
       setMissionComplete(true);
+      const session = telemetry.finalizeSession();
+      const evidence = deriveEmpiricalEvidenceFromTelemetry(session);
+      if (onEmpiricalEvidence) {
+        onEmpiricalEvidence(evidence);
+      }
       if (onMasteryEvidence) {
         onMasteryEvidence(
-          'Garis Bilangan Spasial & Kardinalitas',
-          `Anak berhasil membuktikan relasi jarak kognitif: Misi "${activeM.title}" tercapai di posisi teratai ${nextPos}.`
+          activeNode?.name || 'Garis Bilangan Spasial & Kardinalitas',
+          `Anak menyelesaikan Misi "${activeM.title}" di posisi ${nextPos} (Akurasi: ${(evidence.accuracyScore * 100).toFixed(0)}%, Presisi: ${(evidence.manipulationPrecision * 100).toFixed(0)}%).`
         );
       }
     }
   };
 
   const handleResetToStart = () => {
+    telemetry.recordReset();
     const start = missions[activeMissionIndex].startPos ?? 0;
     setCurrentPosition(start);
     setHistoryTrail([start]);
@@ -272,12 +296,12 @@ export const NumberLineLab: React.FC<NumberLineLabProps> = ({ onMasteryEvidence,
       <div className="bg-slate-950/70 p-4 rounded-xl border border-indigo-500/30 space-y-2.5">
         {activeMapping && (
           <div className={`p-2 rounded-lg text-[11px] flex items-center justify-between gap-2 border ${
-            activeMapping.fit === 'strong'
+            isDirect
               ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
               : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
           }`}>
             <span className="font-semibold shrink-0">
-              🎯 Rute Otomatis Konsep: {activeMapping.fit === 'strong' ? 'Kesesuaian Kuat' : 'Analogi Konseptual'}
+              🎯 Rute Otomatis Konsep: {isDirect ? 'Kesesuaian Langsung (1-to-1 Fidelity)' : 'Mode Analogi Representasi'}
             </span>
             <span className="text-[10px] text-slate-300 italic truncate max-w-[65%]">
               {activeMapping.rationale}
@@ -405,8 +429,24 @@ export const NumberLineLab: React.FC<NumberLineLabProps> = ({ onMasteryEvidence,
                     onClick={() => {
                       setCurrentPosition(tick);
                       setHistoryTrail((prev) => [...prev.slice(-6), tick]);
-                      if (Math.abs(tick - missions[activeMissionIndex].targetPos) < 0.05 && !missionComplete) {
+                      telemetry.recordParameterChange('frog_click_position', tick);
+                      const distance = Math.abs(tick - missions[activeMissionIndex].targetPos);
+                      const isCorrect = distance < 0.05;
+                      telemetry.recordVerificationAttempt(isCorrect, Math.min(1, distance / 5));
+
+                      if (isCorrect && !missionComplete) {
                         setMissionComplete(true);
+                        const session = telemetry.finalizeSession();
+                        const evidence = deriveEmpiricalEvidenceFromTelemetry(session);
+                        if (onEmpiricalEvidence) {
+                          onEmpiricalEvidence(evidence);
+                        }
+                        if (onMasteryEvidence) {
+                          onMasteryEvidence(
+                            activeNode?.name || 'Garis Bilangan Spasial & Kardinalitas',
+                            `Anak menyelesaikan Misi "${missions[activeMissionIndex].title}" di posisi ${tick} (Akurasi: ${(evidence.accuracyScore * 100).toFixed(0)}%, Presisi: ${(evidence.manipulationPrecision * 100).toFixed(0)}%).`
+                          );
+                        }
                       }
                     }}
                     className={`w-9 h-9 sm:w-11 sm:h-11 rounded-full flex flex-col items-center justify-center font-bold text-xs transition-all ${

@@ -1285,14 +1285,18 @@ export const LabHub: React.FC<LabHubProps> = ({
         {activeLabId === 'qualitative_balance' && (
           <QualitativeBalanceLab
             nodeId={activeNode?.id}
+            activeNode={activeNode}
             onMasteryEvidence={(concept, details) => onMasteryEvidence(concept, details)}
+            onEmpiricalEvidence={(ev) => onEmpiricalEvidence?.('qualitative_balance', ev)}
           />
         )}
 
         {activeLabId === 'number_line' && (
           <NumberLineLab
             nodeId={activeNode?.id}
+            activeNode={activeNode}
             onMasteryEvidence={(concept, details) => onMasteryEvidence(concept, details)}
+            onEmpiricalEvidence={(ev) => onEmpiricalEvidence?.('number_line', ev)}
           />
         )}
 
