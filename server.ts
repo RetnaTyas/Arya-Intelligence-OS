@@ -273,65 +273,17 @@ Current learner state: ${JSON.stringify(learnerState || {})}
       content: studentMessage || 'Halo, saya ingin memahami konsep ini.',
     });
 
-    // 1. Try Cloudflare Workers AI if configured
-    if (cf.isConfigured) {
-      try {
-        const replyText = await runCloudflareWorkersAI(messages, 0.7);
-        if (replyText) {
-          return res.json({
-            text: replyText,
-            source: `cloudflare-workers-ai (${cf.model})`,
-            model: cf.model,
-            usedFallback: false,
-          });
-        }
-      } catch (cfErr: any) {
-        console.warn('Cloudflare Workers AI Socratic error, trying fallback:', cfErr.message);
-      }
-    }
-
-    // 2. Try Gemini fallback if configured
-    const gemini = getGeminiClient();
-    if (gemini) {
-      try {
-        const chatPrompt = `${systemInstruction}\n\nRiwayat Percakapan:\n${(history || []).map((h: any) => `${h.role}: ${h.text}`).join('\n')}\nSiswa: ${studentMessage || 'Halo, saya ingin memahami konsep ini.'}`;
-        const response = await gemini.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: chatPrompt,
-          config: {
-            temperature: 0.7,
-          },
-        });
-        const geminiText = response.text?.trim();
-        if (geminiText) {
-          return res.json({
-            text: geminiText,
-            source: 'gemini-2.5-flash',
-            model: 'gemini-2.5-flash',
-            usedFallback: false,
-          });
-        }
-      } catch (geminiErr: any) {
-        console.warn('Gemini Socratic error, falling back to local heuristic:', geminiErr.message);
-      }
-    }
-
-    // 3. Deterministic Local Heuristic Fallback
-    const fallbackText = `[Gateway Offline Heuristic]: Bagaimana menurutmu relasi sebab-akibat pada konsep ${concept || 'ini'}?`;
+    const replyText = await runCloudflareWorkersAI(messages, 0.7);
     return res.json({
-      text: fallbackText,
-      source: 'deterministic-local-heuristic',
-      usedFallback: true,
-      fallbackReason: 'Penyedia AI eksternal sedang mengalami limit kuota atau tidak tersedia.',
+      text: replyText,
+      source: `cloudflare-workers-ai (${cf.model})`,
+      model: cf.model,
     });
   } catch (error: any) {
-    console.error('Socratic handler unexpected error:', error.message);
-    const fallbackText = `[Gateway Offline Heuristic]: Mari kita telusuri konsep ${concept || 'ini'} dari prinsip dasarnya.`;
-    return res.json({
-      text: fallbackText,
-      source: 'deterministic-local-heuristic',
-      usedFallback: true,
-      fallbackReason: error.message,
+    console.error('Cloudflare Workers AI Socratic error:', error.message);
+    return res.status(500).json({
+      error: `Cloudflare Workers AI Error: ${error.message}`,
+      source: 'cloudflare-workers-ai-error',
     });
   }
 });
