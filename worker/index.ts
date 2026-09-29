@@ -60,8 +60,8 @@ export default {
     };
 
     try {
-      // 1. Health Route: /, /health, or /api/health
-      if (pathname === '/' || pathname === '' || pathname === '/health' || pathname === '/api/health') {
+      // 1. Health Route: /health or /api/health
+      if (pathname === '/health' || pathname === '/api/health') {
         const hasBinding = Boolean(aiBinding && typeof aiBinding.run === 'function');
         return json({
           status: 'ok',
@@ -81,10 +81,8 @@ export default {
         const { concept, studentMessage, history, learnerState } = body;
 
         if (!aiBinding) {
-          const fallbackMsg = `[Gateway Offline Heuristic]: Bagaimana menurutmu relasi sebab-akibat pada konsep ${concept || 'ini'}?`;
           return json({
-            text: fallbackMsg,
-            message: fallbackMsg,
+            text: `[Gateway Offline Heuristic]: Bagaimana menurutmu relasi sebab-akibat pada konsep ${concept || 'ini'}?`,
             usedFallback: true,
             source: 'deterministic-local-heuristic',
           });
@@ -116,14 +114,11 @@ Current learner state: ${JSON.stringify(learnerState || {})}
 
         const response: any = await aiBinding.run(model, { messages, temperature: 0.7 });
         const replyText = response?.response || response?.result?.response || '';
-        const finalMsg = replyText || 'Mari kita telusuri prinsip dasarnya bersama-sama.';
         return json({
-          text: finalMsg,
-          message: finalMsg,
-          source: `cloudflare-workers-ai (${model})`,
-          binding: bindingName,
+          text: replyText || 'Mari kita telusuri prinsip dasarnya bersama-sama.',
+          source: replyText ? `cloudflare-workers-ai (${model})` : 'deterministic-local-heuristic',
           model,
-          usedFallback: false,
+          usedFallback: !replyText,
         });
       }
 
