@@ -9,6 +9,10 @@ export interface CloudflareEnv {
   AI?: {
     run: (model: string, input: any) => Promise<any>;
   };
+  // Service binding to arya-ai-gateway Worker
+  AI_GATEWAY?: {
+    fetch: (request: Request | string, init?: RequestInit) => Promise<Response>;
+  };
   CLOUDFLARE_AI_MODEL?: string;
   GEMINI_API_KEY?: string;
 }

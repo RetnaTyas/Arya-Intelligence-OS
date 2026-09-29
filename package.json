@@ -9,6 +9,7 @@
     "start": "node dist/server.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
+    "build:worker": "esbuild worker/index.ts --bundle --platform=neutral --target=es2022 --format=esm --outfile=worker/dist/index.js",
     "test": "tsx tests/epistemic-os-tester.ts",
     "lint": "tsc --noEmit"
   },

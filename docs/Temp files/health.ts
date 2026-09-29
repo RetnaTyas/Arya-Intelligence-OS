@@ -67,4 +67,3 @@ export const onRequestGet = async (context: { request: Request; env: CloudflareE
     { headers: JSON_HEADERS }
   );
 };
-
