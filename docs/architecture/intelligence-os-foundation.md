@@ -445,6 +445,20 @@ Implikasi implementasi: representasi datanya harus berupa graph dengan edge yang
 
 ---
 
+### 6.6 Klasifikasi Hardcode & Integritas Nilai (Anti-Fabrikasi Epistemik)
+
+> **Rujukan Implementasi:** `src/engine/evidenceTriangulation.ts`, `src/engine/deterministicCore.ts`, `src/App.tsx`.
+
+Salah satu pelanggaran integritas paling berbahaya dalam sistem epistemik adalah menyamarkan ketiadaan observasi menjadi angka rekaan default (misalnya `0.5`, `0.4`, atau `understanding × 0.7`). Demi menegakkan disiplin bukti dan mencegah *epistemic theater*, seluruh variabel dalam sistem wajib digolongkan secara tegas ke dalam tiga kategori:
+
+| Kategori | Definisi & Batas Epistemik | Penanganan di Kode & Rumus | Contoh Penerapan |
+|---|---|---|---|
+| **1. Tidak Ada (Unobserved)** | Fakta yang belum diobservasi/diukur pada anak atau instrumen saat itu. **TIDAK BOLEH** diganti nilai tebakan atau default netral (mis. 0.5, 0.4, 0.75). | Mengembalikan `undefined` atau `{ unobserved: true, reason }`. Dicatat di `evidenceGaps` atau `unobservedFields`. **Tidak masuk rumus numerik**; bobot triangulasi dinormalisasi hanya atas sumber yang ada. | Lab belum pernah diuji; tes transfer belum terjadi; probe model tidak memuat skor. |
+| **2. Diasumsikan (Assumed Prior)** | Asumsi populasi atau konsensus pakar. Bukan observasi riil per-anak dan bukan komputasi graf langsung. | Diberi prefix konvensi `PRIOR_` (mis. `PRIOR_DECAY_RATE`). Boleh masuk rumus matematis, **Wajib dilaporkan di `assumptions[]`**. **Tidak boleh memicu intervensi**: keparahan dibatasi maksimal `MEDIUM` dan aksi rekomendasi maksimal `SCHEDULE_RETRIEVAL`. | `PRIOR_DECAY_RATE = 0.02`, `PRIOR_CENTRALITY = 0.5`, `PRIOR_FUTURE_RELEVANCE = 0.5`, `PRIOR_UNCERTAINTY = 0.5`. |
+| **3. Diklaim (Claimed vs Fact)** | Hasil inferensi model AI atau estimasi sensorik. Nilai ini adalah **klaim instrumen**, bukan fakta tindakan nyata anak. | Disimpan apa adanya sebagai skor sensorik mentah (`feynmanRawScore`). **Tidak boleh dicuci** menjadi `TransferChallengeEvidence` untuk meloloskan kuorum non-model. Koreksi filter (Filter B/C) tidak boleh menimpa rekaman observasi mentah. Model-only tidak boleh memperbarui model pembelajar (`POLICY_MODEL_ONLY_MAY_UPDATE_MASTERY = false`). | Estimasi `transferScore` dari dialog Feynman; estimasi `causalReasoning` dari transkrip verbal. |
+
+---
+
 ## 7. Self-Healing Learning: Dari Epistemic Debt ke Evidence Debt
 
 Prinsip dasar Self-Healing Learning bertumpu pada premis bahwa penguasaan pengetahuan adalah sistem dinamis yang rentan terhadap entropi, kelupaan (*decay*), dan celah konseptual. Namun, pelajaran arsitektural terpenting dari implementasi dan audit sistem ini adalah: **Self-Healing Learning membutuhkan kemampuan Self-Diagnosing Debt**.

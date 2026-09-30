@@ -22,5 +22,8 @@ Folder ini berisi dokumen spesifikasi fondasi, prinsip desain, dan arsitektur si
   13. Log Keputusan Desain
   14. Glosarium Istilah Epistemik & Kognitif
 
+- **[evidence-honesty-refactor-plan.md](./evidence-honesty-refactor-plan.md)**  
+  *Rencana Arsitektur & Refactor: Epistemic Honesty & Single Implementation Gateway*: Rencana bertahap (Fase 0–7) eliminasi fallback heuristik buatan, penyatuan proxy Pages ke Worker, pembersihan default fabrikasi di UI/state awal, dan penegakan kontrak `unobserved`.
+
 - **[KNOWN_ISSUES.md](./KNOWN_ISSUES.md)**  
   *Audit Epistemik & Catatan Kesenjangan Arsitektural*: Dokumentasi resmi temuan audit terhadap validasi Tahap 2, kalibrasi sensor AI, mitigasi epistemic theater, dan pemodelan inferensi LLM.

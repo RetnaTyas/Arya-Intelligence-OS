@@ -24,6 +24,30 @@ export const PREREQUISITE_MASTERY_THRESHOLDS = {
   MAX_ALLOWED_DECAY: 0.12,
 };
 
+/**
+ * Helper tunggal untuk inisialisasi state pembelajar baru yang jujur epistemik.
+ * Seluruh 7 tingkat penguasaan bernilai 0 (belum teramati), decayRate undefined, evidenceCount 0.
+ */
+export function emptyLearnerState(nodeId: string): LearnerNodeState {
+  return {
+    nodeId,
+    mastery: {
+      recognition: 0,
+      recall: 0,
+      understanding: 0,
+      application: 0,
+      transfer: 0,
+      explanation: 0,
+      creation: 0,
+    },
+    decayRate: undefined,
+    confidence: 'low',
+    evidenceCount: 0,
+    lastInteracted: new Date().toISOString(),
+    activeMisconceptions: [],
+  };
+}
+
 // 2. Evaluasi apakah Prerequisite suatu node terpenuhi secara deterministik
 export interface PrerequisiteStatus {
   isUnlocked: boolean;
