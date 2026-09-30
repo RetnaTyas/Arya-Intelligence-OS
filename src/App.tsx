@@ -26,7 +26,7 @@ import {
 } from './types';
 
 import { triangulateEvidence, EmpiricalSimulationEvidence, ParentCalibrationSettings, DEFAULT_PARENT_CALIBRATION } from './engine/evidenceTriangulation';
-import { applyMasteryGating, selectNextBestExperience, RecommendedExperience } from './engine/deterministicCore';
+import { applyMasteryGating, emptyLearnerState, selectNextBestExperience, RecommendedExperience } from './engine/deterministicCore';
 import {
   loadInitialOSState,
   persistAllLearnerNodes,
@@ -108,28 +108,12 @@ export default function App() {
 
     // 4. Update Learner State with deterministic mastery gating
     setLearnerNodes((prev) => {
-      const current = prev[matchedNode.id] || {
-        nodeId: matchedNode.id,
-        mastery: {
-          recognition: 0.8,
-          recall: 0.7,
-          understanding: 0.7,
-          application: 0.6,
-          transfer: 0.5,
-          explanation: 0.5,
-          creation: 0.3,
-        },
-        decayRate: 0.02,
-        confidence: 'medium',
-        evidenceCount: 2,
-        lastInteracted: new Date().toISOString(),
-        activeMisconceptions: [],
-      };
+      const current = prev[matchedNode.id] || emptyLearnerState(matchedNode.id);
 
       const gatedMastery = applyMasteryGating(current.mastery, {
-        application: (current.mastery.application || 0.5) + accuracyGain,
-        transfer: (current.mastery.transfer || 0.4) + precisionGain,
-        understanding: (current.mastery.understanding || 0.6) + understandingGain,
+        application: current.mastery.application + accuracyGain,
+        transfer: current.mastery.transfer + precisionGain,
+        understanding: current.mastery.understanding + understandingGain,
       });
 
       return {
@@ -384,8 +368,10 @@ export default function App() {
     setEvidenceLogs((prev) =>
       prev.map((e) => {
         if (e.id === entryId) {
-          const currentAiScore = e.feynmanDiagnosis?.conceptualUnderstanding ?? 0.7;
-          const fusedScore = Number(((pWeight * parentScore) + (aiWeight * currentAiScore)).toFixed(3));
+          const currentAiScore = e.feynmanDiagnosis?.conceptualUnderstanding;
+          const fusedScore = currentAiScore !== undefined
+            ? Number(((pWeight * parentScore) + (aiWeight * currentAiScore)).toFixed(3))
+            : parentScore;
           return {
             ...e,
             confidence: 'high',
@@ -462,15 +448,7 @@ export default function App() {
     setLearnerNodes((prev) => {
       // Epistemic honesty: node tanpa riwayat dimulai dari kosong/unobserved (bukan mastery karangan 0.8 atau decay 0.05).
       // Data terlabel demo hanya berasal dari aksi eksplisit "Muat Dataset Contoh Baseline Demo".
-      const current = prev['node-buoyancy-archimedes'] || {
-        nodeId: 'node-buoyancy-archimedes',
-        mastery: { recognition: 0, recall: 0, understanding: 0, application: 0, transfer: 0, explanation: 0, creation: 0 },
-        decayRate: undefined,
-        confidence: 'low',
-        evidenceCount: 0,
-        lastInteracted: new Date().toISOString(),
-        activeMisconceptions: [],
-      };
+      const current = prev['node-buoyancy-archimedes'] || emptyLearnerState('node-buoyancy-archimedes');
 
       const gatedMastery = triangulation.shouldUpdateLearnerModel
         ? applyMasteryGating(current.mastery, triangulation.recommendedMasteryDelta)
@@ -583,26 +561,19 @@ export default function App() {
     // 2. Elevate learner mastery for matched node
     if (matchedNode) {
       setLearnerNodes((prev) => {
-        const current = prev[matchedNode.id] || {
-          nodeId: matchedNode.id,
-          mastery: { recognition: 0.8, recall: 0.7, understanding: 0.7, application: 0.6, transfer: 0.5, explanation: 0.5, creation: 0.3 },
-          decayRate: 0.02,
-          confidence: 'medium',
-          evidenceCount: 2,
-          lastInteracted: new Date().toISOString(),
-          activeMisconceptions: [],
-        };
+        const current = prev[matchedNode.id] || emptyLearnerState(matchedNode.id);
+
+        const gatedMastery = applyMasteryGating(current.mastery, {
+          application: current.mastery.application + 0.15,
+          transfer: current.mastery.transfer + 0.15,
+          understanding: current.mastery.understanding + 0.1,
+        });
 
         return {
           ...prev,
           [matchedNode.id]: {
             ...current,
-            mastery: {
-              ...current.mastery,
-              application: Math.min(1.0, (current.mastery.application || 0.6) + 0.15),
-              transfer: Math.min(1.0, (current.mastery.transfer || 0.5) + 0.15),
-              understanding: Math.min(1.0, (current.mastery.understanding || 0.7) + 0.1),
-            },
+            mastery: gatedMastery,
             evidenceCount: (current.evidenceCount ?? 0) + 1,
             lastInteracted: new Date().toISOString(),
           },

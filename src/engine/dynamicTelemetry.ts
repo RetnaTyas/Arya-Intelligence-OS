@@ -16,7 +16,7 @@ export interface SystemCalculatedMetrics {
     nodeId: string;
     nodeName: string;
     domain: string;
-    decayRate: number;
+    decayRate?: number;
     debtRisk: number;
     centrality: number;
   }[];
@@ -91,6 +91,7 @@ export function computeRealTimeTelemetry(
   const activeBottlenecks: SystemCalculatedMetrics['activeBottlenecks'] = [];
   let maxDebtRisk = 0;
   let totalDecaySum = 0;
+  let observedDecayCount = 0;
   let totalNodesCount = 0;
   let totalTransferMasterySum = 0;
 
@@ -99,7 +100,10 @@ export function computeRealTimeTelemetry(
     if (!state) continue;
 
     totalNodesCount++;
-    totalDecaySum += state.decayRate || 0;
+    if (typeof state.decayRate === 'number' && Number.isFinite(state.decayRate)) {
+      totalDecaySum += state.decayRate;
+      observedDecayCount++;
+    }
     totalTransferMasterySum += state.mastery?.transfer || 0;
 
     // Epistemic Debt Risk calculation
@@ -109,12 +113,13 @@ export function computeRealTimeTelemetry(
       maxDebtRisk = debtRisk;
     }
 
-    if (state.decayRate >= 0.08 || state.isBottleneck || debtRisk >= 0.08) {
+    const hasObservedDecay = typeof state.decayRate === 'number' && Number.isFinite(state.decayRate);
+    if ((hasObservedDecay && (state.decayRate as number) >= 0.08) || state.isBottleneck || debtRisk >= 0.08) {
       activeBottlenecks.push({
         nodeId: kn.id,
         nodeName: kn.name,
         domain: kn.domain,
-        decayRate: state.decayRate || 0,
+        decayRate: state.decayRate,
         debtRisk,
         centrality: kn.centrality,
       });
@@ -122,7 +127,7 @@ export function computeRealTimeTelemetry(
   }
 
   // Calculate Overall Knowledge Stability (0 - 100%)
-  const avgDecay = totalNodesCount > 0 ? totalDecaySum / totalNodesCount : 0;
+  const avgDecay = observedDecayCount > 0 ? totalDecaySum / observedDecayCount : 0;
   const overallKnowledgeStability = totalNodesCount === 0
     ? 0
     : Math.max(0, Math.min(99, Math.round(100 - avgDecay * 100)));
@@ -143,8 +148,9 @@ export function computeRealTimeTelemetry(
     const kNodes = group.knowledgeNodes;
 
     // Domain stability
-    const domainDecaySum = states.reduce((sum, s) => sum + (s.decayRate || 0), 0);
-    const domainAvgDecay = states.length > 0 ? domainDecaySum / states.length : 0;
+    const observedDomainStates = states.filter((s) => typeof s.decayRate === 'number' && Number.isFinite(s.decayRate));
+    const domainDecaySum = observedDomainStates.reduce((sum, s) => sum + (s.decayRate as number), 0);
+    const domainAvgDecay = observedDomainStates.length > 0 ? domainDecaySum / observedDomainStates.length : 0;
     const stabilityScore = states.length === 0
       ? 0
       : Math.max(0, Math.min(99, Math.round(100 - domainAvgDecay * 100)));
@@ -256,9 +262,9 @@ export function computeRealTimeTelemetry(
       fromNode: primaryBottleneck.nodeId,
       toNode: 'node-submarine-ballast',
       status: 'repairing',
-      bottleneckWarning: `Penurunan retensi ${Math.round(
-        primaryBottleneck.decayRate * 100
-      )}% pada ${primaryBottleneck.nodeName} berisiko menghambat modul lanjutan.`,
+      bottleneckWarning: primaryBottleneck.decayRate !== undefined
+        ? `Penurunan retensi ${Math.round(primaryBottleneck.decayRate * 100)}% pada ${primaryBottleneck.nodeName} berisiko menghambat modul lanjutan.`
+        : `Risiko utang epistemik pada ${primaryBottleneck.nodeName} terdeteksi menghambat modul lanjutan.`,
       systemActionNote: `Sistem menjadwalkan reconsolidation ${primaryBottleneck.nodeName} secara stealth ke dalam Proyek Terapan.`,
     };
   } else {

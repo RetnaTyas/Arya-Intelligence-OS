@@ -107,9 +107,9 @@ gate('G7', 'import payload rusak ⇒ data lama utuh, tidak ada data parsial', as
   return after === before ? null : `node sebelum=${before}, sesudah import gagal=${after} (data lama hilang / parsial ter-commit)`;
 });
 
-// ---------- G8: central-hypothesis: respons parsial ⇒ probe unobserved tanpa angka ----------
-gate('G8', 'central-hypothesis: respons model parsial ⇒ probe unobserved tanpa skor numerik', async () => {
-  // Model returns array with only 1 probe, omitting other 3 probes in chunk
+// ---------- G8: central-hypothesis: respons parsial ⇒ probe unobserved tanpa angka, kontrol positif tetap ber-skor ----------
+gate('G8', 'central-hypothesis: respons model parsial ⇒ probe hilang unobserved tanpa skor numerik, probe valid membawa skor', async () => {
+  // Model returns array with item-1::base valid (0.85), but omits layer0, layer1, layer2
   const partialAI = () => ({
     run: async () => ({
       response: JSON.stringify([{ probeId: 'item-1::base', structuralMasteryScore: 0.85, hasMisconception: false }]),
@@ -125,19 +125,30 @@ gate('G8', 'central-hypothesis: respons model parsial ⇒ probe unobserved tanpa
   });
   const res = await (worker as any).fetch(chReq, { AI: partialAI() });
   const data = await res.json();
+  const base = data?.results?.[0]?.base;
   const layer0 = data?.results?.[0]?.layer0;
-  if (!layer0) return `layer0 probe tidak ditemukan di hasil: ${JSON.stringify(data)}`;
+  if (!base || !layer0) return `probe tidak ditemukan di hasil: ${JSON.stringify(data)}`;
+
+  // Kontrol positif: base yang ada responsnya harus TIDAK unobserved dan skornya 0.85
+  if (base.unobserved === true) return `kontrol positif gagal: base yang valid ditandai unobserved=true`;
+  if (base.structuralMasteryScore !== 0.85) return `kontrol positif gagal: base score ${base.structuralMasteryScore} !== 0.85`;
+
+  // Negatif: layer0 yang hilang harus unobserved dan TIDAK punya structuralMasteryScore numerik
   if (layer0.unobserved !== true) return `probe yang hilang tidak ditandai unobserved=true: ${JSON.stringify(layer0)}`;
   if (typeof layer0.structuralMasteryScore === 'number') return `probe unobserved memuat skor numerik rekaan: structuralMasteryScore=${layer0.structuralMasteryScore}`;
   return null;
 });
 
-// ---------- G9: feynman-suite: kasus hilang/skor NaN ⇒ unobserved tanpa angka ----------
-gate('G9', 'feynman-suite: kasus hilang / aiScore NaN ⇒ unobserved tanpa angka', async () => {
-  // Model only returns 1 of 2 cases, and with NaN score
-  const partialSuiteAI = () => ({
+// ---------- G9: feynman-suite: kasus hilang / null / non-numerik ⇒ unobserved tanpa angka, kasus valid tetap ber-skor ----------
+gate('G9', 'feynman-suite: kasus hilang / aiScore null / string non-numerik ⇒ unobserved tanpa angka, kasus valid tetap ber-skor', async () => {
+  // Model returns case-1 with valid score 0.92, case-2 with null (from JSON.stringify(NaN)), case-3 with string "bukan-angka", omits case-4
+  const suiteAI = () => ({
     run: async () => ({
-      response: JSON.stringify([{ caseId: 'case-1', aiScore: NaN }]),
+      response: JSON.stringify([
+        { caseId: 'case-1', aiScore: 0.92 },
+        { caseId: 'case-2', aiScore: null },
+        { caseId: 'case-3', aiScore: 'tidak_terukur' },
+      ]),
     }),
   });
   const fsReq = new Request('https://x/api/benchmark/feynman-suite', {
@@ -148,31 +159,125 @@ gate('G9', 'feynman-suite: kasus hilang / aiScore NaN ⇒ unobserved tanpa angka
       cases: [
         { id: 'case-1', conceptName: 'Density', childUtterance: 'A' },
         { id: 'case-2', conceptName: 'Gravity', childUtterance: 'B' },
+        { id: 'case-3', conceptName: 'Buoyancy', childUtterance: 'C' },
+        { id: 'case-4', conceptName: 'Pressure', childUtterance: 'D' },
       ],
     }),
   });
-  const res = await (worker as any).fetch(fsReq, { AI: partialSuiteAI() });
+  const res = await (worker as any).fetch(fsReq, { AI: suiteAI() });
   const data = await res.json();
   const c1 = data?.evaluations?.find((e: any) => e.caseId === 'case-1');
   const c2 = data?.evaluations?.find((e: any) => e.caseId === 'case-2');
-  if (!c1 || !c2) return `evaluations tidak lengkap: ${JSON.stringify(data)}`;
-  if (c1.unobserved !== true) return `case-1 dengan skor NaN tidak ditandai unobserved=true: ${JSON.stringify(c1)}`;
-  if (typeof c1.aiScore === 'number' && Number.isFinite(c1.aiScore)) return `case-1 memuat aiScore numerik rekaan: ${c1.aiScore}`;
-  if (c2.unobserved !== true) return `case-2 yang hilang dari model tidak ditandai unobserved=true: ${JSON.stringify(c2)}`;
-  if (typeof c2.aiScore === 'number' && Number.isFinite(c2.aiScore)) return `case-2 memuat aiScore numerik rekaan: ${c2.aiScore}`;
+  const c3 = data?.evaluations?.find((e: any) => e.caseId === 'case-3');
+  const c4 = data?.evaluations?.find((e: any) => e.caseId === 'case-4');
+  if (!c1 || !c2 || !c3 || !c4) return `evaluations tidak lengkap: ${JSON.stringify(data)}`;
+
+  // Kontrol positif: case-1 harus valid
+  if (c1.unobserved === true) return `kontrol positif gagal: case-1 valid ditandai unobserved=true`;
+  if (c1.aiScore !== 0.92) return `kontrol positif gagal: case-1 aiScore ${c1.aiScore} !== 0.92`;
+
+  // Negatif: case-2 (null), case-3 (string), case-4 (hilang) harus unobserved dan tidak punya aiScore numerik
+  for (const [c, label] of [[c2, 'case-2 (skor null)'], [c3, 'case-3 (skor string non-numerik)'], [c4, 'case-4 (kasus hilang)']] as const) {
+    if (c.unobserved !== true) return `${label} tidak ditandai unobserved=true: ${JSON.stringify(c)}`;
+    if (typeof c.aiScore === 'number' && Number.isFinite(c.aiScore)) return `${label} memuat aiScore numerik rekaan: ${c.aiScore}`;
+  }
   return null;
 });
 
-// ---------- G10: kegagalan binding / error model ⇒ 503 / unobserved tanpa field skor numerik ----------
-gate('G10', 'endpoint feynman: binding hilang atau error ⇒ HTTP 503 unobserved tanpa skor numerik', async () => {
-  // worker without AI binding
-  const res = await (worker as any).fetch(req(), {});
-  if (res.status !== 503) return `status=${res.status} (diharapkan 503 saat AI binding tidak ada)`;
-  const body = await res.json().catch(() => null);
-  if (!body || body.unobserved !== true) return `body bukan unobserved=true: ${JSON.stringify(body)}`;
-  const numFields = ['conceptualUnderstanding', 'causalReasoning', 'transferScore']
-    .filter((k) => typeof body[k] === 'number' || typeof body?.feynmanDiagnosis?.[k] === 'number');
-  if (numFields.length) return `respons 503 memuat field numerik rekaan: ${numFields.join(', ')}`;
+// ---------- G10: table-driven 4 endpoint x 3 mode kegagalan ⇒ unobserved tanpa skor numerik ----------
+gate('G10', 'table-driven: 4 endpoint x 3 mode kegagalan ⇒ unobserved tanpa field skor numerik', async () => {
+  const failureModes = [
+    { name: 'binding hilang', env: {} },
+    { name: 'model melempar error', env: { AI: { run: async () => { throw new Error('Workers AI crashed'); } } } },
+    { name: 'keluaran tak terparse', env: { AI: { run: async () => ({ response: '<<<NOT VALID JSON>>>' }) } } },
+  ];
+
+  const endpoints = [
+    {
+      name: '/diagnose/feynman',
+      type: 'single' as const,
+      req: () => new Request('https://x/api/diagnose/feynman', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conceptName: 'Buoyancy', studentExplanation: 'Penjelasan' }),
+      }),
+    },
+    {
+      name: '/tutor/socratic',
+      type: 'single' as const,
+      req: () => new Request('https://x/api/tutor/socratic', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ concept: 'Buoyancy', studentMessage: 'Halo' }),
+      }),
+    },
+    {
+      name: '/benchmark/central-hypothesis',
+      type: 'batch' as const,
+      req: () => new Request('https://x/api/benchmark/central-hypothesis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'test',
+          items: [{ id: 'i1', prompt: 'p', childUtterance: 'u' }],
+        }),
+      }),
+    },
+    {
+      name: '/benchmark/feynman-suite',
+      type: 'batch' as const,
+      req: () => new Request('https://x/api/benchmark/feynman-suite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'test',
+          cases: [{ id: 'c1', conceptName: 'C', childUtterance: 'u' }],
+        }),
+      }),
+    },
+  ];
+
+  for (const ep of endpoints) {
+    for (const mode of failureModes) {
+      const res = await (worker as any).fetch(ep.req(), mode.env);
+      const label = `${ep.name} [${mode.name}]`;
+
+      if (ep.type === 'single') {
+        if (res.status !== 503) {
+          return `${label}: status=${res.status} (diharapkan 503 Service Unavailable)`;
+        }
+        const body = await res.json().catch(() => null);
+        if (!body || body.unobserved !== true) {
+          return `${label}: respons tidak memuat unobserved=true: ${JSON.stringify(body)}`;
+        }
+        const numFields = ['conceptualUnderstanding', 'causalReasoning', 'transferScore']
+          .filter((k) => typeof body[k] === 'number' || typeof body?.feynmanDiagnosis?.[k] === 'number');
+        if (numFields.length) {
+          return `${label}: memuat field numerik rekaan: ${numFields.join(', ')}`;
+        }
+      } else {
+        // Batch endpoint
+        const body = await res.json().catch(() => null);
+        if (!body) return `${label}: body kosong`;
+        if (body.unobserved !== true && res.status !== 503) {
+          // Check if items inside are marked unobserved
+          const items = body.results || body.evaluations || [];
+          for (const it of items) {
+            const probes = it.base ? [it.base, it.layer0, it.layer1, it.layer2] : [it];
+            for (const p of probes) {
+              if (p && p.unobserved !== true) {
+                return `${label}: probe/kasus tidak ditandai unobserved=true: ${JSON.stringify(p)}`;
+              }
+              const scores = [p?.structuralMasteryScore, p?.aiScore].filter((x) => typeof x === 'number');
+              if (scores.length) {
+                return `${label}: probe memuat skor numerik rekaan: ${scores.join(', ')}`;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
   return null;
 });
 
@@ -190,8 +295,8 @@ gate('G11', 'socratic: kegagalan AI / binding tidak ada ⇒ HTTP 503 unobserved'
   return null;
 });
 
-// ---------- G12: emptyLearnerState() helper menggantikan literal karangan & || 0.x di App.tsx ----------
-gate('G12', 'emptyLearnerState() helper tunggal & bebas pencemaran || 0.x di App.tsx', async () => {
+// ---------- G12: emptyLearnerState() helper menggantikan literal karangan & bebas pencemaran || 0.x / ?? 0.x di App.tsx ----------
+gate('G12', 'emptyLearnerState() helper tunggal & audit kepatuhan App.tsx (tanpa || 0.x / ?? 0.x / literal karangan)', async () => {
   const s = emptyLearnerState('test-node');
   if (!s || s.nodeId !== 'test-node') return 'emptyLearnerState tidak mengembalikan state dengan nodeId valid';
   if (s.decayRate !== undefined) return `emptyLearnerState decayRate=${s.decayRate} (harus undefined)`;
@@ -200,14 +305,26 @@ gate('G12', 'emptyLearnerState() helper tunggal & bebas pencemaran || 0.x di App
   if (masteries.length !== 7 || masteries.some((v) => v !== 0)) {
     return `mastery awal harus 7 tingkat bernilai 0: ${JSON.stringify(s.mastery)}`;
   }
+
   // Audit source code App.tsx
   const appSrc = fs.readFileSync('src/App.tsx', 'utf-8');
-  if (appSrc.includes('recognition: 0.8') || appSrc.includes('recognition: 1')) {
-    return 'App.tsx masih memuat literal state karangan (recognition: 0.8 / 1)';
+
+  // 1. Memeriksa bahwa emptyLearnerState benar-benar diimpor dan dipakai
+  if (!appSrc.includes('emptyLearnerState')) {
+    return 'App.tsx belum mengimpor atau menggunakan emptyLearnerState';
   }
-  if (appSrc.includes('|| 0.5') || appSrc.includes('|| 0.6') || appSrc.includes('|| 0.4')) {
-    return 'App.tsx masih menggunakan fallback || 0.x yang menelan mastery 0 menjadi baseline default';
+
+  // 2. Tidak boleh ada literal mastery buatan (mis. recognition: 0.8 atau recognition: 1)
+  if (/recognition:\s*(?:0\.[1-9]|1(?:\.0)?)/.test(appSrc)) {
+    return 'App.tsx masih memuat literal state karangan (recognition: > 0)';
   }
+
+  // 3. Tidak boleh ada fallback || 0.x atau ?? 0.x pada kalkulasi penguasaan/peluruhan
+  const fallbackMatches = appSrc.match(/(?:\|\||\?\?)\s*0\.[0-9]+/g);
+  if (fallbackMatches && fallbackMatches.length > 0) {
+    return `App.tsx masih menggunakan fallback (${fallbackMatches.join(', ')}) yang menelan angka 0 menjadi baseline default`;
+  }
+
   return null;
 });
 

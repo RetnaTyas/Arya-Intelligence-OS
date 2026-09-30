@@ -57,7 +57,7 @@ export interface PrerequisiteStatus {
     nodeName: string;
     currentUnderstanding: number;
     requiredUnderstanding: number;
-    decayRate: number;
+    decayRate?: number;
     reason: string;
   }[];
 }
@@ -89,7 +89,7 @@ export function evaluatePrerequisites(
         nodeName,
         currentUnderstanding: 0,
         requiredUnderstanding: PREREQUISITE_MASTERY_THRESHOLDS.MIN_UNDERSTANDING,
-        decayRate: 0,
+        decayRate: undefined,
         reason: 'Belum pernah dipelajari / data penguasaan kosong',
       });
       continue;
@@ -98,7 +98,7 @@ export function evaluatePrerequisites(
     const { understanding, application, recall } = prereqState.mastery;
     const isUnderstood = understanding >= PREREQUISITE_MASTERY_THRESHOLDS.MIN_UNDERSTANDING;
     const isApplied = application >= PREREQUISITE_MASTERY_THRESHOLDS.MIN_APPLICATION;
-    const isNotDecayed = prereqState.decayRate <= PREREQUISITE_MASTERY_THRESHOLDS.MAX_ALLOWED_DECAY;
+    const isNotDecayed = prereqState.decayRate === undefined || prereqState.decayRate <= PREREQUISITE_MASTERY_THRESHOLDS.MAX_ALLOWED_DECAY;
 
     // Prerequisite score contribution
     const nodeScore = (understanding * 0.5) + (application * 0.3) + (recall * 0.2);
@@ -111,7 +111,8 @@ export function evaluatePrerequisites(
       } else if (!isApplied) {
         reason = `Application (${(application * 100).toFixed(0)}%) di bawah ambang ${(PREREQUISITE_MASTERY_THRESHOLDS.MIN_APPLICATION * 100).toFixed(0)}%`;
       } else if (!isNotDecayed) {
-        reason = `Decay (${(prereqState.decayRate * 100).toFixed(0)}%) melebihi toleransi ${(PREREQUISITE_MASTERY_THRESHOLDS.MAX_ALLOWED_DECAY * 100).toFixed(0)}%`;
+        const decayText = prereqState.decayRate !== undefined ? `${(prereqState.decayRate * 100).toFixed(0)}%` : 'tidak teramati';
+        reason = `Decay (${decayText}) melebihi toleransi ${(PREREQUISITE_MASTERY_THRESHOLDS.MAX_ALLOWED_DECAY * 100).toFixed(0)}%`;
       }
 
       unmet.push({
@@ -384,6 +385,7 @@ export function selectNextBestExperience(
 
     // 1. Critical Bottleneck / Repair Loop (Highest Priority)
     if (debt.isBottleneck || debt.severity === 'HIGH') {
+      const decayText = state.decayRate !== undefined ? `${(state.decayRate * 100).toFixed(0)}%` : 'diasumsikan prior';
       recommendations.push({
         nodeId: node.id,
         nodeName: node.name,
@@ -391,7 +393,7 @@ export function selectNextBestExperience(
         type: 'BOTTLENECK_REPAIR',
         priorityScore: 100 + (debt.debtRiskScore * 50),
         simulationId: node.activeSimulationId,
-        deterministicReason: `Terdeteksi decay ${(state.decayRate * 100).toFixed(0)}% pada konsep ber-centrality tinggi (${node.centrality}). Mencegah kerapuhan fondasi.`,
+        deterministicReason: `Terdeteksi decay ${decayText} pada konsep ber-centrality tinggi (${node.centrality}). Mencegah kerapuhan fondasi.`,
         pedagogicalObjective: `Reconsolidation tersembunyi (Stealth Insertion) tanpa remedial terpisah.`,
       });
       continue;
@@ -413,7 +415,7 @@ export function selectNextBestExperience(
     }
 
     // 3. Spaced Retrieval Loop
-    if (state.decayRate >= 0.08) {
+    if (typeof state.decayRate === 'number' && state.decayRate >= 0.08) {
       recommendations.push({
         nodeId: node.id,
         nodeName: node.name,

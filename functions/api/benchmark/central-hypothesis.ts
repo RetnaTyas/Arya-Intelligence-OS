@@ -170,6 +170,7 @@ Output strictly a JSON array of objects with the exact structure:
 
         const rawScore = found.structuralMasteryScore !== undefined ? found.structuralMasteryScore : found.score;
         const scoreNum = typeof rawScore === 'number' ? rawScore : (rawScore == null ? NaN : Number(rawScore));
+        const isFallback = Boolean(found.usedFallback === true);
         const effectiveFallback = isFallback || Number.isNaN(scoreNum);
         if (effectiveFallback) {
           totalFallbackProbes += 1;

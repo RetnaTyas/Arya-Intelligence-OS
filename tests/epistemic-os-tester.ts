@@ -659,7 +659,7 @@ function runSuite4() {
     resolvedState.decayRate === 0.0 && !resolvedDebt.isBottleneck && resolvedDebt.severity === 'LOW',
     suite,
     'Resolusi Loop & Netralisasi Utang Epistemik',
-    `Decay Sebelum: ${(decayedState.decayRate * 100).toFixed(0)}% -> Sesudah: ${(resolvedState.decayRate * 100).toFixed(0)}%, Debt Baru: ${resolvedDebt.debtRiskScore} (${resolvedDebt.severity})`
+    `Decay Sebelum: ${decayedState.decayRate !== undefined ? `${(decayedState.decayRate * 100).toFixed(0)}%` : 'tidak teramati'} -> Sesudah: ${resolvedState.decayRate !== undefined ? `${(resolvedState.decayRate * 100).toFixed(0)}%` : 'tidak teramati'}, Debt Baru: ${resolvedDebt.debtRiskScore} (${resolvedDebt.severity})`
   );
 }
 

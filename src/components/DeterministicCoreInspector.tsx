@@ -480,7 +480,7 @@ export const DeterministicCoreInspector: React.FC<DeterministicCoreInspectorProp
                           {prereqNode ? prereqNode.name : prereqId}
                         </strong>
                         <span className="text-[10px] text-slate-400 font-mono">
-                          Understanding: {prereqState ? (prereqState.mastery.understanding * 100).toFixed(0) : 0}% · Decay: {prereqState ? (prereqState.decayRate * 100).toFixed(0) : 0}%
+                          Understanding: {prereqState ? (prereqState.mastery.understanding * 100).toFixed(0) : 0}% · Decay: {prereqState && prereqState.decayRate !== undefined ? `${(prereqState.decayRate * 100).toFixed(0)}%` : 'tidak teramati'}
                         </span>
                       </div>
 

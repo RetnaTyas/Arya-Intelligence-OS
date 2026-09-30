@@ -140,13 +140,13 @@ export interface MasteryHierarchy {
 export interface LearnerNodeState {
   nodeId: string;
   mastery: MasteryHierarchy;
-  decayRate: number; // e.g. 0.15 for 15% decay
-  lastReinforcedDate: string;
+  decayRate?: number; // e.g. 0.15 for 15% decay, undefined jika belum teramati
+  lastReinforcedDate?: string;
   activeMisconceptions: string[];
-  learningRate: number;
+  learningRate?: number;
   confidence: 'low' | 'medium' | 'high';
-  debtRisk: number; // Computed Debt Risk = Decay * Centrality * FutureRelevance * Uncertainty
-  isBottleneck: boolean;
+  debtRisk?: number; // Computed Debt Risk = Decay * Centrality * FutureRelevance * Uncertainty
+  isBottleneck?: boolean;
   stealthInsertionTargetProject?: string;
   evidenceCount?: number;
   lastInteracted?: string;
