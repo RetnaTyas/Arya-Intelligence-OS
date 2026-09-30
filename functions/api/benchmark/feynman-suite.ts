@@ -79,7 +79,10 @@ Output strictly a JSON array matching:
 
     const evaluations = cases.map((c: any) => {
       const match = Array.isArray(parsedArray) ? parsedArray.find((p: any) => p && (p.caseId === c.id || p.id === c.id)) : null;
-      if (!match) {
+      // TIDAK ADA: skor yang hilang/tidak terbaca dari model tidak diganti 0.75 — probe itu diberi label fallback lokal.
+      const rawScore = match ? (match.aiScore !== undefined ? match.aiScore : match.score) : undefined;
+      const scoreNum = typeof rawScore === 'number' ? rawScore : (rawScore == null ? NaN : Number(rawScore));
+      if (!match || Number.isNaN(scoreNum)) {
         fallbackCount += 1;
         const local = generateLocalFeynmanDiagnosis(c.conceptName, c.childUtterance);
         return {
@@ -92,11 +95,9 @@ Output strictly a JSON array matching:
           fallbackReason: local.fallbackReason,
         };
       }
-      const rawScore = match.aiScore !== undefined ? match.aiScore : match.score;
-      const scoreNum = typeof rawScore === 'number' ? rawScore : Number(rawScore);
       return {
         caseId: c.id,
-        aiScore: !isNaN(scoreNum) ? Math.min(1, Math.max(0, scoreNum)) : 0.75,
+        aiScore: Math.min(1, Math.max(0, scoreNum)),
         aiLabel: match.aiLabel || match.label || 'Teridentifikasi',
         aiReasoning: match.aiReasoning || match.reasoning || `Inferensi kalibrasi Pages Functions Workers AI binding (AiOS AI: ${model}).`,
         usedFallback: false,

@@ -1149,8 +1149,8 @@ export const ParentTelemetryDashboard: React.FC<ParentTelemetryDashboardProps> =
                 {entry.feynmanDiagnosis && (
                   <div className="pt-2 border-t border-slate-900 flex flex-wrap items-center gap-4 text-xs font-mono text-slate-400">
                     <span>Konseptual: <strong className="text-cyan-300">{(entry.feynmanDiagnosis.conceptualUnderstanding * 100).toFixed(0)}%</strong></span>
-                    <span>Kausalitas: <strong className="text-emerald-300">{(entry.feynmanDiagnosis.causalReasoning * 100).toFixed(0)}%</strong></span>
-                    <span>Transfer: <strong className="text-amber-300">{(entry.feynmanDiagnosis.transferScore * 100).toFixed(0)}%</strong></span>
+                    <span>Kausalitas: <strong className="text-emerald-300">{entry.feynmanDiagnosis.causalReasoning === undefined ? 'tidak teramati' : `${(entry.feynmanDiagnosis.causalReasoning * 100).toFixed(0)}%`}</strong></span>
+                    <span>Transfer: <strong className="text-amber-300">{entry.feynmanDiagnosis.transferScore === undefined ? 'tidak teramati' : `${(entry.feynmanDiagnosis.transferScore * 100).toFixed(0)}%`}</strong></span>
                     {entry.feynmanDiagnosis.misconceptionDetected && (
                       <span className="text-rose-400 bg-rose-950/40 px-2 py-0.5 rounded border border-rose-900/60">
                         Miskonsepsi: {entry.feynmanDiagnosis.misconceptionDetected}

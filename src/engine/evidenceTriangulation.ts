@@ -61,19 +61,27 @@ export const DEFAULT_PARENT_CALIBRATION: ParentCalibrationSettings = {
 };
 
 export interface TriangulatedAssessmentResult {
-  compositeUnderstanding: number; // 0.0 to 1.0
-  compositeApplication: number;
-  compositeTransfer: number;
+  // undefined = TIDAK TERAMATI (bukan 0, bukan 0.5). Lihat KLASIFIKASI HARDCODE di foundation doc.
+  compositeUnderstanding?: number; // 0.0 to 1.0
+  compositeApplication?: number;   // hanya ada jika lab empiris teramati
+  compositeTransfer?: number;      // hanya ada jika tes transfer nyata teramati (§6.1: "belum teruji")
   confidence: 'high' | 'medium' | 'low';
   noiseFlagDetected: boolean;
   discrepancyNote?: string;
+  /** Sumber bukti yang tidak ada — masukan untuk Evidence Debt (§7), bukan untuk ditambal angka. */
+  evidenceGaps: Array<'empirical' | 'transfer' | 'feynman'>;
+  /** true = tidak ada satu pun sumber non-model (lab / tes transfer / rating orang tua). */
+  provisional: boolean;
   evidenceBreakdown: {
-    empiricalWeight: number; // e.g. 0.60
+    // Bobot EFEKTIF: bobot nominal dinormalisasi hanya atas sumber yang teramati (0 = tidak teramati).
+    empiricalWeight: number;
     empiricalContribution: number;
-    transferWeight: number;  // e.g. 0.25
+    transferWeight: number;
     transferContribution: number;
-    feynmanWeight: number;   // e.g. 0.15
+    feynmanWeight: number;
     feynmanContribution: number;
+    /** Skor verbal sebelum Filter A/B/C menyesuaikannya (penyesuaian tidak menimpa observasi asli). */
+    feynmanRawScore?: number;
     humanParentWeight?: number;
     humanParentContribution?: number;
   };
@@ -81,26 +89,44 @@ export interface TriangulatedAssessmentResult {
   shouldUpdateLearnerModel: boolean;
 }
 
-// Konfigurasi Bobot Triangulasi Default
-export const DEFAULT_TRIANGULATION_WEIGHTS = {
+// ─────────────────────────────────────────────────────────────────────────────
+// KATEGORI KONSTANTA (klasifikasi hardcode menurut arsitektur sendiri):
+//   TIDAK ADA   → tidak boleh berupa angka; tidak ada konstanta di sini (kembalikan undefined).
+//   POLICY_     → keputusan desain yang diakui; BUKAN hasil kalibrasi empiris.
+//   (PRIOR_ untuk asumsi populasi ada di deterministicCore.ts.)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Konfigurasi Bobot Triangulasi (POLICY: bobot awal yang ditetapkan sengaja, belum terkalibrasi)
+export const POLICY_TRIANGULATION_WEIGHTS = {
   EMPIRICAL_SIMULATION: 0.60, // Sumber bukti utama: anak bertindak di lab
   TRANSFER_CHALLENGE: 0.25,   // Ujian transfer lintas domain
   FEYNMAN_AI_DIALOG: 0.15,    // Diagnosis dialog Socratic (dibatasi agar tidak jadi SPOF)
 };
+/** @deprecated alias lama; gunakan POLICY_TRIANGULATION_WEIGHTS. */
+export const DEFAULT_TRIANGULATION_WEIGHTS = POLICY_TRIANGULATION_WEIGHTS;
 
-// Ambang Batas Noise & Diskrepansi
+// POLICY: boleh tidaknya sinyal model SAJA menggerakkan mastery. Risiko #1: Feynman = SPOF → false.
+export const POLICY_MODEL_ONLY_MAY_UPDATE_MASTERY = false;
+// POLICY: koreksi Filter B (redam skor AI saat lab gagal) dan Filter C (keadilan kognitif).
+export const POLICY_NOISE_DAMPING_OFFSET = 0.1;
+export const POLICY_FAIRNESS_FLOOR = 0.65;
+
+// Ambang Batas Noise & Diskrepansi (POLICY)
 export const DISCREPANCY_THRESHOLDS = {
   MAX_ALLOWED_DIVERGENCE: 0.35, // Selisih maksimal klaim AI vs bukti empiris lab
   MIN_WORD_COUNT_FOR_AI: 12,    // Kalimat di bawah 12 kata tidak valid untuk AI diagnosis penuh
   GUESSWORK_PENALTY: 0.25,      // Penalti jika telemetri menunjukkan tebak-tebak acak
 };
 
+const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+const r2 = (n: number) => Number(n.toFixed(2));
+
 export function triangulateEvidence(
   empirical?: EmpiricalSimulationEvidence,
   feynman?: FeynmanDiagnosisResult,
   transfer?: TransferChallengeEvidence,
   options: {
-    customWeights?: typeof DEFAULT_TRIANGULATION_WEIGHTS;
+    customWeights?: typeof POLICY_TRIANGULATION_WEIGHTS;
     childUtteranceWordCount?: number;
     parentAudit?: ParentAuditAssessment;
     parentCalibration?: ParentCalibrationSettings;
@@ -108,33 +134,26 @@ export function triangulateEvidence(
   } = {}
 ): TriangulatedAssessmentResult {
   const modality = options.assessmentModality || 'socratic_feynman';
-  
-  // Penyesuaian bobot otomatis berdasarkan modalitas usia anak (Developmental Alignment)
-  let weights = options.customWeights || DEFAULT_TRIANGULATION_WEIGHTS;
+
+  // Penyesuaian bobot otomatis berdasarkan modalitas usia anak (Developmental Alignment) — POLICY
+  let weights = options.customWeights || POLICY_TRIANGULATION_WEIGHTS;
   if (!options.customWeights) {
     if (modality === 'behavioral_observation') {
       // Tier I (1-3): Mengutamakan manipulasi fisik & observasi langsung, bukan dialog AI
-      weights = {
-        EMPIRICAL_SIMULATION: 0.70,
-        TRANSFER_CHALLENGE: 0.20,
-        FEYNMAN_AI_DIALOG: 0.10,
-      };
+      weights = { EMPIRICAL_SIMULATION: 0.70, TRANSFER_CHALLENGE: 0.20, FEYNMAN_AI_DIALOG: 0.10 };
     } else if (modality === 'visual_manipulation') {
       // Tier II (4-6): Kombinasi manipulasi visual dan intuisi konkret
-      weights = {
-        EMPIRICAL_SIMULATION: 0.65,
-        TRANSFER_CHALLENGE: 0.20,
-        FEYNMAN_AI_DIALOG: 0.15,
-      };
+      weights = { EMPIRICAL_SIMULATION: 0.65, TRANSFER_CHALLENGE: 0.20, FEYNMAN_AI_DIALOG: 0.15 };
     }
   }
 
-  const wordCount = options.childUtteranceWordCount ?? 20;
+  // Jumlah kata tidak diketahui ⇒ Filter A tidak dijalankan (bukan diasumsikan 20 kata).
+  const wordCount = options.childUtteranceWordCount;
   const parentCalibration = options.parentCalibration || DEFAULT_PARENT_CALIBRATION;
   const parentAudit = options.parentAudit;
 
-  // 1. Ekstraksi Skor Empiris (Lab Simulasi)
-  let empiricalScore = 0.5; // fallback netral jika belum ada tes lab
+  // 1. Skor Empiris (Lab Simulasi) — undefined jika lab tidak teramati
+  let empiricalScore: number | undefined;
   if (empirical) {
     empiricalScore = (empirical.accuracyScore * 0.6) + (empirical.manipulationPrecision * 0.4);
     if (empirical.isTrialAndErrorGuesswork) {
@@ -142,110 +161,137 @@ export function triangulateEvidence(
     }
   }
 
-  // 2. Ekstraksi Skor Transfer
-  let transferScore = 0.4;
-  if (transfer) {
-    transferScore = transfer.transferScore;
-  }
+  // 2. Skor Transfer — undefined jika tidak ada tes transfer nyata
+  const transferScore: number | undefined = transfer ? transfer.transferScore : undefined;
 
-  // 3. Ekstraksi Skor Dialog & Penalaran Verbal: Fusi Human-in-the-Loop (Pakar Manusia / Ortu vs AI)
-  let rawAiScore = 0.5;
+  // 3. Skor Dialog Verbal (Feynman) — hanya dari field yang benar-benar dikembalikan sensor
+  let rawAiScore: number | undefined;
   let isAiNoiseSuspect = false;
   let discrepancyNote: string | undefined;
 
   if (feynman) {
-    rawAiScore = (feynman.conceptualUnderstanding * 0.5) + (feynman.causalReasoning * 0.5);
+    const observed = [feynman.conceptualUnderstanding, feynman.causalReasoning].filter(isNum);
+    if (observed.length > 0) {
+      rawAiScore = observed.reduce((a, b) => a + b, 0) / observed.length;
+    }
+  }
+  const feynmanRawScore = rawAiScore;
 
+  if (rawAiScore !== undefined) {
     // Filter A: Deteksi kalimat terlalu singkat
     // Hanya berlaku untuk anak Tier III-IV (socratic_feynman). Untuk batita/balita, manipulasi tindakan adalah kuncinya.
     const isVerbalExpected = modality === 'socratic_feynman' || modality === 'relational_manipulation';
-    if (isVerbalExpected && wordCount < DISCREPANCY_THRESHOLDS.MIN_WORD_COUNT_FOR_AI) {
+    if (isVerbalExpected && wordCount !== undefined && wordCount < DISCREPANCY_THRESHOLDS.MIN_WORD_COUNT_FOR_AI) {
       isAiNoiseSuspect = true;
       discrepancyNote = `Kalimat anak terlalu singkat (${wordCount} kata). AI diagnosis diragukan karena kurangnya konteks linguistik.`;
-      rawAiScore = empiricalScore; // Downweight: ikuti bukti empiris
+      if (empiricalScore !== undefined) rawAiScore = empiricalScore; // Downweight: ikuti bukti empiris
     }
 
     // Filter B: Diskrepansi "Buzzword Dropping / Hafalan Semu"
-    // AI memberi nilai tinggi (> 0.8), tapi di simulasi empiris anak gagal manipulasi (< 0.45)
-    if (rawAiScore >= 0.80 && empirical && empiricalScore < 0.45) {
+    if (rawAiScore >= 0.80 && empiricalScore !== undefined && empiricalScore < 0.45) {
       isAiNoiseSuspect = true;
       discrepancyNote = `Terdeteksi diskrepansi: AI mendeteksi pemahaman verbal (${(rawAiScore * 100).toFixed(0)}%), namun manipulasi empiris di lab gagal (${(empiricalScore * 100).toFixed(0)}%). Kemungkinan pengucapan istilah (buzzwords) tanpa intuisi kausal.`;
-      // Redam skor AI agar tidak mencemari model
-      rawAiScore = empiricalScore + 0.1;
+      rawAiScore = empiricalScore + POLICY_NOISE_DAMPING_OFFSET;
     }
 
     // Filter C: Diskrepansi "Anak Paham tapi Typo / Canggung Mengetik"
-    // AI memberi nilai rendah (< 0.4), tapi di simulasi empiris anak sempurna (0.95)
-    if (rawAiScore < 0.40 && empirical && empiricalScore >= 0.85) {
+    if (rawAiScore < 0.40 && empiricalScore !== undefined && empiricalScore >= 0.85) {
       discrepancyNote = `Anak mahir secara empiris (${(empiricalScore * 100).toFixed(0)}%), namun penjelasan verbalnya minim (${(rawAiScore * 100).toFixed(0)}%). Skor tidak diturunkan secara drastis demi keadilan kognitif.`;
-      rawAiScore = Math.max(rawAiScore, 0.65);
+      rawAiScore = Math.max(rawAiScore, POLICY_FAIRNESS_FLOOR);
     }
   }
 
-  // Fusi Verbal: Integrasi Ground Truth Pakar Manusia (Orang Tua) vs AI
-  let fusedVerbalScore = rawAiScore;
+  // Fusi Verbal: Human-in-the-Loop (Orang Tua) vs AI
+  let feynmanScore: number | undefined = rawAiScore;
   let humanParentContribution = 0;
-  let aiVerbalContribution = rawAiScore;
+  let humanParentEffectiveWeight = parentCalibration.parentWeight;
 
   if (parentAudit) {
-    // Ortu memberikan input evaluasi langsung (Human-in-the-Loop)
-    const pWeight = parentCalibration.parentWeight;
-    const aWeight = parentCalibration.aiWeight;
-
-    fusedVerbalScore = (parentAudit.parentScore * pWeight) + (rawAiScore * aWeight);
-    humanParentContribution = parentAudit.parentScore * pWeight;
-    aiVerbalContribution = rawAiScore * aWeight;
-
-    if (parentAudit.hasOverridden) {
-      discrepancyNote = `Audit Human-in-the-Loop diterapkan: Evaluasi Orang Tua (Bobot ${(pWeight * 100).toFixed(0)}%) diselaraskan dengan AI (Bobot ${(aWeight * 100).toFixed(0)}%).`;
+    if (rawAiScore !== undefined) {
+      const pWeight = parentCalibration.parentWeight;
+      const aWeight = parentCalibration.aiWeight;
+      feynmanScore = (parentAudit.parentScore * pWeight) + (rawAiScore * aWeight);
+      humanParentContribution = parentAudit.parentScore * pWeight;
+      if (parentAudit.hasOverridden) {
+        discrepancyNote = `Audit Human-in-the-Loop diterapkan: Evaluasi Orang Tua (Bobot ${(pWeight * 100).toFixed(0)}%) diselaraskan dengan AI (Bobot ${(aWeight * 100).toFixed(0)}%).`;
+      }
+    } else {
+      // Tidak ada estimasi model: kanal verbal sepenuhnya rating manusia.
+      feynmanScore = parentAudit.parentScore;
+      humanParentContribution = parentAudit.parentScore;
+      humanParentEffectiveWeight = 1;
     }
   }
 
-  const feynmanScore = fusedVerbalScore;
+  // 4. Fusi tertimbang HANYA atas sumber yang teramati (bobot dinormalisasi; yang tidak ada tidak ikut).
+  const sources = [
+    { key: 'empirical' as const, w: weights.EMPIRICAL_SIMULATION, s: empiricalScore },
+    { key: 'transfer' as const, w: weights.TRANSFER_CHALLENGE, s: transferScore },
+    { key: 'feynman' as const, w: weights.FEYNMAN_AI_DIALOG, s: feynmanScore },
+  ];
+  const present = sources.filter((x): x is { key: typeof x.key; w: number; s: number } => x.s !== undefined);
+  const totalW = present.reduce((a, x) => a + x.w, 0);
+  const effW = (k: 'empirical' | 'transfer' | 'feynman') => {
+    const x = present.find((p) => p.key === k);
+    return x && totalW > 0 ? x.w / totalW : 0;
+  };
+  const compUnderstanding = totalW > 0 ? present.reduce((a, x) => a + x.s * (x.w / totalW), 0) : undefined;
 
-  // 4. Perhitungan Triangulasi Tertimbang (Weighted Multi-Modal Fusion)
-  const compUnderstanding =
-    (empiricalScore * weights.EMPIRICAL_SIMULATION) +
-    (transferScore * weights.TRANSFER_CHALLENGE) +
-    (feynmanScore * weights.FEYNMAN_AI_DIALOG);
+  const evidenceGaps = sources.filter((x) => x.s === undefined).map((x) => x.key);
 
-  const compApplication = empirical ? empiricalScore : compUnderstanding * 0.9;
-  const compTransfer = transfer ? transferScore : (compUnderstanding * 0.7);
+  // Kuorum: minimal satu sumber non-model (lab / tes transfer / rating orang tua).
+  const hasNonModelSource = empiricalScore !== undefined || transferScore !== undefined || parentAudit !== undefined;
+  const provisional = !hasNonModelSource;
 
-  // Confidence level
   let confidence: 'high' | 'medium' | 'low' = 'high';
-  if (isAiNoiseSuspect && (!parentAudit || parentCalibration.parentWeight < 0.5)) {
+  if (provisional) {
     confidence = 'low';
-  } else if (!empirical || !transfer) {
+  } else if (isAiNoiseSuspect && (!parentAudit || parentCalibration.parentWeight < 0.5)) {
+    confidence = 'low';
+  } else if (empiricalScore === undefined || transferScore === undefined) {
     confidence = 'medium';
   }
 
-  // Siapkan rekomendasi update mastery dengan gating deterministik
-  const recommendedMasteryDelta: Partial<MasteryHierarchy> = {
-    understanding: Number(compUnderstanding.toFixed(2)),
-    application: Number(compApplication.toFixed(2)),
-    transfer: Number(compTransfer.toFixed(2)),
-    explanation: Number(feynmanScore.toFixed(2)),
-  };
+  const noiseGate = !isAiNoiseSuspect
+    || (empirical !== undefined && empirical.taskCompleted)
+    || (parentAudit !== undefined && parentCalibration.parentWeight >= 0.5);
+  const shouldUpdateLearnerModel = present.length > 0
+    && (hasNonModelSource || POLICY_MODEL_ONLY_MAY_UPDATE_MASTERY)
+    && noiseGate;
+
+  // Delta hanya berisi dimensi yang teramati; jika tidak boleh update, delta kosong.
+  const recommendedMasteryDelta: Partial<MasteryHierarchy> = {};
+  if (shouldUpdateLearnerModel) {
+    if (compUnderstanding !== undefined) recommendedMasteryDelta.understanding = r2(compUnderstanding);
+    if (empiricalScore !== undefined) recommendedMasteryDelta.application = r2(empiricalScore);
+    if (transferScore !== undefined) recommendedMasteryDelta.transfer = r2(transferScore);
+    if (feynmanScore !== undefined) recommendedMasteryDelta.explanation = r2(feynmanScore);
+  }
+
+  const contrib = (s: number | undefined, k: 'empirical' | 'transfer' | 'feynman') =>
+    s === undefined ? 0 : Number((s * effW(k)).toFixed(3));
 
   return {
-    compositeUnderstanding: Number(compUnderstanding.toFixed(2)),
-    compositeApplication: Number(compApplication.toFixed(2)),
-    compositeTransfer: Number(compTransfer.toFixed(2)),
+    compositeUnderstanding: compUnderstanding !== undefined ? r2(compUnderstanding) : undefined,
+    compositeApplication: empiricalScore !== undefined ? r2(empiricalScore) : undefined,
+    compositeTransfer: transferScore !== undefined ? r2(transferScore) : undefined,
     confidence,
     noiseFlagDetected: isAiNoiseSuspect,
     discrepancyNote,
+    evidenceGaps,
+    provisional,
     evidenceBreakdown: {
-      empiricalWeight: weights.EMPIRICAL_SIMULATION,
-      empiricalContribution: Number((empiricalScore * weights.EMPIRICAL_SIMULATION).toFixed(3)),
-      transferWeight: weights.TRANSFER_CHALLENGE,
-      transferContribution: Number((transferScore * weights.TRANSFER_CHALLENGE).toFixed(3)),
-      feynmanWeight: weights.FEYNMAN_AI_DIALOG,
-      feynmanContribution: Number((feynmanScore * weights.FEYNMAN_AI_DIALOG).toFixed(3)),
-      humanParentWeight: parentAudit ? parentCalibration.parentWeight : undefined,
+      empiricalWeight: effW('empirical'),
+      empiricalContribution: contrib(empiricalScore, 'empirical'),
+      transferWeight: effW('transfer'),
+      transferContribution: contrib(transferScore, 'transfer'),
+      feynmanWeight: effW('feynman'),
+      feynmanContribution: contrib(feynmanScore, 'feynman'),
+      feynmanRawScore: feynmanRawScore !== undefined ? r2(feynmanRawScore) : undefined,
+      humanParentWeight: parentAudit ? humanParentEffectiveWeight : undefined,
       humanParentContribution: parentAudit ? Number(humanParentContribution.toFixed(3)) : undefined,
     },
     recommendedMasteryDelta,
-    shouldUpdateLearnerModel: !isAiNoiseSuspect || (empirical !== undefined && empirical.taskCompleted) || (parentAudit !== undefined && parentCalibration.parentWeight >= 0.5),
+    shouldUpdateLearnerModel,
   };
 }

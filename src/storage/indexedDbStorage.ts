@@ -398,45 +398,64 @@ export async function importOSDatasetJSON(jsonString: string): Promise<{
     throw new Error('Format backup JSON tidak valid: Properti learnerNodes tidak ditemukan.');
   }
 
+  const evidenceList: EvidenceEntry[] = Array.isArray(data.evidenceLogs) ? data.evidenceLogs : [];
+  const ratingsList: HumanAuditRating[] = Array.isArray(data.humanRatings) ? data.humanRatings : [];
+
+  // VALIDASI PENUH SEBELUM MENYENTUH DATABASE: backup rusak tidak boleh menghapus data yang ada.
+  const validKey = (v: unknown) => (typeof v === 'string' && v.length > 0) || (typeof v === 'number' && Number.isFinite(v));
+  const assertRecords = (list: any[], keyField: string, label: string) => {
+    list.forEach((rec, i) => {
+      if (!rec || typeof rec !== 'object' || !validKey(rec[keyField])) {
+        throw new Error(`Backup ditolak: ${label}[${i}] tidak punya "${keyField}" yang valid. Data yang ada tidak diubah.`);
+      }
+    });
+  };
+  assertRecords(data.learnerNodes, 'nodeId', 'learnerNodes');
+  assertRecords(evidenceList, 'id', 'evidenceLogs');
+  assertRecords(ratingsList, 'id', 'humanRatings');
+
   const db = await openOSDatabase();
   const tx = db.transaction(
     [STORES.LEARNER_NODES, STORES.EVIDENCE_LOGS, STORES.METADATA, STORES.HUMAN_RATINGS],
     'readwrite'
   );
 
-  // Clear existing
-  tx.objectStore(STORES.LEARNER_NODES).clear();
-  tx.objectStore(STORES.EVIDENCE_LOGS).clear();
-  tx.objectStore(STORES.HUMAN_RATINGS).clear();
-
-  const nodesMap: Record<string, LearnerNodeState> = {};
-  const nodeStore = tx.objectStore(STORES.LEARNER_NODES);
-  for (const node of data.learnerNodes) {
-    nodeStore.put(node);
-    nodesMap[node.nodeId] = node;
-  }
-
-  const evidenceList: EvidenceEntry[] = Array.isArray(data.evidenceLogs) ? data.evidenceLogs : [];
-  const evidenceStore = tx.objectStore(STORES.EVIDENCE_LOGS);
-  for (const entry of evidenceList) {
-    evidenceStore.put(entry);
-  }
-
-  const ratingsList: HumanAuditRating[] = Array.isArray(data.humanRatings) ? data.humanRatings : [];
-  const ratingStore = tx.objectStore(STORES.HUMAN_RATINGS);
-  for (const r of ratingsList) {
-    ratingStore.put(r);
-  }
-
-  const trajectory = data.activeTrajectory || INITIAL_ACTIVE_TRAJECTORY;
-  const metaStore = tx.objectStore(STORES.METADATA);
-  metaStore.put({ key: 'activeTrajectory', value: trajectory });
-  metaStore.put({ key: 'lastImportDate', value: new Date().toISOString() });
-
-  await new Promise<void>((resolve, reject) => {
+  // Pasang handler SEBELUM operasi apa pun, dan abort eksplisit bila ada kegagalan di tengah jalan.
+  const done = new Promise<void>((resolve, reject) => {
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error ?? new Error('Transaksi import dibatalkan.'));
   });
+  done.catch(() => { /* ditangani oleh await di bawah */ });
+
+  const trajectory = data.activeTrajectory || INITIAL_ACTIVE_TRAJECTORY;
+  const nodesMap: Record<string, LearnerNodeState> = {};
+  try {
+    // Clear existing (baru setelah validasi lolos; semuanya atomik dalam satu transaksi)
+    tx.objectStore(STORES.LEARNER_NODES).clear();
+    tx.objectStore(STORES.EVIDENCE_LOGS).clear();
+    tx.objectStore(STORES.HUMAN_RATINGS).clear();
+
+    const nodeStore = tx.objectStore(STORES.LEARNER_NODES);
+    for (const node of data.learnerNodes) {
+      nodeStore.put(node);
+      nodesMap[node.nodeId] = node;
+    }
+    const evidenceStore = tx.objectStore(STORES.EVIDENCE_LOGS);
+    for (const entry of evidenceList) evidenceStore.put(entry);
+    const ratingStore = tx.objectStore(STORES.HUMAN_RATINGS);
+    for (const r of ratingsList) ratingStore.put(r);
+
+    const metaStore = tx.objectStore(STORES.METADATA);
+    metaStore.put({ key: 'activeTrajectory', value: trajectory });
+    metaStore.put({ key: 'lastImportDate', value: new Date().toISOString() });
+  } catch (err) {
+    try { tx.abort(); } catch { /* transaksi sudah selesai/abort */ }
+    await done.catch(() => undefined);
+    throw err;
+  }
+
+  await done;
 
   return {
     success: true,

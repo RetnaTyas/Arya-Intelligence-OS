@@ -116,11 +116,27 @@ Output strictly a JSON array of objects with the exact structure:
 
           const parsed = extractBenchmarkArray(rawData);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed.map((p: any) => ({
-              ...p,
-              usedFallback: false,
-              source: `cloudflare-workers-ai (${model})`,
-            }));
+            return chunk.map((c: any) => {
+              const match = parsed.find((p: any) => p && (p.probeId === c.probeId || p.id === c.probeId));
+              const rawScore = match ? (match.structuralMasteryScore !== undefined ? match.structuralMasteryScore : match.score) : undefined;
+              const scoreNum = typeof rawScore === 'number' ? rawScore : (rawScore == null ? NaN : Number(rawScore));
+              if (!match || Number.isNaN(scoreNum)) {
+                return {
+                  probeId: c.probeId,
+                  ...generateLocalProbeDiagnosis(c.probeId, c.prompt, c.studentUtterance),
+                  fallbackReason: !match
+                    ? 'Probe tidak ditemukan dalam output model.'
+                    : 'Skor structuralMasteryScore model hilang atau NaN; dievaluasi menggunakan heuristik lokal.',
+                };
+              }
+              return {
+                ...match,
+                probeId: c.probeId,
+                structuralMasteryScore: Math.min(1, Math.max(0, scoreNum)),
+                usedFallback: false,
+                source: `cloudflare-workers-ai (${model})`,
+              };
+            });
           }
 
           // Fallback heuristic for this chunk if AI returned non-array
@@ -152,23 +168,23 @@ Output strictly a JSON array of objects with the exact structure:
           return generateLocalProbeDiagnosis(probeKey, item.prompt, item.childUtterance);
         }
 
-        const isFallback = Boolean(found.usedFallback === true);
-        if (isFallback) {
+        const rawScore = found.structuralMasteryScore !== undefined ? found.structuralMasteryScore : found.score;
+        const scoreNum = typeof rawScore === 'number' ? rawScore : (rawScore == null ? NaN : Number(rawScore));
+        const effectiveFallback = isFallback || Number.isNaN(scoreNum);
+        if (effectiveFallback) {
           totalFallbackProbes += 1;
         }
 
         return {
           hasMisconception: Boolean(found.hasMisconception === true || found.hasMisconception === 'true' || found.hasMisconception === 1),
           misconceptionName: found.misconceptionName || 'None',
-          structuralMasteryScore: typeof found.structuralMasteryScore === 'number'
-            ? Math.min(1, Math.max(0, found.structuralMasteryScore))
-            : (!isNaN(Number(found.structuralMasteryScore)) ? Math.min(1, Math.max(0, Number(found.structuralMasteryScore))) : 0.5),
-          explanation: found.explanation || (isFallback
+          structuralMasteryScore: !Number.isNaN(scoreNum) ? Math.min(1, Math.max(0, scoreNum)) : 0.5,
+          explanation: found.explanation || (effectiveFallback
             ? `Evaluasi fallback lokal probe ${probeKey}.`
             : `Analisis inferensi probe ${probeKey} (AiOS AI: ${model}).`),
-          usedFallback: isFallback,
-          source: isFallback ? 'deterministic-local-lookup' : `cloudflare-workers-ai (${model})`,
-          fallbackReason: isFallback ? (found.fallbackReason || 'Model inference failed or unparseable') : undefined,
+          usedFallback: effectiveFallback,
+          source: effectiveFallback ? 'deterministic-local-lookup' : `cloudflare-workers-ai (${model})`,
+          fallbackReason: effectiveFallback ? (found.fallbackReason || 'Model inference failed or missing structuralMasteryScore') : undefined,
         };
       };
 

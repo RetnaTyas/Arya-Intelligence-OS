@@ -167,16 +167,19 @@ Expected Principle: "${expectedPrinciple || ''}"
 
           const rawData = reply?.response || reply?.result?.response || reply;
           const parsed = extractJsonFromText(rawData);
-          if (parsed && typeof parsed === 'object') {
-            const conceptualUnderstanding = typeof parsed.conceptualUnderstanding === 'number'
-              ? Math.min(1, Math.max(0, parsed.conceptualUnderstanding))
-              : (typeof parsed.score === 'number' ? Math.min(1, Math.max(0, parsed.score)) : 0.75);
-            const causalReasoning = typeof parsed.causalReasoning === 'number'
-              ? Math.min(1, Math.max(0, parsed.causalReasoning))
-              : 0.70;
-            const transferScore = typeof parsed.transferScore === 'number'
-              ? Math.min(1, Math.max(0, parsed.transferScore))
-              : 0.65;
+          if (parsed && typeof parsed === 'object' && (typeof parsed.conceptualUnderstanding === 'number' || typeof parsed.score === 'number')) {
+            // KATEGORI "TIDAK ADA": field yang tidak dikembalikan model TIDAK boleh diciptakan engine.
+            // Field hilang → undefined (kunci JSON hilang) + dicatat di unobservedFields (masukan Evidence Debt §7).
+            const num01 = (v: unknown): number | undefined =>
+              typeof v === 'number' && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : undefined;
+            const conceptualUnderstanding = num01(parsed.conceptualUnderstanding) ?? num01(parsed.score);
+            const causalReasoning = num01(parsed.causalReasoning);
+            const transferScore = num01(parsed.transferScore);
+            const unobservedFields = [
+              conceptualUnderstanding === undefined ? 'conceptualUnderstanding' : null,
+              causalReasoning === undefined ? 'causalReasoning' : null,
+              transferScore === undefined ? 'transferScore' : null,
+            ].filter(Boolean);
 
             return json({
               ...parsed,
@@ -190,6 +193,7 @@ Expected Principle: "${expectedPrinciple || ''}"
                 diagnosisExplanation: parsed.feedbackSummary || parsed.explanation || 'Diagnosis verbal berhasil dianalisis.',
                 misconceptions: Array.isArray(parsed.misconceptions) ? parsed.misconceptions : [],
               },
+              unobservedFields,
               usedFallback: false,
               source: `cloudflare-workers-ai (${model})`,
             });

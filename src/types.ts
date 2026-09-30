@@ -183,8 +183,8 @@ export interface EvidenceEntry {
   retentionStatus: 'verified' | 'pending' | 'decay_alert' | 'fresh' | 'verified_transfer';
   feynmanDiagnosis?: {
     conceptualUnderstanding: number;
-    causalReasoning: number;
-    transferScore: number;
+    causalReasoning?: number; // undefined = tidak teramati oleh sensor
+    transferScore?: number;   // estimasi model, BUKAN hasil tes transfer nyata
     misconceptionDetected?: string;
   };
   notes?: string;
@@ -218,8 +218,10 @@ export interface ActiveTrajectory {
 
 export interface FeynmanDiagnosisResult {
   conceptualUnderstanding: number;
-  causalReasoning: number;
-  transferScore: number;
+  // undefined = model tidak mengembalikan field ini (TIDAK ADA — bukan 0, bukan default).
+  causalReasoning?: number;
+  transferScore?: number;
+  unobservedFields?: string[];
   analogyDetected: boolean;
   misconceptions: string[];
   feedbackSummary: string;

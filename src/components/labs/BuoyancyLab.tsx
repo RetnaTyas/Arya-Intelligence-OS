@@ -623,13 +623,13 @@ export const BuoyancyLab: React.FC<BuoyancyLabProps> = ({
                   <div className="bg-slate-950 p-2 rounded border border-slate-800">
                     <span className="text-[10px] text-slate-400 block">Kausalitas</span>
                     <strong className="text-sm text-emerald-300 font-mono">
-                      {(lastDiagnosis.causalReasoning * 100).toFixed(0)}%
+                      {lastDiagnosis.causalReasoning === undefined ? 'tidak teramati' : `${(lastDiagnosis.causalReasoning * 100).toFixed(0)}%`}
                     </strong>
                   </div>
                   <div className="bg-slate-950 p-2 rounded border border-slate-800">
                     <span className="text-[10px] text-slate-400 block">Transfer</span>
                     <strong className="text-sm text-amber-300 font-mono">
-                      {(lastDiagnosis.transferScore * 100).toFixed(0)}%
+                      {lastDiagnosis.transferScore === undefined ? 'tidak teramati' : `${(lastDiagnosis.transferScore * 100).toFixed(0)}%`}
                     </strong>
                   </div>
                 </div>

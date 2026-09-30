@@ -117,14 +117,24 @@ export function applyMasteryGating(
   current: MasteryHierarchy,
   incomingDelta: Partial<MasteryHierarchy>
 ): MasteryHierarchy {
+  const cur = {
+    recognition: current?.recognition ?? 0,
+    recall: current?.recall ?? 0,
+    understanding: current?.understanding ?? 0,
+    application: current?.application ?? 0,
+    transfer: current?.transfer ?? 0,
+    explanation: current?.explanation ?? 0,
+    creation: current?.creation ?? 0,
+  };
+
   // Candidate updates
-  let recognition = Math.max(current.recognition, incomingDelta.recognition ?? current.recognition);
-  let recall = Math.max(current.recall, incomingDelta.recall ?? current.recall);
-  let understanding = Math.max(current.understanding, incomingDelta.understanding ?? current.understanding);
-  let application = Math.max(current.application, incomingDelta.application ?? current.application);
-  let transfer = Math.max(current.transfer, incomingDelta.transfer ?? current.transfer);
-  let explanation = Math.max(current.explanation, incomingDelta.explanation ?? current.explanation);
-  let creation = Math.max(current.creation, incomingDelta.creation ?? current.creation);
+  let recognition = Math.max(cur.recognition, incomingDelta.recognition ?? cur.recognition);
+  let recall = Math.max(cur.recall, incomingDelta.recall ?? cur.recall);
+  let understanding = Math.max(cur.understanding, incomingDelta.understanding ?? cur.understanding);
+  let application = Math.max(cur.application, incomingDelta.application ?? cur.application);
+  let transfer = Math.max(cur.transfer, incomingDelta.transfer ?? cur.transfer);
+  let explanation = Math.max(cur.explanation, incomingDelta.explanation ?? cur.explanation);
+  let creation = Math.max(cur.creation, incomingDelta.creation ?? cur.creation);
 
   // Gating Rules:
   // Rule A: Recall cannot exceed recognition + 0.1
@@ -222,24 +232,50 @@ export interface EpistemicDebtAssessment {
     uncertainty: number;
   };
   recommendedAction: 'MAINTAIN' | 'SCHEDULE_RETRIEVAL' | 'STEALTH_INSERTION' | 'IMMEDIATE_PREREQUISITE_REPAIR';
+  /**
+   * Komponen yang nilainya DIASUMSIKAN (prior), bukan teramati/terhitung untuk anak & node ini.
+   * Kosong = semua komponen berasal dari data. Konsumen tidak boleh menyajikan skor berbasis asumsi sebagai temuan.
+   */
+  assumptions: Array<'decayRate' | 'centrality' | 'futureRelevance' | 'uncertainty'>;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// KATEGORI KONSTANTA (klasifikasi hardcode menurut arsitektur sendiri):
+//   PRIOR_  → DIASUMSIKAN: asumsi populasi/pakar. Bukan observasi per-anak, bukan hasil komputasi graf.
+//             Boleh masuk rumus, tetapi selalu dilaporkan di `assumptions` dan tidak boleh memicu intervensi.
+//   POLICY_ → keputusan desain yang diakui; BUKAN hasil kalibrasi empiris.
+// ─────────────────────────────────────────────────────────────────────────────
+export const PRIOR_DECAY_RATE = 0.02;
+export const PRIOR_CENTRALITY = 0.5;
+export const PRIOR_FUTURE_RELEVANCE = 0.5;
+export const PRIOR_UNCERTAINTY = 0.5;
+export const POLICY_DEBT_SCALE = 4.0; // koefisien penskalaan skor mentah ke 0–1 (belum terkalibrasi)
+export const POLICY_BOTTLENECK = { MIN_DECAY: 0.10, MIN_CENTRALITY: 0.70 };
 
 export function calculateDeterministicEpistemicDebt(
   node: KnowledgeNode,
   state: LearnerNodeState,
-  uncertaintyMetric: number = 0.5
+  uncertaintyMetric?: number
 ): EpistemicDebtAssessment {
-  const decay = state.decayRate ?? 0.02;
-  const centrality = node.centrality ?? 0.5;
-  const futureRelevance = node.futureRelevance ?? 0.5;
-  const uncertainty = Math.max(0.1, Math.min(1.0, uncertaintyMetric));
+  const assumptions: EpistemicDebtAssessment['assumptions'] = [];
+  const pick = (v: number | undefined, prior: number, key: EpistemicDebtAssessment['assumptions'][number]) => {
+    if (typeof v === 'number' && Number.isFinite(v)) return v;
+    assumptions.push(key);
+    return prior;
+  };
+  const decay = pick(state.decayRate, PRIOR_DECAY_RATE, 'decayRate');
+  const centrality = pick(node.centrality, PRIOR_CENTRALITY, 'centrality');
+  const futureRelevance = pick(node.futureRelevance, PRIOR_FUTURE_RELEVANCE, 'futureRelevance');
+  const uncertainty = Math.max(0.1, Math.min(1.0, pick(uncertaintyMetric, PRIOR_UNCERTAINTY, 'uncertainty')));
+  // Komponen yang menjadi dasar intervensi: bila salah satunya hanya asumsi, sistem tidak boleh bertindak atasnya.
+  const interventionBasisAssumed = assumptions.some((a) => a !== 'uncertainty');
 
-  // Mathematical formula from Section 7.4
+  // Mathematical formula from Section 7.5 (bagian nomor lama 7.4 telah bergeser)
   const rawScore = decay * centrality * futureRelevance * uncertainty;
   // Normalized to 0.0 - 1.0 scale with reasonable scaling coefficient
-  const debtRiskScore = Number(Math.min(1.0, rawScore * 4.0).toFixed(3));
+  const debtRiskScore = Number(Math.min(1.0, rawScore * POLICY_DEBT_SCALE).toFixed(3));
 
-  const isBottleneck = decay >= 0.10 && centrality >= 0.70;
+  const isBottleneck = !interventionBasisAssumed && decay >= POLICY_BOTTLENECK.MIN_DECAY && centrality >= POLICY_BOTTLENECK.MIN_CENTRALITY;
 
   let severity: 'LOW' | 'MEDIUM' | 'HIGH' = 'LOW';
   if (debtRiskScore >= 0.20 || isBottleneck) {
@@ -257,6 +293,14 @@ export function calculateDeterministicEpistemicDebt(
     recommendedAction = 'SCHEDULE_RETRIEVAL';
   }
 
+  // Dasar asumsi ≠ observasi: paling tinggi jadwalkan retrieval, tidak boleh memicu intervensi.
+  if (interventionBasisAssumed) {
+    if (severity === 'HIGH') severity = 'MEDIUM';
+    if (recommendedAction === 'STEALTH_INSERTION' || recommendedAction === 'IMMEDIATE_PREREQUISITE_REPAIR') {
+      recommendedAction = 'SCHEDULE_RETRIEVAL';
+    }
+  }
+
   return {
     debtRiskScore,
     severity,
@@ -268,6 +312,7 @@ export function calculateDeterministicEpistemicDebt(
       uncertainty,
     },
     recommendedAction,
+    assumptions,
   };
 }
 
@@ -431,17 +476,20 @@ export function getAutomatedStealthRepairAction(
     targetLabId = 'causal_logic';
   }
 
+  const effectiveDecay = state.decayRate ?? PRIOR_DECAY_RATE;
+  const decayDisplay = state.decayRate !== undefined ? `${(state.decayRate * 100).toFixed(0)}%` : `diasumsikan prior (${(PRIOR_DECAY_RATE * 100).toFixed(0)}%)`;
+
   return {
     actionRequired: true,
     targetNodeId: node.id,
     targetNodeName: node.name,
     domain: node.domain,
-    decayRate: state.decayRate ?? 0,
+    decayRate: effectiveDecay,
     debtRiskScore: debt.debtRiskScore,
     severity: debt.severity,
     targetLabId,
     simulationId: node.activeSimulationId || 'sim-submarine-ballast',
-    rationale: `Deteksi Utang Epistemik Kritis: Konsep "${node.name}" mengalami peluruhan ${(state.decayRate * 100).toFixed(0)}% dengan centrality tinggi (${node.centrality}). Sistem deterministik secara otomatis memicu pengalihan aksi stealth insertion tanpa label remedial terpisah.`,
+    rationale: `Deteksi Utang Epistemik Kritis: Konsep "${node.name}" mengalami peluruhan ${decayDisplay} dengan centrality tinggi (${node.centrality}). Sistem deterministik secara otomatis memicu pengalihan aksi stealth insertion tanpa label remedial terpisah.`,
     pedagogicalDirectives: {
       stealthContext: 'Misi Rekayasa Lapangan Nautica: Kontrol Kerapatan Tangki Ballast',
       targetVariables: ['Massa Balast (W_ballast)', 'Gaya Apung Netral (F_b)', 'Persamaan Keseimbangan Dua Sisi'],

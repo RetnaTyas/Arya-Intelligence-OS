@@ -495,10 +495,10 @@ function runSuite3() {
   });
   // Bobot: 60% empirical (~0.96), 25% transfer (0.85), 15% feynman (0.89) => ~0.92
   assert(
-    triangulated.compositeUnderstanding >= 0.85 && triangulated.compositeUnderstanding <= 0.98 && !triangulated.noiseFlagDetected,
+    triangulated.compositeUnderstanding !== undefined && triangulated.compositeUnderstanding >= 0.85 && triangulated.compositeUnderstanding <= 0.98 && !triangulated.noiseFlagDetected,
     suite,
     'Fusi Triangulasi Multimodal Standar (60/25/15)',
-    `Skor Fusi: ${(triangulated.compositeUnderstanding * 100).toFixed(1)}%, Confidence: ${triangulated.confidence}, Noise Shield: ${triangulated.noiseFlagDetected}`
+    `Skor Fusi: ${((triangulated.compositeUnderstanding ?? NaN) * 100).toFixed(1)}%, Confidence: ${triangulated.confidence}, Noise Shield: ${triangulated.noiseFlagDetected}`
   );
 
   // 3.2 Feynman Noise Shield: Buzzword Dropping / Verbal Rote tanpa Intuisi Lab
@@ -547,10 +547,11 @@ function runSuite3() {
     },
   });
   assert(
-    parentAdjusted.compositeUnderstanding < triangulated.compositeUnderstanding,
+    parentAdjusted.compositeUnderstanding !== undefined && triangulated.compositeUnderstanding !== undefined
+      && parentAdjusted.compositeUnderstanding < triangulated.compositeUnderstanding,
     suite,
     'Parent Calibration Weight Adjustment (Human-in-the-Loop)',
-    `Skor terkalibrasi orang tua: ${(parentAdjusted.compositeUnderstanding * 100).toFixed(1)}% < Standar: ${(triangulated.compositeUnderstanding * 100).toFixed(1)}%`
+    `Skor terkalibrasi orang tua: ${((parentAdjusted.compositeUnderstanding ?? NaN) * 100).toFixed(1)}% < Standar: ${((triangulated.compositeUnderstanding ?? NaN) * 100).toFixed(1)}%`
   );
 
   // 3.4 Deterministic 7-Tier Mastery Gating (Rules A - E)

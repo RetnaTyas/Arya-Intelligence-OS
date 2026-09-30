@@ -447,13 +447,11 @@ export default function App() {
     }
 
     const triangulation = triangulateEvidence(
-      empirical, // undefined jika lab belum pernah dites — triangulateEvidence SUDAH menangani ini (empiricalScore = 0.5 default netral)
+      empirical, // undefined jika lab belum pernah dites — TIDAK ADA: tidak diberi angka, dicatat sebagai evidenceGaps
       result,
-      {
-        targetDomain: 'Fisika Fluida & Archimedes',
-        appliedSuccessfully: result.transferScore >= 0.6,
-        transferScore: result.transferScore,
-      },
+      // Belum ada tes transfer nyata di jalur ini. transferScore dari model adalah ESTIMASI SENSOR (bukan hasil
+      // anak menyelesaikan tantangan transfer) — jangan dicuci menjadi bukti transfer agar lolos kuorum non-model.
+      undefined,
       {
         childUtteranceWordCount: wordCount,
         parentCalibration,
@@ -462,17 +460,21 @@ export default function App() {
 
     // 1. Update Learner State with deterministic mastery gating
     setLearnerNodes((prev) => {
+      // Epistemic honesty: node tanpa riwayat dimulai dari kosong/unobserved (bukan mastery karangan 0.8 atau decay 0.05).
+      // Data terlabel demo hanya berasal dari aksi eksplisit "Muat Dataset Contoh Baseline Demo".
       const current = prev['node-buoyancy-archimedes'] || {
         nodeId: 'node-buoyancy-archimedes',
-        mastery: { recognition: 1, recall: 0.9, understanding: 0.8, application: 0.7, transfer: 0.5, explanation: 0.5, creation: 0.3 },
-        decayRate: 0.05,
-        confidence: 'medium',
-        evidenceCount: 4,
+        mastery: { recognition: 0, recall: 0, understanding: 0, application: 0, transfer: 0, explanation: 0, creation: 0 },
+        decayRate: undefined,
+        confidence: 'low',
+        evidenceCount: 0,
         lastInteracted: new Date().toISOString(),
         activeMisconceptions: [],
       };
 
-      const gatedMastery = applyMasteryGating(current.mastery, triangulation.recommendedMasteryDelta);
+      const gatedMastery = triangulation.shouldUpdateLearnerModel
+        ? applyMasteryGating(current.mastery, triangulation.recommendedMasteryDelta)
+        : current.mastery;
       const updatedMisconceptions = result.misconceptions || [];
 
       return {
@@ -481,7 +483,7 @@ export default function App() {
           ...current,
           mastery: gatedMastery,
           confidence: triangulation.confidence,
-          evidenceCount: (current.evidenceCount ?? 0) + 1,
+          evidenceCount: (current.evidenceCount ?? 0) + (triangulation.shouldUpdateLearnerModel ? 1 : 0),
           activeMisconceptions: updatedMisconceptions,
           lastInteracted: new Date().toISOString(),
         },
@@ -491,7 +493,7 @@ export default function App() {
     // 2. Append to Evidence Log with triangulation audit metadata
     const empiricalSummary = empirical
       ? `Lab Empiris: ${empirical.trialCount}x uji, akurasi ${(empirical.accuracyScore * 100).toFixed(0)}%, presisi ${(empirical.manipulationPrecision * 100).toFixed(0)}%`
-      : 'Lab Empiris: Belum diuji (Default netral 50%)';
+      : 'Lab Empiris: Belum teramati (tidak dihitung, tercatat sebagai gap bukti)';
 
     const newEntry: EvidenceEntry = {
       id: `ev-${Date.now()}`,
@@ -522,9 +524,11 @@ export default function App() {
 
     if (triangulation.noiseFlagDetected) {
       showToast(`Perisai Noise Feynman: ${triangulation.discrepancyNote}`);
+    } else if (triangulation.provisional) {
+      showToast('Sinyal AI saja: belum cukup untuk memperbarui model (butuh lab, tes transfer, atau rating orang tua).');
     } else {
       showToast(
-        `Triangulasi Multimodal (${empirical ? `Lab ${empirical.trialCount}x uji` : 'Lab Netral'} + AI 15%): Bukti kausal diverifikasi & digate secara deterministik!`
+        `Triangulasi Multimodal (${empirical ? `Lab ${empirical.trialCount}x uji` : 'tanpa lab'}): Bukti diverifikasi & digate secara deterministik.`
       );
     }
   };
