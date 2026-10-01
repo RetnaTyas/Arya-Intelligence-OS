@@ -26,7 +26,7 @@ import {
 } from './types';
 
 import { triangulateEvidence, EmpiricalSimulationEvidence, ParentCalibrationSettings, DEFAULT_PARENT_CALIBRATION } from './engine/evidenceTriangulation';
-import { applyMasteryGating, emptyLearnerState, selectNextBestExperience, RecommendedExperience } from './engine/deterministicCore';
+import { applyMasteryGating, applyStealthRepairResolution, emptyLearnerState, selectNextBestExperience, RecommendedExperience } from './engine/deterministicCore';
 import {
   loadInitialOSState,
   persistAllLearnerNodes,
@@ -514,16 +514,12 @@ export default function App() {
   // Callback for Bar Model Algebra Lab
   const handleBarModelEvidence = (details: string) => {
     setLearnerNodes((prev) => {
-      const current = prev['node-bar-model'];
+      // Node bisa belum ada (tidak ada seeding diam-diam). Lab ini hanya melaporkan teks → tidak ada observasi mastery.
+      const current = prev['node-bar-model'] || emptyLearnerState('node-bar-model');
       return {
         ...prev,
         'node-bar-model': {
           ...current,
-          mastery: {
-            ...current.mastery,
-            transfer: 0.95,
-            explanation: 0.95,
-          },
           evidenceCount: (current.evidenceCount ?? 0) + 1,
           lastInteracted: new Date().toISOString(),
         },
@@ -542,9 +538,9 @@ export default function App() {
           timestamp: new Date().toISOString(),
         },
       ],
-      confidence: 'high',
-      retentionStatus: 'verified_transfer',
-      notes: 'Anak mendemonstrasikan prinsip simetri dua sisi secara mandiri.',
+      confidence: 'low',
+      retentionStatus: 'pending',
+      notes: 'Anak menyelesaikan tantangan Bar Model. Transfer dan retensi belum diukur; penguasaan belum diklaim.',
     };
 
     setEvidenceLogs((prev) => [newEntry, ...prev]);
@@ -561,19 +557,14 @@ export default function App() {
     // 2. Elevate learner mastery for matched node
     if (matchedNode) {
       setLearnerNodes((prev) => {
+        // Lab generik hanya melaporkan teks (tanpa telemetri terukur) → TIDAK ADA observasi mastery.
+        // Yang tercatat hanya kejadian "lab diselesaikan" (entri bukti di bawah); mastery tidak berubah.
         const current = prev[matchedNode.id] || emptyLearnerState(matchedNode.id);
-
-        const gatedMastery = applyMasteryGating(current.mastery, {
-          application: current.mastery.application + 0.15,
-          transfer: current.mastery.transfer + 0.15,
-          understanding: current.mastery.understanding + 0.1,
-        });
 
         return {
           ...prev,
           [matchedNode.id]: {
             ...current,
-            mastery: gatedMastery,
             evidenceCount: (current.evidenceCount ?? 0) + 1,
             lastInteracted: new Date().toISOString(),
           },
@@ -594,9 +585,9 @@ export default function App() {
           timestamp: new Date().toISOString(),
         },
       ],
-      confidence: 'high',
-      retentionStatus: 'verified_transfer',
-      notes: 'Penguasaan konsep tervalidasi melalui pembuktian mandiri pada Lab Simulasi Domain.',
+      confidence: 'low',
+      retentionStatus: 'fresh',
+      notes: 'Lab Simulasi Domain diselesaikan. Belum ada pengukuran transfer atau retensi; penguasaan belum diklaim.',
     };
 
     setEvidenceLogs((prev) => [newEntry, ...prev]);
@@ -610,19 +601,10 @@ export default function App() {
     setLearnerNodes((prev) => {
       const currentAlg = prev['node-symbolic-algebra'];
       if (!currentAlg) return prev;
+      // Tidak mengklaim pemulihan: decay lama dibatalkan (belum teramati ulang), mastery tidak dinaikkan.
       return {
         ...prev,
-        'node-symbolic-algebra': {
-          ...currentAlg,
-          decayRate: 0.0, // Decay recovered!
-          mastery: {
-            ...currentAlg.mastery,
-            application: 0.88,
-            transfer: 0.85,
-          },
-          evidenceCount: (currentAlg.evidenceCount ?? 0) + 1,
-          lastInteracted: new Date().toISOString(),
-        },
+        'node-symbolic-algebra': applyStealthRepairResolution(currentAlg),
       };
     });
 
@@ -640,7 +622,7 @@ export default function App() {
     // 3. Update trajectory system action
     setActiveTrajectory((prev) => ({
       ...prev,
-      systemActionNote: '✅ Reconsolidation Aljabar Sukses! Epistemic Debt pulih 100% via misi kapal selam.',
+      systemActionNote: 'Misi kapal selam selesai. Pemulihan Aljabar dinilai setelah observasi retrieval berikutnya (belum diklaim).',
     }));
 
     // 4. Log Evidence
@@ -656,13 +638,13 @@ export default function App() {
           timestamp: new Date().toISOString(),
         },
       ],
-      confidence: 'high',
-      retentionStatus: 'verified_transfer',
-      notes: 'Self-healing engine berhasil merekonsolidasi aljabar tanpa memicu rasa malu remedial.',
+      confidence: 'low',
+      retentionStatus: 'pending',
+      notes: 'Misi remediasi diselesaikan tanpa memicu rasa malu remedial. Pemulihan belum diklaim; menunggu observasi retrieval berikutnya.',
     };
 
     setEvidenceLogs((prev) => [newEntry, ...prev]);
-    showToast('✨ Self-Healing Sukses: Epistemic Debt Aljabar pulih sempurna via proyek eksplorasi!');
+    showToast('Misi remediasi selesai. Pemulihan akan dinilai dari observasi retrieval berikutnya.');
   };
 
   // Callback for Socratic conversations

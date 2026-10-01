@@ -439,7 +439,7 @@ export interface AutomatedStealthRepairAction {
   targetNodeId: string | null;
   targetNodeName: string | null;
   domain: string | null;
-  decayRate: number;
+  decayRate?: number; // undefined = belum teramati
   debtRiskScore: number;
   severity: 'LOW' | 'MEDIUM' | 'HIGH';
   targetLabId: string;
@@ -479,7 +479,7 @@ export function getAutomatedStealthRepairAction(
       targetNodeId: null,
       targetNodeName: null,
       domain: null,
-      decayRate: 0,
+      decayRate: undefined,
       debtRiskScore: 0,
       severity: 'LOW',
       targetLabId: 'buoyancy',
@@ -524,21 +524,23 @@ export function getAutomatedStealthRepairAction(
   };
 }
 
+/**
+ * Menyelesaikan pengalaman stealth insertion TANPA mengklaim pemulihan.
+ * - Pengalaman remediasi selesai = reinforcement terjadi: estimasi decay lama tidak berlaku lagi
+ *   → decayRate menjadi `undefined` (belum teramati ulang), bukan 0.0.
+ * - Mastery TIDAK dinaikkan: kenaikan hanya boleh datang dari observasi (telemetri lab / retrieval berikutnya).
+ * - Karena decay kini "diasumsikan", calculateDeterministicEpistemicDebt tidak akan memicu intervensi
+ *   lagi atas node ini sampai ada observasi baru (loop tertutup tanpa mengarang bukti).
+ */
 export function applyStealthRepairResolution(
   currentState: LearnerNodeState
 ): LearnerNodeState {
+  const now = new Date().toISOString();
   return {
     ...currentState,
-    decayRate: 0.0,
-    isBottleneck: false,
-    mastery: {
-      ...currentState.mastery,
-      application: Math.max(currentState.mastery.application, 0.88),
-      transfer: Math.max(currentState.mastery.transfer, 0.85),
-      understanding: Math.max(currentState.mastery.understanding, 0.85),
-    },
-    evidenceCount: (currentState.evidenceCount ?? 0) + 1,
-    lastInteracted: new Date().toISOString(),
+    decayRate: undefined,
+    lastReinforcedDate: now,
+    lastInteracted: now,
   };
 }
 

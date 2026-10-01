@@ -1,92 +1,87 @@
 // Worker: arya-ai-gateway
-// Private AI Gateway backend with Workers AI native binding for Personal Intelligence OS
-// Called via Service Binding from Cloudflare Pages Functions (no public internet exposure)
+// Implementasi TUNGGAL logika inferensi AI untuk Personal Intelligence OS.
+// - Satu-satunya jalur model: binding Workers AI `AI` (hanya ada di gateway ini).
+// - Dipanggil dari Pages Functions lewat Service Binding `AI_GATEWAY` (tanpa eksposur internet publik).
+// - Tidak ada fallback heuristik: bila inferensi tidak tersedia/gagal, hasilnya `unobserved`
+//   (HTTP 503 untuk endpoint tunggal; item bertanda unobserved untuk endpoint batch). Tidak pernah ada angka rekaan.
 
 import { extractJsonFromText, extractBenchmarkArray } from './lib/json-extract';
-import { generateLocalProbeDiagnosis, generateLocalFeynmanDiagnosis } from './lib/fallback-heuristics';
 
 export interface Env {
-  'AiOS AI'?: {
-    run: (model: string, input: any) => Promise<any>;
-  };
   AI?: {
     run: (model: string, input: any) => Promise<any>;
   };
   AI_MODEL?: string;
-  GATEWAY_AUTH_KEY?: string;
 }
 
 export const DEFAULT_AI_MODEL = '@cf/qwen/qwen3-30b-a3b-fp8';
 
+export type UnobservedReason =
+  | 'ai_binding_missing'   // binding Workers AI tidak terpasang
+  | 'inference_failed'     // model melempar error
+  | 'unparseable_output'   // keluaran model tidak bisa diparse / kosong
+  | 'model_omitted'        // model tidak mengembalikan item/probe/kasus ini
+  | 'invalid_score';       // skor ada tetapi bukan angka terhingga
+
+const REASON_MESSAGE: Record<UnobservedReason, string> = {
+  ai_binding_missing: 'Binding Workers AI tidak tersedia; tidak ada diagnosis.',
+  inference_failed: 'Inferensi AI gagal; tidak ada diagnosis.',
+  unparseable_output: 'Keluaran AI tidak dapat dibaca; tidak ada diagnosis.',
+  model_omitted: 'AI tidak mengembalikan hasil untuk item ini; tidak ada diagnosis.',
+  invalid_score: 'AI mengembalikan skor yang tidak valid; tidak ada diagnosis.',
+};
+
+const unobservedItem = (reason: UnobservedReason) => ({ unobserved: true as const, reason, message: REASON_MESSAGE[reason] });
+
+/** Skor hanya sah bila angka terhingga (null, string, NaN → tidak teramati). Dibatasi ke 0..1. */
+const score01 = (v: unknown): number | undefined =>
+  typeof v === 'number' && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : undefined;
+
+const replyText = (reply: any): any => reply?.response || reply?.result?.response || reply;
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    const aiBinding = env['AiOS AI'] || env.AI || null;
-    const bindingName = env['AiOS AI'] ? 'AiOS AI' : (env.AI ? 'AI' : 'none');
+    const aiBinding = env.AI && typeof env.AI.run === 'function' ? env.AI : null;
     const url = new URL(request.url);
     const pathname = url.pathname;
     const model = env.AI_MODEL || DEFAULT_AI_MODEL;
+    const source = `cloudflare-workers-ai (${model})`;
 
-    // Optional internal service key verification if set
-    if (env.GATEWAY_AUTH_KEY) {
-      const authHeader = request.headers.get('X-Gateway-Auth');
-      if (authHeader !== env.GATEWAY_AUTH_KEY) {
-        return new Response(JSON.stringify({ error: 'Unauthorized gateway invocation' }), {
-          status: 401,
-          headers: { 'Content-Type': 'application/json' },
-        });
+    const json = (data: any, status = 200) =>
+      new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
+
+    /** Endpoint tunggal gagal ⇒ 503 unobserved, tanpa field skor. */
+    const unavailable = (reason: UnobservedReason) =>
+      json({ ...unobservedItem(reason), source: 'none', model }, 503);
+
+    const readBody = async (): Promise<any | null> => {
+      try {
+        const b = await request.json();
+        return b && typeof b === 'object' ? b : null;
+      } catch {
+        return null;
       }
-    }
-
-    // CORS for internal routing
-    if (request.method === 'OPTIONS') {
-      return new Response(null, {
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, X-Gateway-Auth',
-        },
-      });
-    }
-
-    // Helper JSON response
-    const json = (data: any, status = 200) => {
-      return new Response(JSON.stringify(data), {
-        status,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-      });
     };
+    const badRequest = () => json({ error: 'Body JSON tidak valid', reason: 'invalid_json' }, 400);
 
     try {
-      // 1. Health Route: /health or /api/health
+      // 1. Health: kesiapan inferensi (bukan sekadar liveness)
       if (pathname === '/health' || pathname === '/api/health') {
-        const hasBinding = Boolean(aiBinding && typeof aiBinding.run === 'function');
         return json({
-          status: 'ok',
+          status: aiBinding ? 'ok' : 'degraded',
           service: 'arya-ai-gateway',
-          runtime: 'Cloudflare Worker (Service Binding Target)',
-          hasAiBinding: hasBinding,
-          bindingName,
+          hasAiBinding: Boolean(aiBinding),
           model,
-          isPubliclyExposed: false,
           timestamp: new Date().toISOString(),
         });
       }
 
-      // 2. Socratic Tutor: /tutor/socratic or /api/tutor/socratic
+      // 2. Socratic Tutor
       if ((pathname === '/tutor/socratic' || pathname === '/api/tutor/socratic') && request.method === 'POST') {
-        const body: any = await request.json();
+        const body = await readBody();
+        if (!body) return badRequest();
         const { concept, studentMessage, history, learnerState } = body;
-
-        if (!aiBinding) {
-          return json({
-            text: `[Gateway Offline Heuristic]: Bagaimana menurutmu relasi sebab-akibat pada konsep ${concept || 'ini'}?`,
-            usedFallback: true,
-            source: 'deterministic-local-heuristic',
-          });
-        }
+        if (!aiBinding) return unavailable('ai_binding_missing');
 
         const systemInstruction = `
 You are the Socratic Tutor & Feynman Sensor inside the "Personal Intelligence OS".
@@ -101,36 +96,29 @@ Concept context: ${JSON.stringify(concept || 'General')}
 Current learner state: ${JSON.stringify(learnerState || {})}
 `;
         const messages: any[] = [{ role: 'system', content: systemInstruction }];
-        (history || []).forEach((h: any) => {
-          messages.push({
-            role: h.role === 'student' ? 'user' : 'assistant',
-            content: h.text,
-          });
+        (Array.isArray(history) ? history : []).forEach((h: any) => {
+          messages.push({ role: h.role === 'student' ? 'user' : 'assistant', content: h.text });
         });
-        messages.push({
-          role: 'user',
-          content: studentMessage || 'Halo, saya ingin memahami konsep ini.',
-        });
+        messages.push({ role: 'user', content: studentMessage || 'Halo, saya ingin memahami konsep ini.' });
 
-        const response: any = await aiBinding.run(model, { messages, temperature: 0.7 });
-        const replyText = response?.response || response?.result?.response || '';
-        return json({
-          text: replyText || 'Mari kita telusuri prinsip dasarnya bersama-sama.',
-          source: replyText ? `cloudflare-workers-ai (${model})` : 'deterministic-local-heuristic',
-          model,
-          usedFallback: !replyText,
-        });
+        let reply: any;
+        try {
+          reply = await aiBinding.run(model, { messages, temperature: 0.7 });
+        } catch (err: any) {
+          console.warn('Gateway socratic error:', err?.message);
+          return unavailable('inference_failed');
+        }
+        const text = replyText(reply);
+        if (typeof text !== 'string' || text.trim() === '') return unavailable('unparseable_output');
+        return json({ text, source, model });
       }
 
-      // 3. Feynman Diagnosis: /diagnose/feynman or /api/diagnose/feynman
+      // 3. Feynman Diagnosis
       if ((pathname === '/diagnose/feynman' || pathname === '/api/diagnose/feynman') && request.method === 'POST') {
-        const body: any = await request.json();
+        const body = await readBody();
+        if (!body) return badRequest();
         const { conceptName, studentExplanation, expectedPrinciple } = body;
-
-        if (!aiBinding) {
-          const local = generateLocalFeynmanDiagnosis(conceptName, studentExplanation);
-          return json(local);
-        }
+        if (!aiBinding) return unavailable('ai_binding_missing');
 
         const systemInstruction = `
 You are a Feynman Diagnostic Sensor evaluating children's understanding in the "Personal Intelligence OS".
@@ -155,91 +143,75 @@ Output STRICTLY JSON format:
 Concept: "${conceptName}"
 Expected Principle: "${expectedPrinciple || ''}"
 `;
+        let reply: any;
         try {
           const prompt = `Analisis penjelasan siswa berikut ini:\n"${studentExplanation}"`;
-          const reply: any = await aiBinding.run(model, {
+          reply = await aiBinding.run(model, {
             messages: [
               { role: 'system', content: systemInstruction },
               { role: 'user', content: prompt },
             ],
             temperature: 0.1,
           });
-
-          const rawData = reply?.response || reply?.result?.response || reply;
-          const parsed = extractJsonFromText(rawData);
-          if (parsed && typeof parsed === 'object' && (typeof parsed.conceptualUnderstanding === 'number' || typeof parsed.score === 'number')) {
-            // KATEGORI "TIDAK ADA": field yang tidak dikembalikan model TIDAK boleh diciptakan engine.
-            // Field hilang → undefined (kunci JSON hilang) + dicatat di unobservedFields (masukan Evidence Debt §7).
-            const num01 = (v: unknown): number | undefined =>
-              typeof v === 'number' && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : undefined;
-            const conceptualUnderstanding = num01(parsed.conceptualUnderstanding) ?? num01(parsed.score);
-            const causalReasoning = num01(parsed.causalReasoning);
-            const transferScore = num01(parsed.transferScore);
-            const unobservedFields = [
-              conceptualUnderstanding === undefined ? 'conceptualUnderstanding' : null,
-              causalReasoning === undefined ? 'causalReasoning' : null,
-              transferScore === undefined ? 'transferScore' : null,
-            ].filter(Boolean);
-
-            return json({
-              ...parsed,
-              conceptualUnderstanding,
-              causalReasoning,
-              transferScore,
-              feynmanDiagnosis: {
-                conceptualUnderstanding,
-                causalReasoning,
-                transferScore,
-                diagnosisExplanation: parsed.feedbackSummary || parsed.explanation || 'Diagnosis verbal berhasil dianalisis.',
-                misconceptions: Array.isArray(parsed.misconceptions) ? parsed.misconceptions : [],
-              },
-              unobservedFields,
-              usedFallback: false,
-              source: `cloudflare-workers-ai (${model})`,
-            });
-          }
         } catch (err: any) {
-          console.warn('Gateway diagnosis error, fallback to local:', err?.message);
+          console.warn('Gateway diagnosis error:', err?.message);
+          return unavailable('inference_failed');
         }
 
-        const local = generateLocalFeynmanDiagnosis(conceptName, studentExplanation);
-        return json(local);
+        const parsed = extractJsonFromText(replyText(reply));
+        const conceptualUnderstanding = parsed && typeof parsed === 'object'
+          ? (score01(parsed.conceptualUnderstanding) ?? score01(parsed.score))
+          : undefined;
+        // Skor utama tidak teramati ⇒ tidak ada diagnosis sama sekali (tidak ada bagian yang bisa dipercaya).
+        if (conceptualUnderstanding === undefined) return unavailable('unparseable_output');
+
+        // KATEGORI "TIDAK ADA": field lain yang tidak dikembalikan model tetap undefined + dicatat di unobservedFields.
+        const causalReasoning = score01(parsed.causalReasoning);
+        const transferScore = score01(parsed.transferScore);
+        const unobservedFields = [
+          causalReasoning === undefined ? 'causalReasoning' : null,
+          transferScore === undefined ? 'transferScore' : null,
+        ].filter(Boolean);
+
+        return json({
+          ...parsed,
+          conceptualUnderstanding,
+          causalReasoning,
+          transferScore,
+          feynmanDiagnosis: {
+            conceptualUnderstanding,
+            causalReasoning,
+            transferScore,
+            diagnosisExplanation: parsed.feedbackSummary || parsed.explanation || 'Diagnosis verbal berhasil dianalisis.',
+            misconceptions: Array.isArray(parsed.misconceptions) ? parsed.misconceptions : [],
+          },
+          unobservedFields,
+          source,
+        });
       }
 
-      // 4. Central Hypothesis Benchmark: /benchmark/central-hypothesis or /api/benchmark/central-hypothesis
+      // 4. Central Hypothesis Benchmark
       if ((pathname === '/benchmark/central-hypothesis' || pathname === '/api/benchmark/central-hypothesis') && request.method === 'POST') {
-        const body: any = await request.json();
-        const items = body?.items;
+        const body = await readBody();
+        if (!body) return badRequest();
+        const items = body.items;
         if (!Array.isArray(items) || items.length === 0) {
           return json({ error: 'Array of benchmark items required' }, 400);
         }
+        if (!aiBinding) return unavailable('ai_binding_missing');
 
-        const allPromptRows = items.flatMap((it: any) => [
-          {
-            probeId: `${it.id}::base`,
-            probeGroupId: it.id,
-            prompt: it.prompt,
-            studentUtterance: it.childUtterance,
-          },
-          {
-            probeId: `${it.id}::layer0`,
-            probeGroupId: it.id,
-            prompt: it.perturbations?.layer0?.prompt || it.prompt,
-            studentUtterance: it.perturbations?.layer0?.childUtterance || it.childUtterance,
-          },
-          {
-            probeId: `${it.id}::layer1`,
-            probeGroupId: it.id,
-            prompt: it.perturbations?.layer1?.prompt || it.prompt,
-            studentUtterance: it.perturbations?.layer1?.childUtterance || it.childUtterance,
-          },
-          {
-            probeId: `${it.id}::layer2`,
-            probeGroupId: it.id,
-            prompt: it.perturbations?.layer2?.prompt || it.prompt,
-            studentUtterance: it.perturbations?.layer2?.childUtterance || it.childUtterance,
-          },
-        ]);
+        const SUFFIXES = ['base', 'layer0', 'layer1', 'layer2'] as const;
+        const allPromptRows = items.flatMap((it: any) =>
+          SUFFIXES.map((suffix) => {
+            const layer = suffix === 'base' ? undefined : it.perturbations?.[suffix];
+            return {
+              probeId: `${it.id}::${suffix}`,
+              probeGroupId: it.id,
+              prompt: layer?.prompt || it.prompt,
+              studentUtterance: layer?.childUtterance || it.childUtterance,
+            };
+          })
+        );
 
         const systemInstruction = `You are the Cognitive Epistemic Assessor evaluating student utterances in Personal Intelligence OS (Tahap 2 Central Hypothesis Test).
 Each row is INDEPENDENT. Output strictly a JSON array of objects:
@@ -252,116 +224,81 @@ Each row is INDEPENDENT. Output strictly a JSON array of objects:
     "explanation": string
   }
 ]`;
+        // Hasil per probeId: baris dari model (belum divalidasi) atau alasan gagal untuk seluruh chunk.
+        const modelRows = new Map<string, any>();
+        const chunkFailure = new Map<string, UnobservedReason>();
 
-        let allParsed: any[] = [];
-        if (aiBinding) {
-          const CHUNK_SIZE = 4;
-          const chunks: any[][] = [];
-          for (let i = 0; i < allPromptRows.length; i += CHUNK_SIZE) {
-            chunks.push(allPromptRows.slice(i, i + CHUNK_SIZE));
-          }
+        const CHUNK_SIZE = 4;
+        const chunks: any[][] = [];
+        for (let i = 0; i < allPromptRows.length; i += CHUNK_SIZE) chunks.push(allPromptRows.slice(i, i + CHUNK_SIZE));
 
-          const chunkResults = await Promise.all(
-            chunks.map(async (chunk) => {
-              try {
-                const response: any = await aiBinding.run(model, {
-                  messages: [
-                    { role: 'system', content: systemInstruction },
-                    { role: 'user', content: `Evaluasi setiap probe berikut secara independen. Kembalikan HANYA array JSON murni:\n${JSON.stringify(chunk)}` },
-                  ],
-                  temperature: 0.1,
-                });
-                const rawData = response?.response || response?.result?.response || response;
-                const parsed = extractBenchmarkArray(rawData);
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                  return parsed.map((p: any) => ({
-                    ...p,
-                    usedFallback: false,
-                    source: `cloudflare-workers-ai (${model})`,
-                  }));
-                }
-              } catch (chunkErr: any) {
-                console.warn('Gateway chunk error, local fallback:', chunkErr?.message);
+        await Promise.all(
+          chunks.map(async (chunk) => {
+            const failChunk = (reason: UnobservedReason) => chunk.forEach((p: any) => chunkFailure.set(p.probeId, reason));
+            try {
+              const response: any = await aiBinding.run(model, {
+                messages: [
+                  { role: 'system', content: systemInstruction },
+                  { role: 'user', content: `Evaluasi setiap probe berikut secara independen. Kembalikan HANYA array JSON murni:\n${JSON.stringify(chunk)}` },
+                ],
+                temperature: 0.1,
+              });
+              const parsed = extractBenchmarkArray(replyText(response));
+              if (!Array.isArray(parsed) || parsed.length === 0) return failChunk('unparseable_output');
+              const wanted = new Set(chunk.map((p: any) => p.probeId));
+              for (const row of parsed) {
+                // Hanya probeId yang diminta pada chunk ini; yang pertama menang; id asing diabaikan.
+                if (row && wanted.has(row.probeId) && !modelRows.has(row.probeId)) modelRows.set(row.probeId, row);
               }
-              return chunk.map((p: any) => ({
-                probeId: p.probeId,
-                ...generateLocalProbeDiagnosis(p.probeId, p.prompt, p.studentUtterance),
-              }));
-            })
-          );
-          allParsed = chunkResults.flat();
-        } else {
-          allParsed = allPromptRows.map((r: any) => ({
-            probeId: r.probeId,
-            ...generateLocalProbeDiagnosis(r.probeId, r.prompt, r.studentUtterance),
-          }));
-        }
-
-        let totalFallbackProbes = 0;
-        const totalExpectedProbes = items.length * 4;
-
-        const results = items.map((item: any) => {
-          const get = (suffix: string) => {
-            const probeKey = `${item.id}::${suffix}`;
-            const found = allParsed.find((p: any) => p && p.probeId === probeKey);
-            if (!found) {
-              totalFallbackProbes += 1;
-              return generateLocalProbeDiagnosis(probeKey, item.prompt, item.childUtterance);
+            } catch (err: any) {
+              console.warn('Gateway chunk error:', err?.message);
+              failChunk('inference_failed');
             }
-            const isFallback = Boolean(found.usedFallback === true);
-            if (isFallback) totalFallbackProbes += 1;
-            return {
-              hasMisconception: Boolean(found.hasMisconception === true || found.hasMisconception === 'true' || found.hasMisconception === 1),
-              misconceptionName: found.misconceptionName || 'None',
-              structuralMasteryScore: typeof found.structuralMasteryScore === 'number'
-                ? Math.min(1, Math.max(0, found.structuralMasteryScore))
-                : 0.5,
-              explanation: found.explanation || `Evaluasi probe ${probeKey}`,
-              usedFallback: isFallback,
-              source: isFallback ? 'deterministic-local-lookup' : (found.source || `cloudflare-workers-ai (${model})`),
-              fallbackReason: isFallback ? (found.fallbackReason || 'Model inference unparseable') : undefined,
-            };
-          };
+          })
+        );
 
-          const baseProbe = get('base');
-          const layer0Probe = get('layer0');
-          const layer1Probe = get('layer1');
-          const layer2Probe = get('layer2');
-          const itemUsedFallback = Boolean(baseProbe.usedFallback || layer0Probe.usedFallback || layer1Probe.usedFallback || layer2Probe.usedFallback);
-
+        let unobservedCount = 0;
+        const probe = (probeKey: string) => {
+          const row = modelRows.get(probeKey);
+          if (!row) {
+            unobservedCount += 1;
+            return unobservedItem(chunkFailure.get(probeKey) ?? 'model_omitted');
+          }
+          const structuralMasteryScore = score01(row.structuralMasteryScore ?? row.score);
+          if (structuralMasteryScore === undefined) {
+            unobservedCount += 1;
+            return unobservedItem('invalid_score');
+          }
           return {
-            itemId: item.id,
-            base: baseProbe,
-            layer0: layer0Probe,
-            layer1: layer1Probe,
-            layer2: layer2Probe,
-            usedFallback: itemUsedFallback,
-            source: itemUsedFallback ? 'deterministic-local-lookup' : `cloudflare-workers-ai (${model})`,
+            hasMisconception: Boolean(row.hasMisconception === true || row.hasMisconception === 'true' || row.hasMisconception === 1),
+            misconceptionName: row.misconceptionName || 'None',
+            structuralMasteryScore,
+            explanation: row.explanation || `Evaluasi probe ${probeKey}`,
+            source,
           };
-        });
+        };
 
-        const overallSource = totalFallbackProbes === 0
-          ? `cloudflare-workers-ai (${model})`
-          : totalFallbackProbes === totalExpectedProbes
-          ? 'deterministic-local-lookup'
-          : `hybrid (${totalExpectedProbes - totalFallbackProbes} AI, ${totalFallbackProbes} fallback)`;
+        const results = items.map((item: any) => ({
+          itemId: item.id,
+          base: probe(`${item.id}::base`),
+          layer0: probe(`${item.id}::layer0`),
+          layer1: probe(`${item.id}::layer1`),
+          layer2: probe(`${item.id}::layer2`),
+        }));
 
-        return json({
-          results,
-          source: overallSource,
-          usedFallback: totalFallbackProbes > 0,
-          fallbackCount: totalFallbackProbes,
-          totalProbes: totalExpectedProbes,
-        });
+        const totalProbes = items.length * SUFFIXES.length;
+        return json({ results, source, unobservedCount, totalProbes });
       }
 
-      // 5. Feynman Suite Benchmark: /benchmark/feynman-suite or /api/benchmark/feynman-suite
+      // 5. Feynman Suite Benchmark
       if ((pathname === '/benchmark/feynman-suite' || pathname === '/api/benchmark/feynman-suite') && request.method === 'POST') {
-        const body: any = await request.json();
-        const cases = body?.cases;
+        const body = await readBody();
+        if (!body) return badRequest();
+        const cases = body.cases;
         if (!Array.isArray(cases) || cases.length === 0) {
           return json({ error: 'Array of benchmark cases required' }, 400);
         }
+        if (!aiBinding) return unavailable('ai_binding_missing');
 
         const systemInstruction = `You are the Feynman Sensor in Personal Intelligence OS. Evaluate each child's explanation:
 1. Low score (0.2-0.4) for buzzword dropping without mechanism.
@@ -375,58 +312,50 @@ Output STRICTLY JSON array:
     "detectedMisconceptions": string[]
   }
 ]`;
-
-        let evaluations: any[] = [];
-        if (aiBinding) {
-          try {
-            const prompt = `Evaluasi kasus-kasus berikut:\n${JSON.stringify(cases.map((c: any) => ({ caseId: c.id, concept: c.conceptName, utterance: c.childUtterance })))}`;
-            const response: any = await aiBinding.run(model, {
-              messages: [
-                { role: 'system', content: systemInstruction },
-                { role: 'user', content: prompt },
-              ],
-              temperature: 0.1,
-            });
-            const rawData = response?.response || response?.result?.response || response;
-            const parsed = extractBenchmarkArray(rawData);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              evaluations = parsed.map((p: any) => ({
-                caseId: p.caseId,
-                aiScore: typeof p.aiScore === 'number' ? Math.min(1, Math.max(0, p.aiScore)) : 0.7,
-                explanation: p.explanation || 'Evaluasi AI berhasil.',
-                detectedMisconceptions: Array.isArray(p.detectedMisconceptions) ? p.detectedMisconceptions : [],
-                usedFallback: false,
-                source: `cloudflare-workers-ai (${model})`,
-              }));
-            }
-          } catch (err: any) {
-            console.warn('Gateway feynman suite error, fallback:', err?.message);
-          }
-        }
-
-        if (evaluations.length === 0) {
-          evaluations = cases.map((c: any) => {
-            const local = generateLocalFeynmanDiagnosis(c.conceptName, c.childUtterance);
-            return {
-              caseId: c.id,
-              aiScore: local.conceptualUnderstanding,
-              explanation: local.feedbackSummary,
-              detectedMisconceptions: local.misconceptions,
-              usedFallback: true,
-              source: 'deterministic-local-heuristic',
-              fallbackReason: 'AI model invocation unavailable, local heuristic applied',
-            };
+        let parsed: any[] | null = null;
+        let failure: UnobservedReason = 'unparseable_output';
+        try {
+          const prompt = `Evaluasi kasus-kasus berikut:\n${JSON.stringify(cases.map((c: any) => ({ caseId: c.id, concept: c.conceptName, utterance: c.childUtterance })))}`;
+          const response: any = await aiBinding.run(model, {
+            messages: [
+              { role: 'system', content: systemInstruction },
+              { role: 'user', content: prompt },
+            ],
+            temperature: 0.1,
           });
+          const arr = extractBenchmarkArray(replyText(response));
+          if (Array.isArray(arr) && arr.length > 0) parsed = arr;
+        } catch (err: any) {
+          console.warn('Gateway feynman suite error:', err?.message);
+          failure = 'inference_failed';
         }
 
-        const fallbackCount = evaluations.filter((e: any) => e.usedFallback).length;
-        return json({
-          evaluations,
-          source: fallbackCount === 0 ? `cloudflare-workers-ai (${model})` : (fallbackCount === cases.length ? 'deterministic-local-heuristic' : 'hybrid'),
-          usedFallback: fallbackCount > 0,
-          fallbackCount,
-          totalCases: cases.length,
+        let unobservedCount = 0;
+        const evaluations = cases.map((c: any) => {
+          if (!parsed) {
+            unobservedCount += 1;
+            return { caseId: c.id, ...unobservedItem(failure) };
+          }
+          const row = parsed.find((p: any) => p && p.caseId === c.id);
+          if (!row) {
+            unobservedCount += 1;
+            return { caseId: c.id, ...unobservedItem('model_omitted') };
+          }
+          const aiScore = score01(row.aiScore);
+          if (aiScore === undefined) {
+            unobservedCount += 1;
+            return { caseId: c.id, ...unobservedItem('invalid_score') };
+          }
+          return {
+            caseId: c.id,
+            aiScore,
+            explanation: row.explanation || 'Evaluasi AI berhasil.',
+            detectedMisconceptions: Array.isArray(row.detectedMisconceptions) ? row.detectedMisconceptions : [],
+            source,
+          };
         });
+
+        return json({ evaluations, source, unobservedCount, totalCases: cases.length });
       }
 
       return json({ error: `Not found: ${pathname}` }, 404);

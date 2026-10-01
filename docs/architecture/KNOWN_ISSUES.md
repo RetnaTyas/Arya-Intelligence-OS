@@ -207,6 +207,30 @@ Audit independen terhadap implementasi kode menemukan kesenjangan struktural ant
 
 ---
 
+### 🟡 Temuan 11: Angka Dikarang dari Ketiadaan Observasi (0.5 / 0.4 / `understanding × 0.7` / 0.75 / 0.70 / 0.65 / `|| 0.x`) — Remediasi Berjalan
+
+Sistem tidak punya representasi "tidak teramati", sehingga mengisinya dengan angka: triangulasi (empiris 0.5, transfer 0.4), field Feynman yang dihilangkan model (0.75/0.70/0.65), skor suite (0.7), probe benchmark (0.5), default di mesin debt (`decayRate ?? 0.02`, `centrality ?? 0.5`), state awal node (mastery 0.8/0.7…), dan `|| 0.x` yang menelan nilai 0. Klasifikasi tiga kategori (Tidak Ada / Diasumsikan / Diklaim) ada di Bagian 6.6 dokumen fondasi.
+
+**Status:** triangulasi, endpoint Worker (Feynman, Socratic, Central Hypothesis, Feynman Suite), mesin debt, `emptyLearnerState()`, dan handler lab di `App.tsx` sudah diremediasi dan dijaga **Evidence Gate (`npm run test:gate`, 14 gate)**. **Sisa:** UI konsumen kontrak `unobserved` (Fase 4).
+
+### 🟡 Temuan 12: Tiga Salinan Logika Endpoint AI (`server.ts`, `functions/`, `worker/`) — Dikonsolidasi ke Worker
+
+Perbaikan kejujuran sempat mendarat di salinan yang tidak berjalan di produksi (Pages meneruskan ke `AI_GATEWAY`), sehingga gate lulus sementara jalur nyata masih memalsukan angka. **Status:** Worker `arya-ai-gateway` kini implementasi tunggal; `functions/api/[[path]].ts` hanya proxy (503 `unobserved` bila gateway tidak ada); heuristik lokal dihapus. **Sisa:** `server.ts` + Gemini + dependensinya masih ada (Fase 5).
+
+### 🔴 Temuan 13: `decayRate` Tidak Pernah Terisi untuk Node Nyata — Mesin Adaptif Tidak Akan Menyala bagi Pembelajar Nyata
+
+Satu-satunya penghitung decay dari riwayat (`calculateSpacedRepetitionDecay`) hanya dipakai untuk tampilan inspektur. Node yang lahir dari `emptyLearnerState()` tidak punya decay, sehingga `assumptions` selalu memuat `decayRate`, severity dibatasi `MEDIUM`, dan aksi dibatasi `SCHEDULE_RETRIEVAL`: stealth insertion dan bottleneck repair praktis hanya bisa dipicu oleh dataset demo. Ini konsekuensi sah dari prinsip "tidak mengarang observasi", bukan bug tersembunyi. **Keputusan produk berikutnya:** estimator decay dari evidence log (butuh ≥ 2 observasi berjarak waktu; kategori "diklaim, dihitung").
+
+### 🔴 Temuan 14: Mastery `0` Belum Membedakan "Belum Teramati" dari "Diuji dan Gagal" pada Level Dimensi
+
+`evidenceCount: 0` membedakannya di level node, tetapi setelah satu dimensi teramati, dimensi lain tetap `0`. Ditunda; perbaikannya menyentuh `MasteryHierarchy` (mis. penanda dimensi yang pernah menerima delta).
+
+### 🔴 Temuan 15: Di Luar Cakupan Remediasi Integritas Nilai (Tetap Terbuka)
+
+Klaim privasi di `ParentTelemetryDashboard` ("tanpa server pihak ketiga") sementara ujaran anak dikirim ke Workers AI; endpoint publik tanpa auth, rate limit, atau batas panjang input; `conceptName` dan `studentExplanation` masuk ke prompt tanpa sanitasi (dapat memalsukan skor evidence); impor backup sudah divalidasi tetapi baru diuji di `fake-indexeddb`, bukan browser sungguhan.
+
+---
+
 ## 3. Status Gerbang Tahap 1 & Tahap 2 (Checklist Kepatuhan Roadmap)
 
 > Rujukan kriteria: `intelligence-os-foundation.md` Bagian 12.
@@ -273,3 +297,4 @@ Bagian ini melacak evolusi audit dari ronde ke ronde. Tujuannya agar pembaca bis
 | **Audit lanjutan (Ronde 3)** | Temuan 9: `humanExpertDiagnosis` pada benchmark 52-node ternyata gold-standard sintetis (deterministik), bukan rating manusia riil — mengoreksi satu baris checklist Tahap 2 dari putaran sebelumnya | Baris checklist dan kesimpulan Tahap 2 di Bagian 3 **dianulir melalui anotasi**, bukan dihapus; ditambahkan status Tahap 2 yang akurat: infrastruktur tuntas, validasi empiris belum | Ditulis sebagai Temuan 9, status 🔴; Bagian 1 dan Bagian 3 diberi paragraf/baris koreksi eksplisit |
 | **Pembaruan Arsitektural (Ronde 4)** | Penyesuaian kriteria Gerbang Tahap 2 ke realitas arsitektur kedaulatan data: pembangunan antarmuka rating manusia riil (`HumanVsAiAuditDashboard.tsx`), penyimpanan lokal `STORES.HUMAN_RATINGS`, pemisahan tegas vs synthetic probe, dan dashboard Zero-Lie | Jalur rating manusia dan dashboard komparasi live/fallback siap pakai; Temuan 9 direklasifikasi dari blocker mutlak menjadi metrik yang berjalan berkelanjutan; Tahap 2 dinyatakan siap untuk perluasan materi multi-tier | Bagian 2 (Temuan 9), Bagian 3 (Checklist & Kesimpulan), dan Bagian 6 diperbarui secara transparan tanpa menghapus riwayat sebelumnya |
 | **Audit Mandiri Materi & Delivery (Ronde 5 — dokumen ini)** | Temuan 10: Asimetri delivery empiris (85% node tanpa lab), overshoot bahasa pascasarjana pada layer formal, dan belum selarasnya modalitas asesmen perkembangan (Tier I–IV) | 100% node (52/52) dipetakan ke lab interaktif aktif; 100% istilah pascasarjana dibersihkan dari layer formal; modalitas perkembangan diikat ke `assessmentModality` dan `triangulateEvidence`; verifikasi otomatis 23/23 lulus | Ditulis sebagai Temuan 10 di Bagian 2 (status 🟢/✅); penegasan komitmen delivery empiris di Bagian 4 & 5 |
+| **Audit Integritas Nilai (Ronde 6)** | Temuan 11–15: angka dikarang dari ketiadaan observasi, tiga salinan logika AI, decay tak terisi untuk node nyata, ketidakjelasan nol = belum teramati, dan temuan di luar cakupan | Temuan 11–12 diremediasi sebagian (Evidence Gate 14/14, unit 28/28); Temuan 13–15 terbuka dengan konsekuensi dan jalan keluar tercatat | Ditulis sebagai Temuan 11–15; rencana di `evidence-honesty-refactor-plan.md` |

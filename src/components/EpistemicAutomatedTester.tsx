@@ -233,7 +233,7 @@ export const EpistemicAutomatedTester: React.FC<EpistemicAutomatedTesterProps> =
                     Target Konsep: <strong className="text-cyan-300">{liveAction.targetNodeName}</strong>
                   </span>
                 )}
-                {liveAction.decayRate > 0 && (
+                {liveAction.decayRate !== undefined && liveAction.decayRate > 0 && (
                   <span className="text-xs text-amber-300 font-mono">
                     Decay: {(liveAction.decayRate * 100).toFixed(0)}%
                   </span>

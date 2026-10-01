@@ -1,0 +1,2226 @@
+From 60c6caf9ff9c840faae196180c19dd7c43d2d0e2 Mon Sep 17 00:00:00 2001
+From: audit <audit@local>
+Date: Thu, 1 Oct 2026 07:54:11 +0000
+Subject: [PATCH] feat(honesty): Worker implementasi tunggal, proxy Pages,
+ unobserved tanpa fallback; perbaiki handler lab dan stealth resolution
+
+---
+ docs/architecture/KNOWN_ISSUES.md             |  25 +
+ functions/api/[[path]].ts                     |  25 +
+ functions/api/benchmark/central-hypothesis.ts | 239 --------
+ functions/api/benchmark/feynman-suite.ts      | 134 -----
+ functions/api/diagnose/feynman.ts             | 131 -----
+ functions/api/health.ts                       |  70 ---
+ functions/api/tutor/socratic.ts               |  85 ---
+ functions/types.ts                            | 333 -----------
+ src/App.tsx                                   |  54 +-
+ src/components/EpistemicAutomatedTester.tsx   |   2 +-
+ src/engine/deterministicCore.ts               |  26 +-
+ tests/epistemic-os-tester.ts                  |  10 +-
+ tests/evidence-gate.ts                        |  52 +-
+ worker/index.ts                               | 517 ++++++++----------
+ worker/lib/fallback-heuristics.ts             | 150 -----
+ 15 files changed, 362 insertions(+), 1491 deletions(-)
+ create mode 100644 functions/api/[[path]].ts
+ delete mode 100644 functions/api/benchmark/central-hypothesis.ts
+ delete mode 100644 functions/api/benchmark/feynman-suite.ts
+ delete mode 100644 functions/api/diagnose/feynman.ts
+ delete mode 100644 functions/api/health.ts
+ delete mode 100644 functions/api/tutor/socratic.ts
+ delete mode 100644 functions/types.ts
+ delete mode 100644 worker/lib/fallback-heuristics.ts
+
+diff --git a/docs/architecture/KNOWN_ISSUES.md b/docs/architecture/KNOWN_ISSUES.md
+index 9786f4c..2e99d9f 100644
+--- a/docs/architecture/KNOWN_ISSUES.md
++++ b/docs/architecture/KNOWN_ISSUES.md
+@@ -207,6 +207,30 @@ Audit independen terhadap implementasi kode menemukan kesenjangan struktural ant
+ 
+ ---
+ 
++### 🟡 Temuan 11: Angka Dikarang dari Ketiadaan Observasi (0.5 / 0.4 / `understanding × 0.7` / 0.75 / 0.70 / 0.65 / `|| 0.x`) — Remediasi Berjalan
++
++Sistem tidak punya representasi "tidak teramati", sehingga mengisinya dengan angka: triangulasi (empiris 0.5, transfer 0.4), field Feynman yang dihilangkan model (0.75/0.70/0.65), skor suite (0.7), probe benchmark (0.5), default di mesin debt (`decayRate ?? 0.02`, `centrality ?? 0.5`), state awal node (mastery 0.8/0.7…), dan `|| 0.x` yang menelan nilai 0. Klasifikasi tiga kategori (Tidak Ada / Diasumsikan / Diklaim) ada di Bagian 6.6 dokumen fondasi.
++
++**Status:** triangulasi, endpoint Worker (Feynman, Socratic, Central Hypothesis, Feynman Suite), mesin debt, `emptyLearnerState()`, dan handler lab di `App.tsx` sudah diremediasi dan dijaga **Evidence Gate (`npm run test:gate`, 14 gate)**. **Sisa:** UI konsumen kontrak `unobserved` (Fase 4).
++
++### 🟡 Temuan 12: Tiga Salinan Logika Endpoint AI (`server.ts`, `functions/`, `worker/`) — Dikonsolidasi ke Worker
++
++Perbaikan kejujuran sempat mendarat di salinan yang tidak berjalan di produksi (Pages meneruskan ke `AI_GATEWAY`), sehingga gate lulus sementara jalur nyata masih memalsukan angka. **Status:** Worker `arya-ai-gateway` kini implementasi tunggal; `functions/api/[[path]].ts` hanya proxy (503 `unobserved` bila gateway tidak ada); heuristik lokal dihapus. **Sisa:** `server.ts` + Gemini + dependensinya masih ada (Fase 5).
++
++### 🔴 Temuan 13: `decayRate` Tidak Pernah Terisi untuk Node Nyata — Mesin Adaptif Tidak Akan Menyala bagi Pembelajar Nyata
++
++Satu-satunya penghitung decay dari riwayat (`calculateSpacedRepetitionDecay`) hanya dipakai untuk tampilan inspektur. Node yang lahir dari `emptyLearnerState()` tidak punya decay, sehingga `assumptions` selalu memuat `decayRate`, severity dibatasi `MEDIUM`, dan aksi dibatasi `SCHEDULE_RETRIEVAL`: stealth insertion dan bottleneck repair praktis hanya bisa dipicu oleh dataset demo. Ini konsekuensi sah dari prinsip "tidak mengarang observasi", bukan bug tersembunyi. **Keputusan produk berikutnya:** estimator decay dari evidence log (butuh ≥ 2 observasi berjarak waktu; kategori "diklaim, dihitung").
++
++### 🔴 Temuan 14: Mastery `0` Belum Membedakan "Belum Teramati" dari "Diuji dan Gagal" pada Level Dimensi
++
++`evidenceCount: 0` membedakannya di level node, tetapi setelah satu dimensi teramati, dimensi lain tetap `0`. Ditunda; perbaikannya menyentuh `MasteryHierarchy` (mis. penanda dimensi yang pernah menerima delta).
++
++### 🔴 Temuan 15: Di Luar Cakupan Remediasi Integritas Nilai (Tetap Terbuka)
++
++Klaim privasi di `ParentTelemetryDashboard` ("tanpa server pihak ketiga") sementara ujaran anak dikirim ke Workers AI; endpoint publik tanpa auth, rate limit, atau batas panjang input; `conceptName` dan `studentExplanation` masuk ke prompt tanpa sanitasi (dapat memalsukan skor evidence); impor backup sudah divalidasi tetapi baru diuji di `fake-indexeddb`, bukan browser sungguhan.
++
++---
++
+ ## 3. Status Gerbang Tahap 1 & Tahap 2 (Checklist Kepatuhan Roadmap)
+ 
+ > Rujukan kriteria: `intelligence-os-foundation.md` Bagian 12.
+@@ -273,3 +297,4 @@ Bagian ini melacak evolusi audit dari ronde ke ronde. Tujuannya agar pembaca bis
+ | **Audit lanjutan (Ronde 3)** | Temuan 9: `humanExpertDiagnosis` pada benchmark 52-node ternyata gold-standard sintetis (deterministik), bukan rating manusia riil — mengoreksi satu baris checklist Tahap 2 dari putaran sebelumnya | Baris checklist dan kesimpulan Tahap 2 di Bagian 3 **dianulir melalui anotasi**, bukan dihapus; ditambahkan status Tahap 2 yang akurat: infrastruktur tuntas, validasi empiris belum | Ditulis sebagai Temuan 9, status 🔴; Bagian 1 dan Bagian 3 diberi paragraf/baris koreksi eksplisit |
+ | **Pembaruan Arsitektural (Ronde 4)** | Penyesuaian kriteria Gerbang Tahap 2 ke realitas arsitektur kedaulatan data: pembangunan antarmuka rating manusia riil (`HumanVsAiAuditDashboard.tsx`), penyimpanan lokal `STORES.HUMAN_RATINGS`, pemisahan tegas vs synthetic probe, dan dashboard Zero-Lie | Jalur rating manusia dan dashboard komparasi live/fallback siap pakai; Temuan 9 direklasifikasi dari blocker mutlak menjadi metrik yang berjalan berkelanjutan; Tahap 2 dinyatakan siap untuk perluasan materi multi-tier | Bagian 2 (Temuan 9), Bagian 3 (Checklist & Kesimpulan), dan Bagian 6 diperbarui secara transparan tanpa menghapus riwayat sebelumnya |
+ | **Audit Mandiri Materi & Delivery (Ronde 5 — dokumen ini)** | Temuan 10: Asimetri delivery empiris (85% node tanpa lab), overshoot bahasa pascasarjana pada layer formal, dan belum selarasnya modalitas asesmen perkembangan (Tier I–IV) | 100% node (52/52) dipetakan ke lab interaktif aktif; 100% istilah pascasarjana dibersihkan dari layer formal; modalitas perkembangan diikat ke `assessmentModality` dan `triangulateEvidence`; verifikasi otomatis 23/23 lulus | Ditulis sebagai Temuan 10 di Bagian 2 (status 🟢/✅); penegasan komitmen delivery empiris di Bagian 4 & 5 |
++| **Audit Integritas Nilai (Ronde 6)** | Temuan 11–15: angka dikarang dari ketiadaan observasi, tiga salinan logika AI, decay tak terisi untuk node nyata, ketidakjelasan nol = belum teramati, dan temuan di luar cakupan | Temuan 11–12 diremediasi sebagian (Evidence Gate 14/14, unit 28/28); Temuan 13–15 terbuka dengan konsekuensi dan jalan keluar tercatat | Ditulis sebagai Temuan 11–15; rencana di `evidence-honesty-refactor-plan.md` |
+diff --git a/functions/api/[[path]].ts b/functions/api/[[path]].ts
+new file mode 100644
+index 0000000..557b7d0
+--- /dev/null
++++ b/functions/api/[[path]].ts
+@@ -0,0 +1,25 @@
++// Pages Functions: proxy tipis ke Worker `arya-ai-gateway` (implementasi tunggal logika AI).
++// Tidak ada logika inferensi, tidak ada binding Workers AI, dan tidak ada fallback di sini.
++// Bila gateway tidak terpasang atau tidak dapat dijangkau, jawabannya 503 `unobserved` (tidak ada angka rekaan).
++
++interface Env {
++  AI_GATEWAY?: { fetch: (request: Request) => Promise<Response> };
++}
++
++const unavailable = (reason: 'gateway_unbound' | 'gateway_unreachable', message: string) =>
++  new Response(JSON.stringify({ unobserved: true, reason, message, source: 'none' }), {
++    status: 503,
++    headers: { 'Content-Type': 'application/json' },
++  });
++
++export const onRequest = async ({ request, env }: { request: Request; env: Env }): Promise<Response> => {
++  if (!env.AI_GATEWAY || typeof env.AI_GATEWAY.fetch !== 'function') {
++    return unavailable('gateway_unbound', 'Service binding AI_GATEWAY tidak terpasang; tidak ada diagnosis.');
++  }
++  try {
++    return await env.AI_GATEWAY.fetch(request);
++  } catch (err: any) {
++    console.warn('AI_GATEWAY unreachable:', err?.message);
++    return unavailable('gateway_unreachable', 'Gateway AI tidak dapat dijangkau; tidak ada diagnosis.');
++  }
++};
+diff --git a/functions/api/benchmark/central-hypothesis.ts b/functions/api/benchmark/central-hypothesis.ts
+deleted file mode 100644
+index 02951c4..0000000
+--- a/functions/api/benchmark/central-hypothesis.ts
++++ /dev/null
+@@ -1,239 +0,0 @@
+-import {
+-  CloudflareEnv,
+-  getWorkersAIBinding,
+-  DEFAULT_WORKERS_AI_MODEL,
+-  extractBenchmarkArray,
+-  generateLocalProbeDiagnosis,
+-} from '../../types.ts';
+-
+-export const onRequestPost = async (context: { request: Request; env: CloudflareEnv }) => {
+-  const { request, env } = context;
+-
+-  // 1. Service Binding Forwarding to arya-ai-gateway Worker
+-  if (env.AI_GATEWAY && typeof env.AI_GATEWAY.fetch === 'function') {
+-    return await env.AI_GATEWAY.fetch(request);
+-  }
+-
+-  // 2. Direct Binding Fallback
+-  try {
+-    const body: any = await request.json();
+-    const { items } = body;
+-    const aiBinding = getWorkersAIBinding(env);
+-    const model = env.CLOUDFLARE_AI_MODEL || DEFAULT_WORKERS_AI_MODEL;
+-
+-    if (!aiBinding) {
+-      return new Response(
+-        JSON.stringify({
+-          error: 'Cloudflare Workers AI binding "AiOS AI" tidak ditemukan pada Pages Functions context.',
+-          source: 'cloudflare-workers-ai-error',
+-        }),
+-        { status: 500, headers: { 'Content-Type': 'application/json' } }
+-      );
+-    }
+-
+-    if (!Array.isArray(items) || items.length === 0) {
+-      return new Response(JSON.stringify({ error: 'Array of benchmark items required' }), {
+-        status: 400,
+-        headers: { 'Content-Type': 'application/json' },
+-      });
+-    }
+-
+-    const systemInstruction = `You are the Cognitive Epistemic Assessor evaluating student utterances in Personal Intelligence OS (Tahap 2 Central Hypothesis Test).
+-
+-Each row below is INDEPENDENT — a separate probe with its own prompt and student utterance.
+-Diagnose each row purely on its own content. Do NOT let your answer to one row be influenced by your answer to another row, even if they share a probeGroupId (they test the SAME underlying concept from different angles — your job is to answer each fresh, not to make them look consistent).
+-
+-For each row, determine:
+-1. hasMisconception: boolean (true if child demonstrates a misconception or incorrect reasoning, false if understanding is structurally sound)
+-2. misconceptionName: string (describe the detected misconception or state "None")
+-3. structuralMasteryScore: number between 0.00 and 1.00 (evaluate deep causal understanding vs superficial rote recitation)
+-4. explanation: concise analytical rationale (1-2 sentences)
+-
+-Output strictly a JSON array of objects with the exact structure:
+-[
+-  {
+-    "probeId": string,
+-    "hasMisconception": boolean,
+-    "misconceptionName": string,
+-    "structuralMasteryScore": number,
+-    "explanation": string
+-  }
+-]`;
+-
+-    // Flatten each item into 4 independent probe rows (base, layer0, layer1, layer2)
+-    const allPromptRows = items.flatMap((it: any) => [
+-      {
+-        probeId: `${it.id}::base`,
+-        probeGroupId: it.id,
+-        prompt: it.prompt,
+-        studentUtterance: it.childUtterance,
+-      },
+-      {
+-        probeId: `${it.id}::layer0`,
+-        probeGroupId: it.id,
+-        prompt: it.perturbations?.layer0?.prompt || it.prompt,
+-        studentUtterance: it.perturbations?.layer0?.childUtterance || it.childUtterance,
+-      },
+-      {
+-        probeId: `${it.id}::layer1`,
+-        probeGroupId: it.id,
+-        prompt: it.perturbations?.layer1?.prompt || it.prompt,
+-        studentUtterance: it.perturbations?.layer1?.childUtterance || it.childUtterance,
+-      },
+-      {
+-        probeId: `${it.id}::layer2`,
+-        probeGroupId: it.id,
+-        prompt: it.perturbations?.layer2?.prompt || it.prompt,
+-        studentUtterance: it.perturbations?.layer2?.childUtterance || it.childUtterance,
+-      },
+-    ]);
+-
+-    // Chunk into batches of 4 probes (1 item = 4 probes per chunk) to avoid LLM token limits and formatting glitches
+-    const CHUNK_SIZE = 4;
+-    const chunks: any[][] = [];
+-    for (let i = 0; i < allPromptRows.length; i += CHUNK_SIZE) {
+-      chunks.push(allPromptRows.slice(i, i + CHUNK_SIZE));
+-    }
+-
+-    const chunkResults = await Promise.all(
+-      chunks.map(async (chunk) => {
+-        try {
+-          const response: any = await aiBinding.run(model, {
+-            messages: [
+-              { role: 'system', content: systemInstruction },
+-              { role: 'user', content: `Evaluasi setiap probe berikut secara independen. Kembalikan HANYA array JSON murni [ ... ] tanpa teks pembungkus tambahan:\n${JSON.stringify(chunk)}` },
+-            ],
+-            temperature: 0.1,
+-          });
+-
+-          const rawData = response?.response !== undefined
+-            ? response?.response
+-            : response?.result?.response !== undefined
+-            ? response?.result?.response
+-            : response?.result !== undefined
+-            ? response.result
+-            : response;
+-
+-          const parsed = extractBenchmarkArray(rawData);
+-          if (Array.isArray(parsed) && parsed.length > 0) {
+-            return chunk.map((c: any) => {
+-              const match = parsed.find((p: any) => p && (p.probeId === c.probeId || p.id === c.probeId));
+-              const rawScore = match ? (match.structuralMasteryScore !== undefined ? match.structuralMasteryScore : match.score) : undefined;
+-              const scoreNum = typeof rawScore === 'number' ? rawScore : (rawScore == null ? NaN : Number(rawScore));
+-              if (!match || Number.isNaN(scoreNum)) {
+-                return {
+-                  probeId: c.probeId,
+-                  ...generateLocalProbeDiagnosis(c.probeId, c.prompt, c.studentUtterance),
+-                  fallbackReason: !match
+-                    ? 'Probe tidak ditemukan dalam output model.'
+-                    : 'Skor structuralMasteryScore model hilang atau NaN; dievaluasi menggunakan heuristik lokal.',
+-                };
+-              }
+-              return {
+-                ...match,
+-                probeId: c.probeId,
+-                structuralMasteryScore: Math.min(1, Math.max(0, scoreNum)),
+-                usedFallback: false,
+-                source: `cloudflare-workers-ai (${model})`,
+-              };
+-            });
+-          }
+-
+-          // Fallback heuristic for this chunk if AI returned non-array
+-          console.warn('AI did not return valid array, marking fallback for chunk');
+-          return chunk.map((p: any) => ({
+-            probeId: p.probeId,
+-            ...generateLocalProbeDiagnosis(p.probeId, p.prompt, p.studentUtterance),
+-          }));
+-        } catch (chunkErr: any) {
+-          console.warn('Chunk evaluation error, fallback local:', chunkErr?.message);
+-          return chunk.map((p: any) => ({
+-            probeId: p.probeId,
+-            ...generateLocalProbeDiagnosis(p.probeId, p.prompt, p.studentUtterance),
+-          }));
+-        }
+-      })
+-    );
+-
+-    const allParsed = chunkResults.flat();
+-    let totalFallbackProbes = 0;
+-    const totalExpectedProbes = items.length * 4;
+-
+-    const results = items.map((item: any) => {
+-      const get = (suffix: string) => {
+-        const probeKey = `${item.id}::${suffix}`;
+-        const found = allParsed.find((p: any) => p && p.probeId === probeKey);
+-        if (!found) {
+-          totalFallbackProbes += 1;
+-          return generateLocalProbeDiagnosis(probeKey, item.prompt, item.childUtterance);
+-        }
+-
+-        const rawScore = found.structuralMasteryScore !== undefined ? found.structuralMasteryScore : found.score;
+-        const scoreNum = typeof rawScore === 'number' ? rawScore : (rawScore == null ? NaN : Number(rawScore));
+-        const isFallback = Boolean(found.usedFallback === true);
+-        const effectiveFallback = isFallback || Number.isNaN(scoreNum);
+-        if (effectiveFallback) {
+-          totalFallbackProbes += 1;
+-        }
+-
+-        return {
+-          hasMisconception: Boolean(found.hasMisconception === true || found.hasMisconception === 'true' || found.hasMisconception === 1),
+-          misconceptionName: found.misconceptionName || 'None',
+-          structuralMasteryScore: !Number.isNaN(scoreNum) ? Math.min(1, Math.max(0, scoreNum)) : 0.5,
+-          explanation: found.explanation || (effectiveFallback
+-            ? `Evaluasi fallback lokal probe ${probeKey}.`
+-            : `Analisis inferensi probe ${probeKey} (AiOS AI: ${model}).`),
+-          usedFallback: effectiveFallback,
+-          source: effectiveFallback ? 'deterministic-local-lookup' : `cloudflare-workers-ai (${model})`,
+-          fallbackReason: effectiveFallback ? (found.fallbackReason || 'Model inference failed or missing structuralMasteryScore') : undefined,
+-        };
+-      };
+-
+-      const baseProbe = get('base');
+-      const layer0Probe = get('layer0');
+-      const layer1Probe = get('layer1');
+-      const layer2Probe = get('layer2');
+-      const itemUsedFallback = Boolean(
+-        baseProbe.usedFallback || layer0Probe.usedFallback || layer1Probe.usedFallback || layer2Probe.usedFallback
+-      );
+-
+-      return {
+-        itemId: item.id,
+-        base: baseProbe,
+-        layer0: layer0Probe,
+-        layer1: layer1Probe,
+-        layer2: layer2Probe,
+-        usedFallback: itemUsedFallback,
+-        source: itemUsedFallback
+-          ? 'deterministic-local-lookup'
+-          : `cloudflare-workers-ai (${model})`,
+-      };
+-    });
+-
+-    const overallSource = totalFallbackProbes === 0
+-      ? `cloudflare-workers-ai (${model})`
+-      : totalFallbackProbes === totalExpectedProbes
+-      ? 'deterministic-local-lookup'
+-      : `hybrid (${totalExpectedProbes - totalFallbackProbes} AI, ${totalFallbackProbes} fallback)`;
+-
+-    return new Response(
+-      JSON.stringify({
+-        results,
+-        source: overallSource,
+-        usedFallback: totalFallbackProbes > 0,
+-        fallbackCount: totalFallbackProbes,
+-        totalProbes: totalExpectedProbes,
+-        binding: 'AiOS AI',
+-      }),
+-      { headers: { 'Content-Type': 'application/json' } }
+-    );
+-  } catch (error: any) {
+-    return new Response(
+-      JSON.stringify({
+-        error: `Cloudflare Workers AI Error: ${error.message}`,
+-        source: 'cloudflare-workers-ai-error',
+-      }),
+-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+-    );
+-  }
+-};
+diff --git a/functions/api/benchmark/feynman-suite.ts b/functions/api/benchmark/feynman-suite.ts
+deleted file mode 100644
+index d49cf03..0000000
+--- a/functions/api/benchmark/feynman-suite.ts
++++ /dev/null
+@@ -1,134 +0,0 @@
+-import {
+-  CloudflareEnv,
+-  getWorkersAIBinding,
+-  DEFAULT_WORKERS_AI_MODEL,
+-  extractBenchmarkArray,
+-  generateLocalFeynmanDiagnosis,
+-} from '../../types.ts';
+-
+-export const onRequestPost = async (context: { request: Request; env: CloudflareEnv }) => {
+-  const { request, env } = context;
+-
+-  // 1. Service Binding Forwarding to arya-ai-gateway Worker
+-  if (env.AI_GATEWAY && typeof env.AI_GATEWAY.fetch === 'function') {
+-    return await env.AI_GATEWAY.fetch(request);
+-  }
+-
+-  // 2. Direct Binding Fallback
+-  try {
+-    const body: any = await request.json();
+-    const { cases } = body;
+-    const aiBinding = getWorkersAIBinding(env);
+-    const model = env.CLOUDFLARE_AI_MODEL || DEFAULT_WORKERS_AI_MODEL;
+-
+-    if (!aiBinding) {
+-      return new Response(
+-        JSON.stringify({
+-          error: 'Cloudflare Workers AI binding "AiOS AI" tidak ditemukan pada Pages Functions context.',
+-          source: 'cloudflare-workers-ai-error',
+-        }),
+-        { status: 500, headers: { 'Content-Type': 'application/json' } }
+-      );
+-    }
+-
+-    if (!Array.isArray(cases) || cases.length === 0) {
+-      return new Response(JSON.stringify({ error: 'Array of benchmark cases required' }), {
+-        status: 400,
+-        headers: { 'Content-Type': 'application/json' },
+-      });
+-    }
+-
+-    const systemInstruction = `
+-You are the Feynman Sensor in Personal Intelligence OS performing calibration against human pedagogical experts.
+-Evaluate each child's explanation:
+-1. Distinguish rote buzzword dropping from true causal mechanism. A child using big words without explaining cause-and-effect should receive a LOW score (0.2-0.4).
+-2. A child using simple everyday words who clearly grasps physical/mathematical conservation or causal displacement should receive a HIGH score (0.85-0.98).
+-3. Detect centration or procedural rule-following without relational invariants.
+-
+-Output strictly a JSON array matching:
+-[
+-  {
+-    "caseId": string,
+-    "aiScore": number (0.00 to 1.00),
+-    "aiLabel": string,
+-    "aiReasoning": string
+-  }
+-]
+-`;
+-
+-    const promptData = cases.map((c: any) => ({
+-      caseId: c.id,
+-      conceptName: c.conceptName,
+-      category: c.category,
+-      childUtterance: c.childUtterance,
+-    }));
+-
+-    const response: any = await aiBinding.run(model, {
+-      messages: [
+-        { role: 'system', content: systemInstruction },
+-        { role: 'user', content: `Kalibrasi kasus Feynman berikut. Kembalikan HANYA array JSON [ ... ]:\n${JSON.stringify(promptData)}` },
+-      ],
+-      temperature: 0.1,
+-    });
+-
+-    const rawData = response?.response !== undefined ? response?.response : (response?.result?.response !== undefined ? response?.result?.response : (response?.result !== undefined ? response.result : response));
+-    const parsedArray = extractBenchmarkArray(rawData);
+-
+-    let fallbackCount = 0;
+-    const totalCases = cases.length;
+-
+-    const evaluations = cases.map((c: any) => {
+-      const match = Array.isArray(parsedArray) ? parsedArray.find((p: any) => p && (p.caseId === c.id || p.id === c.id)) : null;
+-      // TIDAK ADA: skor yang hilang/tidak terbaca dari model tidak diganti 0.75 — probe itu diberi label fallback lokal.
+-      const rawScore = match ? (match.aiScore !== undefined ? match.aiScore : match.score) : undefined;
+-      const scoreNum = typeof rawScore === 'number' ? rawScore : (rawScore == null ? NaN : Number(rawScore));
+-      if (!match || Number.isNaN(scoreNum)) {
+-        fallbackCount += 1;
+-        const local = generateLocalFeynmanDiagnosis(c.conceptName, c.childUtterance);
+-        return {
+-          caseId: c.id,
+-          aiScore: local.conceptualUnderstanding,
+-          aiLabel: local.misconceptions.length > 0 ? 'Miskonsepsi' : 'Pemahaman Kausal',
+-          aiReasoning: local.feedbackSummary,
+-          usedFallback: true,
+-          source: 'deterministic-local-heuristic',
+-          fallbackReason: local.fallbackReason,
+-        };
+-      }
+-      return {
+-        caseId: c.id,
+-        aiScore: Math.min(1, Math.max(0, scoreNum)),
+-        aiLabel: match.aiLabel || match.label || 'Teridentifikasi',
+-        aiReasoning: match.aiReasoning || match.reasoning || `Inferensi kalibrasi Pages Functions Workers AI binding (AiOS AI: ${model}).`,
+-        usedFallback: false,
+-        source: `cloudflare-workers-ai (${model})`,
+-      };
+-    });
+-
+-    const overallSource = fallbackCount === 0
+-      ? `cloudflare-workers-ai (${model})`
+-      : fallbackCount === totalCases
+-      ? 'deterministic-local-heuristic'
+-      : `hybrid (${totalCases - fallbackCount} AI, ${fallbackCount} fallback)`;
+-
+-    return new Response(
+-      JSON.stringify({
+-        evaluations,
+-        source: overallSource,
+-        usedFallback: fallbackCount > 0,
+-        fallbackCount,
+-        totalCases,
+-        binding: 'AiOS AI',
+-      }),
+-      { headers: { 'Content-Type': 'application/json' } }
+-    );
+-  } catch (error: any) {
+-    return new Response(
+-      JSON.stringify({
+-        error: `Cloudflare Workers AI Error: ${error.message}`,
+-        source: 'cloudflare-workers-ai-error',
+-      }),
+-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+-    );
+-  }
+-};
+diff --git a/functions/api/diagnose/feynman.ts b/functions/api/diagnose/feynman.ts
+deleted file mode 100644
+index e32f1f6..0000000
+--- a/functions/api/diagnose/feynman.ts
++++ /dev/null
+@@ -1,131 +0,0 @@
+-import {
+-  CloudflareEnv,
+-  getWorkersAIBinding,
+-  DEFAULT_WORKERS_AI_MODEL,
+-  extractJsonFromText,
+-  generateLocalFeynmanDiagnosis,
+-} from '../../types.ts';
+-
+-export const onRequestPost = async (context: { request: Request; env: CloudflareEnv }) => {
+-  const { request, env } = context;
+-
+-  // 1. Service Binding Forwarding to arya-ai-gateway Worker
+-  if (env.AI_GATEWAY && typeof env.AI_GATEWAY.fetch === 'function') {
+-    return await env.AI_GATEWAY.fetch(request);
+-  }
+-
+-  // 2. Direct Binding Fallback
+-  try {
+-    const body: any = await request.json();
+-    const conceptName = body.conceptName || body.concept || 'Konsep Umum';
+-    const studentExplanation = body.studentExplanation || body.childUtterance || body.explanation || '';
+-    const expectedPrinciple = body.expectedPrinciple || 'Fundamental causal mechanism';
+-    const aiBinding = getWorkersAIBinding(env);
+-    const model = env.CLOUDFLARE_AI_MODEL || DEFAULT_WORKERS_AI_MODEL;
+-
+-    if (!aiBinding) {
+-      return new Response(
+-        JSON.stringify({
+-          error: 'Cloudflare Workers AI binding "AiOS AI" tidak ditemukan pada Pages Functions context.',
+-          source: 'cloudflare-workers-ai-error',
+-        }),
+-        { status: 500, headers: { 'Content-Type': 'application/json' } }
+-      );
+-    }
+-
+-    const systemInstruction = `
+-You are the Feynman Sensor in Personal Intelligence OS.
+-Analyze the student's verbal explanation of a concept.
+-You must output strictly JSON matching this structure:
+-{
+-  "conceptualUnderstanding": number (0.0 to 1.0),
+-  "causalReasoning": number (0.0 to 1.0),
+-  "transferScore": number (0.0 to 1.0),
+-  "analogyDetected": boolean,
+-  "misconceptions": string[],
+-  "feedbackSummary": string,
+-  "nextBestProbe": string
+-}
+-
+-Concept: "${conceptName}"
+-Expected Principle: "${expectedPrinciple || 'Fundamental causal mechanism'}"
+-Do not output markdown codeblocks or extra conversational filler, output clean JSON.
+-`;
+-
+-    const response: any = await aiBinding.run(model, {
+-      messages: [
+-        { role: 'system', content: systemInstruction },
+-        { role: 'user', content: `Analisis penjelasan siswa berikut ini:\n"${studentExplanation}"` },
+-      ],
+-      temperature: 0.1,
+-    });
+-
+-    const rawData = response?.response !== undefined ? response?.response : (response?.result?.response !== undefined ? response?.result?.response : (response?.result !== undefined ? response.result : response));
+-    const parsed = extractJsonFromText(rawData);
+-
+-    if (!parsed || typeof parsed !== 'object' || (typeof parsed.conceptualUnderstanding !== 'number' && typeof parsed.score !== 'number')) {
+-      const local = generateLocalFeynmanDiagnosis(conceptName, studentExplanation);
+-      return new Response(
+-        JSON.stringify({
+-          ...local,
+-          feynmanDiagnosis: {
+-            conceptualUnderstanding: local.conceptualUnderstanding,
+-            causalReasoning: local.causalReasoning,
+-            transferScore: local.transferScore,
+-            diagnosisExplanation: local.feedbackSummary,
+-            misconceptions: local.misconceptions,
+-          },
+-          usedFallback: true,
+-          source: 'deterministic-local-heuristic',
+-          fallbackReason: 'Respons Cloudflare Workers AI tidak berupa JSON valid atau tidak memuat skor pemahaman; dievaluasi menggunakan sensor heuristik lokal.',
+-          binding: 'AiOS AI',
+-          model,
+-        }),
+-        { headers: { 'Content-Type': 'application/json' } }
+-      );
+-    }
+-
+-    // KATEGORI "TIDAK ADA": field yang tidak dikembalikan model TIDAK boleh diciptakan engine.
+-    // Field hilang → undefined (kunci JSON hilang) + dicatat di unobservedFields (masukan Evidence Debt §7).
+-    const num01 = (v: unknown): number | undefined =>
+-      typeof v === 'number' && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : undefined;
+-    const conceptualUnderstanding = num01(parsed.conceptualUnderstanding) ?? num01(parsed.score);
+-    const causalReasoning = num01(parsed.causalReasoning);
+-    const transferScore = num01(parsed.transferScore);
+-    const unobservedFields = [
+-      conceptualUnderstanding === undefined ? 'conceptualUnderstanding' : null,
+-      causalReasoning === undefined ? 'causalReasoning' : null,
+-      transferScore === undefined ? 'transferScore' : null,
+-    ].filter(Boolean);
+-
+-    return new Response(
+-      JSON.stringify({
+-        ...parsed,
+-        conceptualUnderstanding,
+-        causalReasoning,
+-        transferScore,
+-        feynmanDiagnosis: {
+-          conceptualUnderstanding,
+-          causalReasoning,
+-          transferScore,
+-          diagnosisExplanation: parsed.feedbackSummary || parsed.explanation || 'Diagnosis verbal berhasil dianalisis.',
+-          misconceptions: Array.isArray(parsed.misconceptions) ? parsed.misconceptions : [],
+-        },
+-        unobservedFields,
+-        usedFallback: false,
+-        source: `cloudflare-workers-ai (${model})`,
+-        binding: 'AiOS AI',
+-        model,
+-      }),
+-      { headers: { 'Content-Type': 'application/json' } }
+-    );
+-  } catch (error: any) {
+-    return new Response(
+-      JSON.stringify({
+-        error: `Cloudflare Workers AI Error: ${error.message}`,
+-        source: 'cloudflare-workers-ai-error',
+-      }),
+-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+-    );
+-  }
+-};
+diff --git a/functions/api/health.ts b/functions/api/health.ts
+deleted file mode 100644
+index a573eb2..0000000
+--- a/functions/api/health.ts
++++ /dev/null
+@@ -1,70 +0,0 @@
+-import { CloudflareEnv, getWorkersAIBinding, DEFAULT_WORKERS_AI_MODEL } from '../types.ts';
+-
+-const JSON_HEADERS = {
+-  'Content-Type': 'application/json',
+-  'Access-Control-Allow-Origin': '*',
+-};
+-
+-type GatewayStatus = 'not-bound' | 'ok' | 'invalid-response' | 'unreachable';
+-
+-export const onRequestGet = async (context: { request: Request; env: CloudflareEnv }) => {
+-  const { request, env } = context;
+-
+-  let gatewayStatus: GatewayStatus = 'not-bound';
+-  let gatewayDetail: string | undefined;
+-
+-  // 1. Service Binding ke Worker arya-ai-gateway: harus benar-benar dibuktikan sehat,
+-  //    bukan sekadar "binding ada". Worker template "Hello world" membalas 200 text/plain,
+-  //    jadi wajib dicek content-type DAN identitas service di body JSON.
+-  if (env.AI_GATEWAY && typeof env.AI_GATEWAY.fetch === 'function') {
+-    try {
+-      const gwResponse = await env.AI_GATEWAY.fetch(request);
+-      const contentType = gwResponse.headers.get('content-type') || '';
+-
+-      if (gwResponse.ok && contentType.includes('application/json')) {
+-        const gwData: any = await gwResponse.json();
+-        if (gwData && gwData.service === 'arya-ai-gateway') {
+-          return new Response(
+-            JSON.stringify({
+-              ...gwData,
+-              architecture: 'Pages Functions -> Service Binding -> arya-ai-gateway Worker',
+-              hasServiceBinding: true,
+-              gatewayStatus: 'ok',
+-              status: 'ok',
+-            }),
+-            { headers: JSON_HEADERS }
+-          );
+-        }
+-        gatewayStatus = 'invalid-response';
+-        gatewayDetail = 'Balasan JSON diterima tetapi bukan dari arya-ai-gateway.';
+-      } else {
+-        gatewayStatus = 'invalid-response';
+-        gatewayDetail = `HTTP ${gwResponse.status}, content-type "${contentType || 'kosong'}". Kemungkinan worker belum ter-deploy dari repo (masih template Hello World).`;
+-      }
+-    } catch (err: any) {
+-      gatewayStatus = 'unreachable';
+-      gatewayDetail = err?.message || 'Service binding gagal dipanggil.';
+-      console.warn('AI_GATEWAY fetch error:', gatewayDetail);
+-    }
+-  }
+-
+-  // 2. Fallback: binding Workers AI langsung di Pages (hanya info diagnostik)
+-  const aiBinding = getWorkersAIBinding(env);
+-  const activeModel = env.CLOUDFLARE_AI_MODEL || DEFAULT_WORKERS_AI_MODEL;
+-
+-  return new Response(
+-    JSON.stringify({
+-      status: gatewayStatus === 'not-bound' ? 'ok' : 'degraded',
+-      runtime: 'Cloudflare Pages Functions',
+-      hasServiceBinding: Boolean(env.AI_GATEWAY),
+-      gatewayStatus,
+-      ...(gatewayDetail ? { gatewayDetail } : {}),
+-      hasAiBinding: Boolean(aiBinding),
+-      bindingName: env['AiOS AI'] ? 'AiOS AI' : env.AI ? 'AI' : 'none',
+-      activeModel,
+-      system: 'Personal Intelligence OS (Cloudflare Pages Functions Gateway)',
+-    }),
+-    { headers: JSON_HEADERS }
+-  );
+-};
+-
+diff --git a/functions/api/tutor/socratic.ts b/functions/api/tutor/socratic.ts
+deleted file mode 100644
+index f21782a..0000000
+--- a/functions/api/tutor/socratic.ts
++++ /dev/null
+@@ -1,85 +0,0 @@
+-import { CloudflareEnv, getWorkersAIBinding, DEFAULT_WORKERS_AI_MODEL } from '../../types.ts';
+-
+-export const onRequestPost = async (context: { request: Request; env: CloudflareEnv }) => {
+-  const { request, env } = context;
+-
+-  // 1. Service Binding Forwarding to arya-ai-gateway Worker
+-  if (env.AI_GATEWAY && typeof env.AI_GATEWAY.fetch === 'function') {
+-    return await env.AI_GATEWAY.fetch(request);
+-  }
+-
+-  // 2. Direct Binding Fallback
+-  try {
+-    const body: any = await request.json();
+-    const { concept, studentMessage, history, learnerState } = body;
+-    const aiBinding = getWorkersAIBinding(env);
+-    const model = env.CLOUDFLARE_AI_MODEL || DEFAULT_WORKERS_AI_MODEL;
+-
+-    if (!aiBinding) {
+-      return new Response(
+-        JSON.stringify({
+-          error: 'Cloudflare Workers AI binding "AiOS AI" tidak ditemukan pada Pages Functions context.',
+-          source: 'cloudflare-workers-ai-error',
+-        }),
+-        { status: 500, headers: { 'Content-Type': 'application/json' } }
+-      );
+-    }
+-
+-    const systemInstruction = `
+-You are the Socratic Tutor & Feynman Sensor inside the "Personal Intelligence OS".
+-Your role is NOT to deliver lectures, but to:
+-1. Ask probing, curiosity-sparking Socratic questions based on the "WHY-first" philosophy (Rules -> Principles -> Derivation).
+-2. Never just give the final formula. Help the student derive it through thought experiments, causal chains, and predictions.
+-3. Act as a Feynman Sensor: detect whether the student really understands the mechanism or is just repeating buzzwords.
+-4. Detect cognitive misconceptions (e.g. confusing mass with density, thinking heavier objects always sink, or treating algebra as 'magic steps').
+-5. Respond in Indonesian (Bahasa Indonesia) warmly, concisely (2-4 sentences max), accompanied by a provocative question or thought experiment.
+-
+-Concept context: ${JSON.stringify(concept || 'General')}
+-Current learner state: ${JSON.stringify(learnerState || {})}
+-`;
+-
+-    const messages = [
+-      { role: 'system', content: systemInstruction },
+-    ];
+-
+-    (history || []).forEach((h: any) => {
+-      messages.push({
+-        role: h.role === 'student' ? 'user' : 'assistant',
+-        content: h.text,
+-      });
+-    });
+-
+-    messages.push({
+-      role: 'user',
+-      content: studentMessage || 'Halo, saya ingin memahami konsep ini.',
+-    });
+-
+-    const response: any = await aiBinding.run(model, {
+-      messages,
+-      temperature: 0.7,
+-    });
+-
+-    const replyText = response?.response || response?.result?.response || '';
+-    if (!replyText) {
+-      throw new Error(`Workers AI (${model}) mengembalikan respons kosong.`);
+-    }
+-
+-    return new Response(
+-      JSON.stringify({
+-        text: replyText,
+-        source: `cloudflare-workers-ai (${model})`,
+-        binding: 'AiOS AI',
+-        model,
+-      }),
+-      { headers: { 'Content-Type': 'application/json' } }
+-    );
+-  } catch (error: any) {
+-    return new Response(
+-      JSON.stringify({
+-        error: `Cloudflare Workers AI Error: ${error.message}`,
+-        source: 'cloudflare-workers-ai-error',
+-      }),
+-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+-    );
+-  }
+-};
+diff --git a/functions/types.ts b/functions/types.ts
+deleted file mode 100644
+index cb001da..0000000
+--- a/functions/types.ts
++++ /dev/null
+@@ -1,333 +0,0 @@
+-// Cloudflare Pages Functions - Environment Definitions
+-// Binding: Type = Workers AI, Name = "AiOS AI" (accessible via env["AiOS AI"] or env.AI)
+-
+-export interface CloudflareEnv {
+-  // Cloudflare Pages Workers AI binding name: "AiOS AI"
+-  'AiOS AI': {
+-    run: (model: string, input: any) => Promise<any>;
+-  };
+-  AI?: {
+-    run: (model: string, input: any) => Promise<any>;
+-  };
+-  // Service binding to arya-ai-gateway Worker
+-  AI_GATEWAY?: {
+-    fetch: (request: Request | string, init?: RequestInit) => Promise<Response>;
+-  };
+-  CLOUDFLARE_AI_MODEL?: string;
+-  GEMINI_API_KEY?: string;
+-}
+-
+-export const DEFAULT_WORKERS_AI_MODEL = '@cf/qwen/qwen3-30b-a3b-fp8';
+-
+-export function getWorkersAIBinding(env: CloudflareEnv) {
+-  // Support exact user specified binding name 'AiOS AI' as well as standard 'AI'
+-  return env['AiOS AI'] || env.AI || null;
+-}
+-
+-// Multi-strategy JSON cleaner & extractor for LLMs (Cloudflare Workers AI, Qwen, Gemini, etc.)
+-export function extractJsonFromText(raw: any): any {
+-  if (raw === null || raw === undefined) return null;
+-  if (typeof raw === 'object') return raw;
+-
+-  let str = String(raw).trim();
+-  if (!str) return null;
+-
+-  // 1. Strip reasoning tags like <think>...</think> produced by reasoning models (Qwen / DeepSeek)
+-  str = str.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+-
+-  // 2. Extract from markdown code fences if present (```json ... ``` or ``` ... ```)
+-  const fenceMatch = str.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+-  if (fenceMatch && fenceMatch[1]) {
+-    str = fenceMatch[1].trim();
+-  }
+-
+-  // 3. Handle double-serialized or outer-quoted JSON strings:
+-  // e.g. "\" [ { \\\"probeId\\\": ... } ] \"" or " ' [ { ... } ] ' "
+-  if ((str.startsWith('"') && str.endsWith('"')) || (str.startsWith("'") && str.endsWith("'"))) {
+-    try {
+-      const unescaped = JSON.parse(str);
+-      if (typeof unescaped === 'string') {
+-        str = unescaped.trim();
+-      } else if (typeof unescaped === 'object' && unescaped !== null) {
+-        return unescaped;
+-      }
+-    } catch {
+-      str = str.slice(1, -1).trim();
+-    }
+-  }
+-
+-  // Helper to test variants
+-  function tryParseVariants(text: string): any {
+-    if (!text) return null;
+-    try {
+-      return JSON.parse(text);
+-    } catch {}
+-
+-    // Clean trailing commas before closing brackets or curlies
+-    try {
+-      const noTrailing = text.replace(/,\s*([\]}])/g, '$1');
+-      return JSON.parse(noTrailing);
+-    } catch {}
+-
+-    return null;
+-  }
+-
+-  // 4. Initial parse pass
+-  let parsed = tryParseVariants(str);
+-
+-  // 5. Unwrap nested stringified JSON if parsed returned another string
+-  while (typeof parsed === 'string') {
+-    const trimmed = parsed.trim();
+-    if (
+-      (trimmed.startsWith('[') && trimmed.endsWith(']')) ||
+-      (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+-      (trimmed.startsWith('"') && trimmed.endsWith('"'))
+-    ) {
+-      const next = tryParseVariants(trimmed);
+-      if (next === null || next === parsed) break;
+-      parsed = next;
+-    } else {
+-      break;
+-    }
+-  }
+-
+-  if (parsed !== null && typeof parsed === 'object') {
+-    return parsed;
+-  }
+-
+-  // 6. Substring scan: locate outermost array [ ... ]
+-  const firstSquare = str.indexOf('[');
+-  const lastSquare = str.lastIndexOf(']');
+-  if (firstSquare !== -1 && lastSquare > firstSquare) {
+-    const candidate = str.slice(firstSquare, lastSquare + 1);
+-    const res = tryParseVariants(candidate);
+-    if (res !== null && typeof res === 'object') return res;
+-  }
+-
+-  // 7. Substring scan: locate outermost object { ... }
+-  const firstCurly = str.indexOf('{');
+-  const lastCurly = str.lastIndexOf('}');
+-  if (firstCurly !== -1 && lastCurly > firstCurly) {
+-    const candidate = str.slice(firstCurly, lastCurly + 1);
+-    const res = tryParseVariants(candidate);
+-    if (res !== null && typeof res === 'object') return res;
+-  }
+-
+-  // 8. Truncated array repair: if output was cut off before closing ']', salvage closed items
+-  if (firstSquare !== -1) {
+-    const sub = str.slice(firstSquare);
+-    const lastObjEnd = sub.lastIndexOf('}');
+-    if (lastObjEnd !== -1) {
+-      const candidate = sub.slice(0, lastObjEnd + 1).replace(/,\s*$/, '') + ']';
+-      const res = tryParseVariants(candidate);
+-      if (Array.isArray(res) && res.length > 0) return res;
+-    }
+-  }
+-
+-  return null;
+-}
+-
+-// Specialized array extractor for benchmark & calibration responses
+-export function extractBenchmarkArray(raw: any): any[] | null {
+-  try {
+-    const parsed = extractJsonFromText(raw);
+-    if (!parsed) return null;
+-    if (Array.isArray(parsed)) return parsed;
+-
+-    if (typeof parsed === 'object') {
+-      for (const key of ['probes', 'results', 'evaluations', 'items', 'data', 'benchmark', 'cases']) {
+-        if (Array.isArray((parsed as any)[key])) return (parsed as any)[key];
+-      }
+-      const values = Object.values(parsed);
+-      const arr = values.find(Array.isArray);
+-      if (arr) return arr as any[];
+-
+-      // Single probe/case object returned
+-      if ('probeId' in parsed || 'hasMisconception' in parsed || 'caseId' in parsed || 'aiScore' in parsed) {
+-        return [parsed];
+-      }
+-
+-      // Record of objects keyed by index or probeId
+-      if (
+-        values.length > 0 &&
+-        typeof values[0] === 'object' &&
+-        values[0] !== null &&
+-        ('probeId' in (values[0] as any) || 'hasMisconception' in (values[0] as any) || 'caseId' in (values[0] as any))
+-      ) {
+-        return values as any[];
+-      }
+-    }
+-  } catch (err: any) {
+-    console.warn('extractBenchmarkArray warning:', err?.message);
+-  }
+-  return null;
+-}
+-
+-// Fallback pedagogical heuristic probe diagnosis
+-export function generateLocalProbeDiagnosis(probeId: string, prompt: string, studentUtterance: string) {
+-  const utt = (studentUtterance || '').toLowerCase();
+-  const id = probeId.split('::')[0] || '';
+-  const suffix = probeId.split('::')[1] || 'base';
+-
+-  let result: {
+-    hasMisconception: boolean;
+-    misconceptionName: string;
+-    structuralMasteryScore: number;
+-    explanation: string;
+-  };
+-
+-  // bench-frac-01 (1/4 vs 1/8 denominator magnitude)
+-  if (id === 'bench-frac-01') {
+-    result = {
+-      hasMisconception: true,
+-      misconceptionName: 'Transfer intuisi bilangan bulat: penyebut besar disangka nilai pecahan lebih besar',
+-      structuralMasteryScore: 0.16,
+-      explanation: `Evaluasi Fallback Lookup [${suffix}]: Terdeteksi overgeneralization sifat bilangan bulat (8 > 4) ke sistem pembagian pecahan.`,
+-    };
+-  } else if (id === 'bench-frac-02') {
+-    result = {
+-      hasMisconception: true,
+-      misconceptionName: 'Penjumlahan langsung pembilang dan penyebut terpisah (atas+atas, bawah+bawah)',
+-      structuralMasteryScore: 0.18,
+-      explanation: `Evaluasi Fallback Lookup [${suffix}]: Satuan ukuran penyebut diperlakukan sebagai bilangan aditif terpisah tanpa rekonsiliasi unit bersama.`,
+-    };
+-  } else if (id === 'bench-frac-03') {
+-    result = {
+-      hasMisconception: true,
+-      misconceptionName: 'Penghafalan istilah teknis (buzzwords) tanpa intuisi partisi konkret',
+-      structuralMasteryScore: 0.32,
+-      explanation: `Evaluasi Fallback Lookup [${suffix}]: Pengulangan istilah formal tanpa pemahaman relasi spasial atau representasi fisik nyata.`,
+-    };
+-  } else if (id === 'bench-frac-04-control') {
+-    result = {
+-      hasMisconception: false,
+-      misconceptionName: 'None',
+-      structuralMasteryScore: 0.95,
+-      explanation: `Evaluasi Fallback Lookup [${suffix}]: Anak memahami hubungan terbalik antara jumlah bagian dan ukuran partisi secara mendalam.`,
+-    };
+-  } else if (id === 'bench-frac-05') {
+-    result = {
+-      hasMisconception: true,
+-      misconceptionName: 'Mengabaikan syarat kesamaan ukuran partisi pada pecahan',
+-      structuralMasteryScore: 0.20,
+-      explanation: `Evaluasi Fallback Lookup [${suffix}]: Hanya menghitung jumlah potongan fisik tanpa memeriksa kesetaraan luas atau volume bagian.`,
+-    };
+-  } else if (id === 'bench-frac-06') {
+-    result = {
+-      hasMisconception: true,
+-      misconceptionName: 'Menganggap penambahan bilangan sama pada pembilang & penyebut mempertahankan nilai',
+-      structuralMasteryScore: 0.18,
+-      explanation: `Evaluasi Fallback Lookup [${suffix}]: Anak memperlakukan kesetaraan pecahan secara aditif (+1/+1) alih-alih skalasi multiplikatif.`,
+-    };
+-  } else if (id === 'bench-frac-07-control') {
+-    result = {
+-      hasMisconception: false,
+-      misconceptionName: 'None',
+-      structuralMasteryScore: 0.96,
+-      explanation: `Evaluasi Fallback Lookup [${suffix}]: Anak menyadari bahwa perkalian pembilang dan penyebut dengan angka sama setara mengalikan dengan identitas 1.`,
+-    };
+-  } else if (id === 'bench-alg-08-control' || id === 'bench-alg-04') {
+-    result = {
+-      hasMisconception: false,
+-      misconceptionName: 'None',
+-      structuralMasteryScore: 0.96,
+-      explanation: `Evaluasi Fallback Lookup [${suffix}]: Tanda sama dengan dipahami sebagai neraca timbangan relasional dua arah yang simetris.`,
+-    };
+-  } else if (id === 'bench-alg-09' || id === 'bench-alg-05') {
+-    result = {
+-      hasMisconception: true,
+-      misconceptionName: 'Pindah ruas mekanis tanpa operasi inversi tanda',
+-      structuralMasteryScore: 0.22,
+-      explanation: `Evaluasi Fallback Lookup [${suffix}]: Prosedur simbolik dijalankan sebagai aturan hafalan magis tanpa mempertahankan keseimbangan neraca.`,
+-    };
+-  } else if (id === 'bench-alg-10') {
+-    result = {
+-      hasMisconception: true,
+-      misconceptionName: 'Tanda sama dengan diartikan perintah kalkulator untuk melakukan operasi',
+-      structuralMasteryScore: 0.20,
+-      explanation: `Evaluasi Fallback Lookup [${suffix}]: Anak memperlakukan persamaan sebagai instruksi komputasi satu arah alih-alih relasi ekuivalensi.`,
+-    };
+-  } else if (id === 'bench-ratio-11' || id === 'bench-ratio-06') {
+-    result = {
+-      hasMisconception: true,
+-      misconceptionName: 'Berpikir aditif bukan multiplikatif pada rasio',
+-      structuralMasteryScore: 0.26,
+-      explanation: `Evaluasi Fallback Lookup [${suffix}]: Anak mengaplikasikan penambahan selisih konstan alih-alih faktor skala multiplikatif pada relasi intensif.`,
+-    };
+-  } else if (id === 'bench-ratio-12-control') {
+-    result = {
+-      hasMisconception: false,
+-      misconceptionName: 'None',
+-      structuralMasteryScore: 0.97,
+-      explanation: `Evaluasi Fallback Lookup [${suffix}]: Penalaran proporsional sempurna dengan mempertahankan invarian rasio melalui faktor pengali skala.`,
+-    };
+-  } else if (id.startsWith('bench-scale-node-')) {
+-    // 52-node full scale benchmark probe handler
+-    const nodeNum = parseInt(id.replace('bench-scale-node-', ''), 10) || 1;
+-    const isControl = nodeNum % 4 === 0;
+-    if (isControl) {
+-      result = {
+-        hasMisconception: false,
+-        misconceptionName: 'None',
+-        structuralMasteryScore: 0.94,
+-        explanation: `Evaluasi Fallback Skala Penuh [Node ${nodeNum}::${suffix}]: Penalaran struktural kontrol positif tervalidasi pada konsep invariannya.`,
+-      };
+-    } else {
+-      result = {
+-        hasMisconception: true,
+-        misconceptionName: `Miskonsepsi struktural spesifik pada node ${nodeNum}`,
+-        structuralMasteryScore: 0.22,
+-        explanation: `Evaluasi Fallback Skala Penuh [Node ${nodeNum}::${suffix}]: Terdeteksi miskonsepsi khas empiris lapangan sesuai profil domain 52-node.`,
+-      };
+-    }
+-  } else {
+-    const hasErrorSignals = utt.includes('tambah') || utt.includes('lebih besar') || utt.includes('pindah');
+-    result = {
+-      hasMisconception: hasErrorSignals,
+-      misconceptionName: hasErrorSignals ? 'Miskonsepsi heuristik terdeteksi' : 'None',
+-      structuralMasteryScore: hasErrorSignals ? 0.25 : 0.88,
+-      explanation: `Evaluasi Fallback Lookup [${suffix}]: Analisis penalaran ujaran anak melalui aturan heuristik lokal.`,
+-    };
+-  }
+-
+-  return {
+-    ...result,
+-    usedFallback: true,
+-    source: 'deterministic-local-lookup' as const,
+-    fallbackReason: 'Inferensi model AI tidak tersedia atau gagal diproses; dievaluasi melalui kalibrator fallback lokal.',
+-  };
+-}
+-
+-// Fallback pedagogical heuristic Feynman diagnosis
+-export function generateLocalFeynmanDiagnosis(conceptName: string, explanation: string) {
+-  const text = (explanation || '').toLowerCase();
+-  const hasCausal = text.includes('karena') || text.includes('sebab') || text.includes('mengakibatkan') || text.includes('sehingga');
+-  const hasAnalogy = text.includes('seperti') || text.includes('ibarat') || text.includes('mirip') || text.includes('misal');
+-  const mentionsWeightOnly = text.includes('berat') && !text.includes('massa jenis') && !text.includes('volume') && !text.includes('desak');
+-
+-  let misconceptions: string[] = [];
+-  if (mentionsWeightOnly && (conceptName.toLowerCase().includes('apung') || conceptName.toLowerCase().includes('buoyancy'))) {
+-    misconceptions.push('berat menentukan tenggelam/mengapung');
+-  }
+-
+-  const conceptual = mentionsWeightOnly ? 0.45 : (text.length > 50 ? 0.88 : 0.65);
+-  const causal = hasCausal ? 0.82 : 0.52;
+-  const transfer = hasAnalogy ? 0.74 : 0.48;
+-
+-  return {
+-    conceptualUnderstanding: conceptual,
+-    causalReasoning: causal,
+-    transferScore: transfer,
+-    analogyDetected: hasAnalogy,
+-    misconceptions,
+-    feedbackSummary: misconceptions.length > 0
+-      ? 'Terdeteksi hipotesis berat intuitif. Perlu dialihkan ke perbandingan massa jenis dan volume fluida yang dipindahkan.'
+-      : 'Penalaran sebab-akibat teridentifikasi dengan baik. Mampu menjelaskan mekanisme dasar secara logis.',
+-    nextBestProbe: misconceptions.length > 0
+-      ? 'Ajak menguji perbandingan massa jenis di Lab Simulasi Fluida.'
+-      : 'Uji kemampuan transfer ke skenario baru.',
+-    usedFallback: true,
+-    source: 'deterministic-local-heuristic' as const,
+-    fallbackReason: 'Model AI tidak mengembalikan output yang valid; dievaluasi oleh sensor heuristik lokal.',
+-  };
+-}
+diff --git a/src/App.tsx b/src/App.tsx
+index 81114ec..3df2737 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -26,7 +26,7 @@ import {
+ } from './types';
+ 
+ import { triangulateEvidence, EmpiricalSimulationEvidence, ParentCalibrationSettings, DEFAULT_PARENT_CALIBRATION } from './engine/evidenceTriangulation';
+-import { applyMasteryGating, emptyLearnerState, selectNextBestExperience, RecommendedExperience } from './engine/deterministicCore';
++import { applyMasteryGating, applyStealthRepairResolution, emptyLearnerState, selectNextBestExperience, RecommendedExperience } from './engine/deterministicCore';
+ import {
+   loadInitialOSState,
+   persistAllLearnerNodes,
+@@ -514,16 +514,12 @@ export default function App() {
+   // Callback for Bar Model Algebra Lab
+   const handleBarModelEvidence = (details: string) => {
+     setLearnerNodes((prev) => {
+-      const current = prev['node-bar-model'];
++      // Node bisa belum ada (tidak ada seeding diam-diam). Lab ini hanya melaporkan teks → tidak ada observasi mastery.
++      const current = prev['node-bar-model'] || emptyLearnerState('node-bar-model');
+       return {
+         ...prev,
+         'node-bar-model': {
+           ...current,
+-          mastery: {
+-            ...current.mastery,
+-            transfer: 0.95,
+-            explanation: 0.95,
+-          },
+           evidenceCount: (current.evidenceCount ?? 0) + 1,
+           lastInteracted: new Date().toISOString(),
+         },
+@@ -542,9 +538,9 @@ export default function App() {
+           timestamp: new Date().toISOString(),
+         },
+       ],
+-      confidence: 'high',
+-      retentionStatus: 'verified_transfer',
+-      notes: 'Anak mendemonstrasikan prinsip simetri dua sisi secara mandiri.',
++      confidence: 'low',
++      retentionStatus: 'pending',
++      notes: 'Anak menyelesaikan tantangan Bar Model. Transfer dan retensi belum diukur; penguasaan belum diklaim.',
+     };
+ 
+     setEvidenceLogs((prev) => [newEntry, ...prev]);
+@@ -561,19 +557,14 @@ export default function App() {
+     // 2. Elevate learner mastery for matched node
+     if (matchedNode) {
+       setLearnerNodes((prev) => {
++        // Lab generik hanya melaporkan teks (tanpa telemetri terukur) → TIDAK ADA observasi mastery.
++        // Yang tercatat hanya kejadian "lab diselesaikan" (entri bukti di bawah); mastery tidak berubah.
+         const current = prev[matchedNode.id] || emptyLearnerState(matchedNode.id);
+ 
+-        const gatedMastery = applyMasteryGating(current.mastery, {
+-          application: current.mastery.application + 0.15,
+-          transfer: current.mastery.transfer + 0.15,
+-          understanding: current.mastery.understanding + 0.1,
+-        });
+-
+         return {
+           ...prev,
+           [matchedNode.id]: {
+             ...current,
+-            mastery: gatedMastery,
+             evidenceCount: (current.evidenceCount ?? 0) + 1,
+             lastInteracted: new Date().toISOString(),
+           },
+@@ -594,9 +585,9 @@ export default function App() {
+           timestamp: new Date().toISOString(),
+         },
+       ],
+-      confidence: 'high',
+-      retentionStatus: 'verified_transfer',
+-      notes: 'Penguasaan konsep tervalidasi melalui pembuktian mandiri pada Lab Simulasi Domain.',
++      confidence: 'low',
++      retentionStatus: 'fresh',
++      notes: 'Lab Simulasi Domain diselesaikan. Belum ada pengukuran transfer atau retensi; penguasaan belum diklaim.',
+     };
+ 
+     setEvidenceLogs((prev) => [newEntry, ...prev]);
+@@ -610,19 +601,10 @@ export default function App() {
+     setLearnerNodes((prev) => {
+       const currentAlg = prev['node-symbolic-algebra'];
+       if (!currentAlg) return prev;
++      // Tidak mengklaim pemulihan: decay lama dibatalkan (belum teramati ulang), mastery tidak dinaikkan.
+       return {
+         ...prev,
+-        'node-symbolic-algebra': {
+-          ...currentAlg,
+-          decayRate: 0.0, // Decay recovered!
+-          mastery: {
+-            ...currentAlg.mastery,
+-            application: 0.88,
+-            transfer: 0.85,
+-          },
+-          evidenceCount: (currentAlg.evidenceCount ?? 0) + 1,
+-          lastInteracted: new Date().toISOString(),
+-        },
++        'node-symbolic-algebra': applyStealthRepairResolution(currentAlg),
+       };
+     });
+ 
+@@ -640,7 +622,7 @@ export default function App() {
+     // 3. Update trajectory system action
+     setActiveTrajectory((prev) => ({
+       ...prev,
+-      systemActionNote: '✅ Reconsolidation Aljabar Sukses! Epistemic Debt pulih 100% via misi kapal selam.',
++      systemActionNote: 'Misi kapal selam selesai. Pemulihan Aljabar dinilai setelah observasi retrieval berikutnya (belum diklaim).',
+     }));
+ 
+     // 4. Log Evidence
+@@ -656,13 +638,13 @@ export default function App() {
+           timestamp: new Date().toISOString(),
+         },
+       ],
+-      confidence: 'high',
+-      retentionStatus: 'verified_transfer',
+-      notes: 'Self-healing engine berhasil merekonsolidasi aljabar tanpa memicu rasa malu remedial.',
++      confidence: 'low',
++      retentionStatus: 'pending',
++      notes: 'Misi remediasi diselesaikan tanpa memicu rasa malu remedial. Pemulihan belum diklaim; menunggu observasi retrieval berikutnya.',
+     };
+ 
+     setEvidenceLogs((prev) => [newEntry, ...prev]);
+-    showToast('✨ Self-Healing Sukses: Epistemic Debt Aljabar pulih sempurna via proyek eksplorasi!');
++    showToast('Misi remediasi selesai. Pemulihan akan dinilai dari observasi retrieval berikutnya.');
+   };
+ 
+   // Callback for Socratic conversations
+diff --git a/src/components/EpistemicAutomatedTester.tsx b/src/components/EpistemicAutomatedTester.tsx
+index 374a3b8..75f8467 100644
+--- a/src/components/EpistemicAutomatedTester.tsx
++++ b/src/components/EpistemicAutomatedTester.tsx
+@@ -233,7 +233,7 @@ export const EpistemicAutomatedTester: React.FC<EpistemicAutomatedTesterProps> =
+                     Target Konsep: <strong className="text-cyan-300">{liveAction.targetNodeName}</strong>
+                   </span>
+                 )}
+-                {liveAction.decayRate > 0 && (
++                {liveAction.decayRate !== undefined && liveAction.decayRate > 0 && (
+                   <span className="text-xs text-amber-300 font-mono">
+                     Decay: {(liveAction.decayRate * 100).toFixed(0)}%
+                   </span>
+diff --git a/src/engine/deterministicCore.ts b/src/engine/deterministicCore.ts
+index 9f5a341..ad75b72 100644
+--- a/src/engine/deterministicCore.ts
++++ b/src/engine/deterministicCore.ts
+@@ -439,7 +439,7 @@ export interface AutomatedStealthRepairAction {
+   targetNodeId: string | null;
+   targetNodeName: string | null;
+   domain: string | null;
+-  decayRate: number;
++  decayRate?: number; // undefined = belum teramati
+   debtRiskScore: number;
+   severity: 'LOW' | 'MEDIUM' | 'HIGH';
+   targetLabId: string;
+@@ -479,7 +479,7 @@ export function getAutomatedStealthRepairAction(
+       targetNodeId: null,
+       targetNodeName: null,
+       domain: null,
+-      decayRate: 0,
++      decayRate: undefined,
+       debtRiskScore: 0,
+       severity: 'LOW',
+       targetLabId: 'buoyancy',
+@@ -524,21 +524,23 @@ export function getAutomatedStealthRepairAction(
+   };
+ }
+ 
++/**
++ * Menyelesaikan pengalaman stealth insertion TANPA mengklaim pemulihan.
++ * - Pengalaman remediasi selesai = reinforcement terjadi: estimasi decay lama tidak berlaku lagi
++ *   → decayRate menjadi `undefined` (belum teramati ulang), bukan 0.0.
++ * - Mastery TIDAK dinaikkan: kenaikan hanya boleh datang dari observasi (telemetri lab / retrieval berikutnya).
++ * - Karena decay kini "diasumsikan", calculateDeterministicEpistemicDebt tidak akan memicu intervensi
++ *   lagi atas node ini sampai ada observasi baru (loop tertutup tanpa mengarang bukti).
++ */
+ export function applyStealthRepairResolution(
+   currentState: LearnerNodeState
+ ): LearnerNodeState {
++  const now = new Date().toISOString();
+   return {
+     ...currentState,
+-    decayRate: 0.0,
+-    isBottleneck: false,
+-    mastery: {
+-      ...currentState.mastery,
+-      application: Math.max(currentState.mastery.application, 0.88),
+-      transfer: Math.max(currentState.mastery.transfer, 0.85),
+-      understanding: Math.max(currentState.mastery.understanding, 0.85),
+-    },
+-    evidenceCount: (currentState.evidenceCount ?? 0) + 1,
+-    lastInteracted: new Date().toISOString(),
++    decayRate: undefined,
++    lastReinforcedDate: now,
++    lastInteracted: now,
+   };
+ }
+ 
+diff --git a/tests/epistemic-os-tester.ts b/tests/epistemic-os-tester.ts
+index 17c20fd..f97a2f3 100644
+--- a/tests/epistemic-os-tester.ts
++++ b/tests/epistemic-os-tester.ts
+@@ -655,10 +655,16 @@ function runSuite4() {
+   const resolvedState = applyStealthRepairResolution(decayedState);
+   const resolvedDebt = calculateDeterministicEpistemicDebt(sampleNode, resolvedState, 0.5);
+ 
++  // Resolusi TIDAK boleh mengarang pemulihan: decay jadi "belum teramati", mastery tidak naik, dan loop tertutup
++  // karena dasar intervensi kini hanya asumsi (bukan karena angka dipalsukan).
++  const masteryUnchanged = (Object.keys(decayedState.mastery) as Array<keyof typeof decayedState.mastery>)
++    .every((k) => resolvedState.mastery[k] === decayedState.mastery[k]);
+   assert(
+-    resolvedState.decayRate === 0.0 && !resolvedDebt.isBottleneck && resolvedDebt.severity === 'LOW',
++    resolvedState.decayRate === undefined && masteryUnchanged && !resolvedDebt.isBottleneck &&
++      resolvedDebt.severity !== 'HIGH' && resolvedDebt.assumptions.includes('decayRate') &&
++      resolvedDebt.recommendedAction !== 'STEALTH_INSERTION' && resolvedDebt.recommendedAction !== 'IMMEDIATE_PREREQUISITE_REPAIR',
+     suite,
+-    'Resolusi Loop & Netralisasi Utang Epistemik',
++    'Resolusi Loop tanpa Fabrikasi (decay belum teramati, mastery tidak naik, loop tertutup)',
+     `Decay Sebelum: ${decayedState.decayRate !== undefined ? `${(decayedState.decayRate * 100).toFixed(0)}%` : 'tidak teramati'} -> Sesudah: ${resolvedState.decayRate !== undefined ? `${(resolvedState.decayRate * 100).toFixed(0)}%` : 'tidak teramati'}, Debt Baru: ${resolvedDebt.debtRiskScore} (${resolvedDebt.severity})`
+   );
+ }
+diff --git a/tests/evidence-gate.ts b/tests/evidence-gate.ts
+index af3029a..6fc4343 100644
+--- a/tests/evidence-gate.ts
++++ b/tests/evidence-gate.ts
+@@ -12,11 +12,11 @@ import 'fake-indexeddb/auto';
+ 
+ import fs from 'fs';
+ import { triangulateEvidence } from '../src/engine/evidenceTriangulation';
+-import { calculateDeterministicEpistemicDebt, emptyLearnerState } from '../src/engine/deterministicCore';
++import { calculateDeterministicEpistemicDebt, emptyLearnerState, applyStealthRepairResolution } from '../src/engine/deterministicCore';
+ import { INITIAL_KNOWLEDGE_GRAPH } from '../src/data/initialKnowledgeGraph';
+ import { importOSDatasetJSON, persistLearnerNode, openOSDatabase } from '../src/storage/indexedDbStorage';
+ import worker from '../worker/index';
+-import { onRequestPost as pagesFeynman } from '../functions/api/diagnose/feynman';
++import { onRequest as pagesProxy } from '../functions/api/[[path]]';
+ 
+ type Gate = { id: string; title: string; run: () => Promise<string | null> }; // null = lolos, string = alasan merah
+ const gates: Gate[] = [];
+@@ -89,10 +89,25 @@ gate('G6a', 'worker: field yang dihilangkan model tidak menjadi angka (0.70/0.65
+ 
+ // ---------- G6b: proxy Pages: tanpa AI_GATEWAY binding, jawabannya HTTP 503 unobserved ----------
+ gate('G6b', 'proxy Pages: tanpa AI_GATEWAY binding, jawabannya HTTP 503 unobserved', async () => {
+-  const res = await pagesFeynman({ request: req(), env: {} as any });
++  // (a) tanpa AI_GATEWAY ⇒ 503 unobserved, BUKAN inferensi lokal
++  const res = await pagesProxy({ request: req(), env: {} as any } as any);
+   if (res.status !== 503) return `status=${res.status} (diharapkan 503 Service Unavailable saat AI_GATEWAY tidak ada)`;
+   const body: any = await res.json().catch(() => null);
+   if (!body || body.unobserved !== true) return `respons bukan unobserved=true: ${JSON.stringify(body)}`;
++
++  // (b) dengan AI_GATEWAY ⇒ request diteruskan UTUH dan respons gateway dikembalikan apa adanya
++  let seen: Request | null = null;
++  const gw = { fetch: async (r: Request) => { seen = r; return new Response(JSON.stringify({ ok: 'dari-gateway' }), { status: 201 }); } };
++  const original = req();
++  const res2 = await pagesProxy({ request: original, env: { AI_GATEWAY: gw } } as any);
++  if (res2.status !== 201 || (await res2.json() as any).ok !== 'dari-gateway') return 'respons gateway tidak dikembalikan apa adanya';
++  if (!seen || (seen as Request).url !== original.url || (seen as Request).method !== 'POST') return 'request tidak diteruskan utuh ke gateway';
++
++  // (c) gateway melempar error ⇒ 503 unobserved (bukan 500 dan bukan angka)
++  const boom = { fetch: async () => { throw new Error('gateway down'); } };
++  const res3 = await pagesProxy({ request: req(), env: { AI_GATEWAY: boom } } as any);
++  const b3: any = await res3.json().catch(() => null);
++  if (res3.status !== 503 || !b3 || b3.unobserved !== true) return `gateway melempar error ⇒ status=${res3.status} body=${JSON.stringify(b3)}`;
+   return null;
+ });
+ 
+@@ -239,7 +254,11 @@ gate('G10', 'table-driven: 4 endpoint x 3 mode kegagalan ⇒ unobserved tanpa fi
+ 
+   for (const ep of endpoints) {
+     for (const mode of failureModes) {
+-      const res = await (worker as any).fetch(ep.req(), mode.env);
++      // Socratic menghasilkan teks bebas (bukan JSON): "tak terparse" tidak berlaku; padanannya adalah keluaran kosong.
++      const env = ep.name === '/tutor/socratic' && mode.name === 'keluaran tak terparse'
++        ? { AI: { run: async () => ({ response: '   ' }) } }
++        : mode.env;
++      const res = await (worker as any).fetch(ep.req(), env);
+       const label = `${ep.name} [${mode.name}]`;
+ 
+       if (ep.type === 'single') {
+@@ -325,6 +344,31 @@ gate('G12', 'emptyLearnerState() helper tunggal & audit kepatuhan App.tsx (tanpa
+     return `App.tsx masih menggunakan fallback (${fallbackMatches.join(', ')}) yang menelan angka 0 menjadi baseline default`;
+   }
+ 
++  // 4. Tidak boleh ada penugasan literal yang mengklaim fakta (decay 0, mastery konstan, kenaikan flat)
++  const claimScans: Array<[RegExp, string]> = [
++    [/decayRate:\s*0(?:\.0+)?\s*[,}]/, 'penugasan decayRate: 0 (klaim "tanpa peluruhan")'],
++    [/\b(?:recognition|recall|understanding|application|transfer|explanation|creation):\s*0?\.\d+/, 'literal mastery numerik'],
++    [/mastery\??\.\w+\s*\+\s*0?\.\d+/, 'kenaikan mastery flat (mastery.x + konstanta)'],
++  ];
++  const engineSrc = fs.readFileSync('src/engine/deterministicCore.ts', 'utf-8');
++  for (const [src, label] of [[appSrc, 'src/App.tsx'], [engineSrc, 'src/engine/deterministicCore.ts']] as const) {
++    const noComments = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
++    for (const [re, name] of claimScans) {
++      if (re.test(noComments)) return `${label} memuat ${name}`;
++    }
++  }
++
++  // 5. emptyLearnerState dipakai di semua titik inisialisasi node baru (bukan satu kali saja)
++  const uses = (appSrc.match(/emptyLearnerState\(/g) || []).length;
++  if (uses < 3) return `emptyLearnerState( hanya dipakai ${uses}x di App.tsx (diharapkan ≥ 3 titik inisialisasi)`;
++
++  // 6. Perilaku: resolusi stealth tidak boleh mengarang pemulihan
++  const before = emptyLearnerState('n');
++  before.mastery.application = 0.4; before.decayRate = 0.16;
++  const after = applyStealthRepairResolution(before);
++  if (after.decayRate === 0) return 'applyStealthRepairResolution menyetel decayRate=0 (klaim pemulihan tanpa bukti)';
++  if (after.mastery.application !== 0.4 || after.mastery.transfer !== 0) return 'applyStealthRepairResolution mengubah mastery tanpa observasi';
++
+   return null;
+ });
+ 
+diff --git a/worker/index.ts b/worker/index.ts
+index 8f2acc8..39a1159 100644
+--- a/worker/index.ts
++++ b/worker/index.ts
+@@ -1,92 +1,87 @@
+ // Worker: arya-ai-gateway
+-// Private AI Gateway backend with Workers AI native binding for Personal Intelligence OS
+-// Called via Service Binding from Cloudflare Pages Functions (no public internet exposure)
++// Implementasi TUNGGAL logika inferensi AI untuk Personal Intelligence OS.
++// - Satu-satunya jalur model: binding Workers AI `AI` (hanya ada di gateway ini).
++// - Dipanggil dari Pages Functions lewat Service Binding `AI_GATEWAY` (tanpa eksposur internet publik).
++// - Tidak ada fallback heuristik: bila inferensi tidak tersedia/gagal, hasilnya `unobserved`
++//   (HTTP 503 untuk endpoint tunggal; item bertanda unobserved untuk endpoint batch). Tidak pernah ada angka rekaan.
+ 
+ import { extractJsonFromText, extractBenchmarkArray } from './lib/json-extract';
+-import { generateLocalProbeDiagnosis, generateLocalFeynmanDiagnosis } from './lib/fallback-heuristics';
+ 
+ export interface Env {
+-  'AiOS AI'?: {
+-    run: (model: string, input: any) => Promise<any>;
+-  };
+   AI?: {
+     run: (model: string, input: any) => Promise<any>;
+   };
+   AI_MODEL?: string;
+-  GATEWAY_AUTH_KEY?: string;
+ }
+ 
+ export const DEFAULT_AI_MODEL = '@cf/qwen/qwen3-30b-a3b-fp8';
+ 
++export type UnobservedReason =
++  | 'ai_binding_missing'   // binding Workers AI tidak terpasang
++  | 'inference_failed'     // model melempar error
++  | 'unparseable_output'   // keluaran model tidak bisa diparse / kosong
++  | 'model_omitted'        // model tidak mengembalikan item/probe/kasus ini
++  | 'invalid_score';       // skor ada tetapi bukan angka terhingga
++
++const REASON_MESSAGE: Record<UnobservedReason, string> = {
++  ai_binding_missing: 'Binding Workers AI tidak tersedia; tidak ada diagnosis.',
++  inference_failed: 'Inferensi AI gagal; tidak ada diagnosis.',
++  unparseable_output: 'Keluaran AI tidak dapat dibaca; tidak ada diagnosis.',
++  model_omitted: 'AI tidak mengembalikan hasil untuk item ini; tidak ada diagnosis.',
++  invalid_score: 'AI mengembalikan skor yang tidak valid; tidak ada diagnosis.',
++};
++
++const unobservedItem = (reason: UnobservedReason) => ({ unobserved: true as const, reason, message: REASON_MESSAGE[reason] });
++
++/** Skor hanya sah bila angka terhingga (null, string, NaN → tidak teramati). Dibatasi ke 0..1. */
++const score01 = (v: unknown): number | undefined =>
++  typeof v === 'number' && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : undefined;
++
++const replyText = (reply: any): any => reply?.response || reply?.result?.response || reply;
++
+ export default {
+   async fetch(request: Request, env: Env): Promise<Response> {
+-    const aiBinding = env['AiOS AI'] || env.AI || null;
+-    const bindingName = env['AiOS AI'] ? 'AiOS AI' : (env.AI ? 'AI' : 'none');
++    const aiBinding = env.AI && typeof env.AI.run === 'function' ? env.AI : null;
+     const url = new URL(request.url);
+     const pathname = url.pathname;
+     const model = env.AI_MODEL || DEFAULT_AI_MODEL;
++    const source = `cloudflare-workers-ai (${model})`;
+ 
+-    // Optional internal service key verification if set
+-    if (env.GATEWAY_AUTH_KEY) {
+-      const authHeader = request.headers.get('X-Gateway-Auth');
+-      if (authHeader !== env.GATEWAY_AUTH_KEY) {
+-        return new Response(JSON.stringify({ error: 'Unauthorized gateway invocation' }), {
+-          status: 401,
+-          headers: { 'Content-Type': 'application/json' },
+-        });
+-      }
+-    }
++    const json = (data: any, status = 200) =>
++      new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
+ 
+-    // CORS for internal routing
+-    if (request.method === 'OPTIONS') {
+-      return new Response(null, {
+-        headers: {
+-          'Access-Control-Allow-Origin': '*',
+-          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+-          'Access-Control-Allow-Headers': 'Content-Type, X-Gateway-Auth',
+-        },
+-      });
+-    }
++    /** Endpoint tunggal gagal ⇒ 503 unobserved, tanpa field skor. */
++    const unavailable = (reason: UnobservedReason) =>
++      json({ ...unobservedItem(reason), source: 'none', model }, 503);
+ 
+-    // Helper JSON response
+-    const json = (data: any, status = 200) => {
+-      return new Response(JSON.stringify(data), {
+-        status,
+-        headers: {
+-          'Content-Type': 'application/json',
+-          'Access-Control-Allow-Origin': '*',
+-        },
+-      });
++    const readBody = async (): Promise<any | null> => {
++      try {
++        const b = await request.json();
++        return b && typeof b === 'object' ? b : null;
++      } catch {
++        return null;
++      }
+     };
++    const badRequest = () => json({ error: 'Body JSON tidak valid', reason: 'invalid_json' }, 400);
+ 
+     try {
+-      // 1. Health Route: /health or /api/health
++      // 1. Health: kesiapan inferensi (bukan sekadar liveness)
+       if (pathname === '/health' || pathname === '/api/health') {
+-        const hasBinding = Boolean(aiBinding && typeof aiBinding.run === 'function');
+         return json({
+-          status: 'ok',
++          status: aiBinding ? 'ok' : 'degraded',
+           service: 'arya-ai-gateway',
+-          runtime: 'Cloudflare Worker (Service Binding Target)',
+-          hasAiBinding: hasBinding,
+-          bindingName,
++          hasAiBinding: Boolean(aiBinding),
+           model,
+-          isPubliclyExposed: false,
+           timestamp: new Date().toISOString(),
+         });
+       }
+ 
+-      // 2. Socratic Tutor: /tutor/socratic or /api/tutor/socratic
++      // 2. Socratic Tutor
+       if ((pathname === '/tutor/socratic' || pathname === '/api/tutor/socratic') && request.method === 'POST') {
+-        const body: any = await request.json();
++        const body = await readBody();
++        if (!body) return badRequest();
+         const { concept, studentMessage, history, learnerState } = body;
+-
+-        if (!aiBinding) {
+-          return json({
+-            text: `[Gateway Offline Heuristic]: Bagaimana menurutmu relasi sebab-akibat pada konsep ${concept || 'ini'}?`,
+-            usedFallback: true,
+-            source: 'deterministic-local-heuristic',
+-          });
+-        }
++        if (!aiBinding) return unavailable('ai_binding_missing');
+ 
+         const systemInstruction = `
+ You are the Socratic Tutor & Feynman Sensor inside the "Personal Intelligence OS".
+@@ -101,36 +96,29 @@ Concept context: ${JSON.stringify(concept || 'General')}
+ Current learner state: ${JSON.stringify(learnerState || {})}
+ `;
+         const messages: any[] = [{ role: 'system', content: systemInstruction }];
+-        (history || []).forEach((h: any) => {
+-          messages.push({
+-            role: h.role === 'student' ? 'user' : 'assistant',
+-            content: h.text,
+-          });
+-        });
+-        messages.push({
+-          role: 'user',
+-          content: studentMessage || 'Halo, saya ingin memahami konsep ini.',
++        (Array.isArray(history) ? history : []).forEach((h: any) => {
++          messages.push({ role: h.role === 'student' ? 'user' : 'assistant', content: h.text });
+         });
++        messages.push({ role: 'user', content: studentMessage || 'Halo, saya ingin memahami konsep ini.' });
+ 
+-        const response: any = await aiBinding.run(model, { messages, temperature: 0.7 });
+-        const replyText = response?.response || response?.result?.response || '';
+-        return json({
+-          text: replyText || 'Mari kita telusuri prinsip dasarnya bersama-sama.',
+-          source: replyText ? `cloudflare-workers-ai (${model})` : 'deterministic-local-heuristic',
+-          model,
+-          usedFallback: !replyText,
+-        });
++        let reply: any;
++        try {
++          reply = await aiBinding.run(model, { messages, temperature: 0.7 });
++        } catch (err: any) {
++          console.warn('Gateway socratic error:', err?.message);
++          return unavailable('inference_failed');
++        }
++        const text = replyText(reply);
++        if (typeof text !== 'string' || text.trim() === '') return unavailable('unparseable_output');
++        return json({ text, source, model });
+       }
+ 
+-      // 3. Feynman Diagnosis: /diagnose/feynman or /api/diagnose/feynman
++      // 3. Feynman Diagnosis
+       if ((pathname === '/diagnose/feynman' || pathname === '/api/diagnose/feynman') && request.method === 'POST') {
+-        const body: any = await request.json();
++        const body = await readBody();
++        if (!body) return badRequest();
+         const { conceptName, studentExplanation, expectedPrinciple } = body;
+-
+-        if (!aiBinding) {
+-          const local = generateLocalFeynmanDiagnosis(conceptName, studentExplanation);
+-          return json(local);
+-        }
++        if (!aiBinding) return unavailable('ai_binding_missing');
+ 
+         const systemInstruction = `
+ You are a Feynman Diagnostic Sensor evaluating children's understanding in the "Personal Intelligence OS".
+@@ -155,91 +143,75 @@ Output STRICTLY JSON format:
+ Concept: "${conceptName}"
+ Expected Principle: "${expectedPrinciple || ''}"
+ `;
++        let reply: any;
+         try {
+           const prompt = `Analisis penjelasan siswa berikut ini:\n"${studentExplanation}"`;
+-          const reply: any = await aiBinding.run(model, {
++          reply = await aiBinding.run(model, {
+             messages: [
+               { role: 'system', content: systemInstruction },
+               { role: 'user', content: prompt },
+             ],
+             temperature: 0.1,
+           });
+-
+-          const rawData = reply?.response || reply?.result?.response || reply;
+-          const parsed = extractJsonFromText(rawData);
+-          if (parsed && typeof parsed === 'object' && (typeof parsed.conceptualUnderstanding === 'number' || typeof parsed.score === 'number')) {
+-            // KATEGORI "TIDAK ADA": field yang tidak dikembalikan model TIDAK boleh diciptakan engine.
+-            // Field hilang → undefined (kunci JSON hilang) + dicatat di unobservedFields (masukan Evidence Debt §7).
+-            const num01 = (v: unknown): number | undefined =>
+-              typeof v === 'number' && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : undefined;
+-            const conceptualUnderstanding = num01(parsed.conceptualUnderstanding) ?? num01(parsed.score);
+-            const causalReasoning = num01(parsed.causalReasoning);
+-            const transferScore = num01(parsed.transferScore);
+-            const unobservedFields = [
+-              conceptualUnderstanding === undefined ? 'conceptualUnderstanding' : null,
+-              causalReasoning === undefined ? 'causalReasoning' : null,
+-              transferScore === undefined ? 'transferScore' : null,
+-            ].filter(Boolean);
+-
+-            return json({
+-              ...parsed,
+-              conceptualUnderstanding,
+-              causalReasoning,
+-              transferScore,
+-              feynmanDiagnosis: {
+-                conceptualUnderstanding,
+-                causalReasoning,
+-                transferScore,
+-                diagnosisExplanation: parsed.feedbackSummary || parsed.explanation || 'Diagnosis verbal berhasil dianalisis.',
+-                misconceptions: Array.isArray(parsed.misconceptions) ? parsed.misconceptions : [],
+-              },
+-              unobservedFields,
+-              usedFallback: false,
+-              source: `cloudflare-workers-ai (${model})`,
+-            });
+-          }
+         } catch (err: any) {
+-          console.warn('Gateway diagnosis error, fallback to local:', err?.message);
++          console.warn('Gateway diagnosis error:', err?.message);
++          return unavailable('inference_failed');
+         }
+ 
+-        const local = generateLocalFeynmanDiagnosis(conceptName, studentExplanation);
+-        return json(local);
++        const parsed = extractJsonFromText(replyText(reply));
++        const conceptualUnderstanding = parsed && typeof parsed === 'object'
++          ? (score01(parsed.conceptualUnderstanding) ?? score01(parsed.score))
++          : undefined;
++        // Skor utama tidak teramati ⇒ tidak ada diagnosis sama sekali (tidak ada bagian yang bisa dipercaya).
++        if (conceptualUnderstanding === undefined) return unavailable('unparseable_output');
++
++        // KATEGORI "TIDAK ADA": field lain yang tidak dikembalikan model tetap undefined + dicatat di unobservedFields.
++        const causalReasoning = score01(parsed.causalReasoning);
++        const transferScore = score01(parsed.transferScore);
++        const unobservedFields = [
++          causalReasoning === undefined ? 'causalReasoning' : null,
++          transferScore === undefined ? 'transferScore' : null,
++        ].filter(Boolean);
++
++        return json({
++          ...parsed,
++          conceptualUnderstanding,
++          causalReasoning,
++          transferScore,
++          feynmanDiagnosis: {
++            conceptualUnderstanding,
++            causalReasoning,
++            transferScore,
++            diagnosisExplanation: parsed.feedbackSummary || parsed.explanation || 'Diagnosis verbal berhasil dianalisis.',
++            misconceptions: Array.isArray(parsed.misconceptions) ? parsed.misconceptions : [],
++          },
++          unobservedFields,
++          source,
++        });
+       }
+ 
+-      // 4. Central Hypothesis Benchmark: /benchmark/central-hypothesis or /api/benchmark/central-hypothesis
++      // 4. Central Hypothesis Benchmark
+       if ((pathname === '/benchmark/central-hypothesis' || pathname === '/api/benchmark/central-hypothesis') && request.method === 'POST') {
+-        const body: any = await request.json();
+-        const items = body?.items;
++        const body = await readBody();
++        if (!body) return badRequest();
++        const items = body.items;
+         if (!Array.isArray(items) || items.length === 0) {
+           return json({ error: 'Array of benchmark items required' }, 400);
+         }
++        if (!aiBinding) return unavailable('ai_binding_missing');
+ 
+-        const allPromptRows = items.flatMap((it: any) => [
+-          {
+-            probeId: `${it.id}::base`,
+-            probeGroupId: it.id,
+-            prompt: it.prompt,
+-            studentUtterance: it.childUtterance,
+-          },
+-          {
+-            probeId: `${it.id}::layer0`,
+-            probeGroupId: it.id,
+-            prompt: it.perturbations?.layer0?.prompt || it.prompt,
+-            studentUtterance: it.perturbations?.layer0?.childUtterance || it.childUtterance,
+-          },
+-          {
+-            probeId: `${it.id}::layer1`,
+-            probeGroupId: it.id,
+-            prompt: it.perturbations?.layer1?.prompt || it.prompt,
+-            studentUtterance: it.perturbations?.layer1?.childUtterance || it.childUtterance,
+-          },
+-          {
+-            probeId: `${it.id}::layer2`,
+-            probeGroupId: it.id,
+-            prompt: it.perturbations?.layer2?.prompt || it.prompt,
+-            studentUtterance: it.perturbations?.layer2?.childUtterance || it.childUtterance,
+-          },
+-        ]);
++        const SUFFIXES = ['base', 'layer0', 'layer1', 'layer2'] as const;
++        const allPromptRows = items.flatMap((it: any) =>
++          SUFFIXES.map((suffix) => {
++            const layer = suffix === 'base' ? undefined : it.perturbations?.[suffix];
++            return {
++              probeId: `${it.id}::${suffix}`,
++              probeGroupId: it.id,
++              prompt: layer?.prompt || it.prompt,
++              studentUtterance: layer?.childUtterance || it.childUtterance,
++            };
++          })
++        );
+ 
+         const systemInstruction = `You are the Cognitive Epistemic Assessor evaluating student utterances in Personal Intelligence OS (Tahap 2 Central Hypothesis Test).
+ Each row is INDEPENDENT. Output strictly a JSON array of objects:
+@@ -252,116 +224,81 @@ Each row is INDEPENDENT. Output strictly a JSON array of objects:
+     "explanation": string
+   }
+ ]`;
+-
+-        let allParsed: any[] = [];
+-        if (aiBinding) {
+-          const CHUNK_SIZE = 4;
+-          const chunks: any[][] = [];
+-          for (let i = 0; i < allPromptRows.length; i += CHUNK_SIZE) {
+-            chunks.push(allPromptRows.slice(i, i + CHUNK_SIZE));
+-          }
+-
+-          const chunkResults = await Promise.all(
+-            chunks.map(async (chunk) => {
+-              try {
+-                const response: any = await aiBinding.run(model, {
+-                  messages: [
+-                    { role: 'system', content: systemInstruction },
+-                    { role: 'user', content: `Evaluasi setiap probe berikut secara independen. Kembalikan HANYA array JSON murni:\n${JSON.stringify(chunk)}` },
+-                  ],
+-                  temperature: 0.1,
+-                });
+-                const rawData = response?.response || response?.result?.response || response;
+-                const parsed = extractBenchmarkArray(rawData);
+-                if (Array.isArray(parsed) && parsed.length > 0) {
+-                  return parsed.map((p: any) => ({
+-                    ...p,
+-                    usedFallback: false,
+-                    source: `cloudflare-workers-ai (${model})`,
+-                  }));
+-                }
+-              } catch (chunkErr: any) {
+-                console.warn('Gateway chunk error, local fallback:', chunkErr?.message);
++        // Hasil per probeId: baris dari model (belum divalidasi) atau alasan gagal untuk seluruh chunk.
++        const modelRows = new Map<string, any>();
++        const chunkFailure = new Map<string, UnobservedReason>();
++
++        const CHUNK_SIZE = 4;
++        const chunks: any[][] = [];
++        for (let i = 0; i < allPromptRows.length; i += CHUNK_SIZE) chunks.push(allPromptRows.slice(i, i + CHUNK_SIZE));
++
++        await Promise.all(
++          chunks.map(async (chunk) => {
++            const failChunk = (reason: UnobservedReason) => chunk.forEach((p: any) => chunkFailure.set(p.probeId, reason));
++            try {
++              const response: any = await aiBinding.run(model, {
++                messages: [
++                  { role: 'system', content: systemInstruction },
++                  { role: 'user', content: `Evaluasi setiap probe berikut secara independen. Kembalikan HANYA array JSON murni:\n${JSON.stringify(chunk)}` },
++                ],
++                temperature: 0.1,
++              });
++              const parsed = extractBenchmarkArray(replyText(response));
++              if (!Array.isArray(parsed) || parsed.length === 0) return failChunk('unparseable_output');
++              const wanted = new Set(chunk.map((p: any) => p.probeId));
++              for (const row of parsed) {
++                // Hanya probeId yang diminta pada chunk ini; yang pertama menang; id asing diabaikan.
++                if (row && wanted.has(row.probeId) && !modelRows.has(row.probeId)) modelRows.set(row.probeId, row);
+               }
+-              return chunk.map((p: any) => ({
+-                probeId: p.probeId,
+-                ...generateLocalProbeDiagnosis(p.probeId, p.prompt, p.studentUtterance),
+-              }));
+-            })
+-          );
+-          allParsed = chunkResults.flat();
+-        } else {
+-          allParsed = allPromptRows.map((r: any) => ({
+-            probeId: r.probeId,
+-            ...generateLocalProbeDiagnosis(r.probeId, r.prompt, r.studentUtterance),
+-          }));
+-        }
+-
+-        let totalFallbackProbes = 0;
+-        const totalExpectedProbes = items.length * 4;
+-
+-        const results = items.map((item: any) => {
+-          const get = (suffix: string) => {
+-            const probeKey = `${item.id}::${suffix}`;
+-            const found = allParsed.find((p: any) => p && p.probeId === probeKey);
+-            if (!found) {
+-              totalFallbackProbes += 1;
+-              return generateLocalProbeDiagnosis(probeKey, item.prompt, item.childUtterance);
++            } catch (err: any) {
++              console.warn('Gateway chunk error:', err?.message);
++              failChunk('inference_failed');
+             }
+-            const isFallback = Boolean(found.usedFallback === true);
+-            if (isFallback) totalFallbackProbes += 1;
+-            return {
+-              hasMisconception: Boolean(found.hasMisconception === true || found.hasMisconception === 'true' || found.hasMisconception === 1),
+-              misconceptionName: found.misconceptionName || 'None',
+-              structuralMasteryScore: typeof found.structuralMasteryScore === 'number'
+-                ? Math.min(1, Math.max(0, found.structuralMasteryScore))
+-                : 0.5,
+-              explanation: found.explanation || `Evaluasi probe ${probeKey}`,
+-              usedFallback: isFallback,
+-              source: isFallback ? 'deterministic-local-lookup' : (found.source || `cloudflare-workers-ai (${model})`),
+-              fallbackReason: isFallback ? (found.fallbackReason || 'Model inference unparseable') : undefined,
+-            };
+-          };
+-
+-          const baseProbe = get('base');
+-          const layer0Probe = get('layer0');
+-          const layer1Probe = get('layer1');
+-          const layer2Probe = get('layer2');
+-          const itemUsedFallback = Boolean(baseProbe.usedFallback || layer0Probe.usedFallback || layer1Probe.usedFallback || layer2Probe.usedFallback);
+-
++          })
++        );
++
++        let unobservedCount = 0;
++        const probe = (probeKey: string) => {
++          const row = modelRows.get(probeKey);
++          if (!row) {
++            unobservedCount += 1;
++            return unobservedItem(chunkFailure.get(probeKey) ?? 'model_omitted');
++          }
++          const structuralMasteryScore = score01(row.structuralMasteryScore ?? row.score);
++          if (structuralMasteryScore === undefined) {
++            unobservedCount += 1;
++            return unobservedItem('invalid_score');
++          }
+           return {
+-            itemId: item.id,
+-            base: baseProbe,
+-            layer0: layer0Probe,
+-            layer1: layer1Probe,
+-            layer2: layer2Probe,
+-            usedFallback: itemUsedFallback,
+-            source: itemUsedFallback ? 'deterministic-local-lookup' : `cloudflare-workers-ai (${model})`,
++            hasMisconception: Boolean(row.hasMisconception === true || row.hasMisconception === 'true' || row.hasMisconception === 1),
++            misconceptionName: row.misconceptionName || 'None',
++            structuralMasteryScore,
++            explanation: row.explanation || `Evaluasi probe ${probeKey}`,
++            source,
+           };
+-        });
+-
+-        const overallSource = totalFallbackProbes === 0
+-          ? `cloudflare-workers-ai (${model})`
+-          : totalFallbackProbes === totalExpectedProbes
+-          ? 'deterministic-local-lookup'
+-          : `hybrid (${totalExpectedProbes - totalFallbackProbes} AI, ${totalFallbackProbes} fallback)`;
+-
+-        return json({
+-          results,
+-          source: overallSource,
+-          usedFallback: totalFallbackProbes > 0,
+-          fallbackCount: totalFallbackProbes,
+-          totalProbes: totalExpectedProbes,
+-        });
++        };
++
++        const results = items.map((item: any) => ({
++          itemId: item.id,
++          base: probe(`${item.id}::base`),
++          layer0: probe(`${item.id}::layer0`),
++          layer1: probe(`${item.id}::layer1`),
++          layer2: probe(`${item.id}::layer2`),
++        }));
++
++        const totalProbes = items.length * SUFFIXES.length;
++        return json({ results, source, unobservedCount, totalProbes });
+       }
+ 
+-      // 5. Feynman Suite Benchmark: /benchmark/feynman-suite or /api/benchmark/feynman-suite
++      // 5. Feynman Suite Benchmark
+       if ((pathname === '/benchmark/feynman-suite' || pathname === '/api/benchmark/feynman-suite') && request.method === 'POST') {
+-        const body: any = await request.json();
+-        const cases = body?.cases;
++        const body = await readBody();
++        if (!body) return badRequest();
++        const cases = body.cases;
+         if (!Array.isArray(cases) || cases.length === 0) {
+           return json({ error: 'Array of benchmark cases required' }, 400);
+         }
++        if (!aiBinding) return unavailable('ai_binding_missing');
+ 
+         const systemInstruction = `You are the Feynman Sensor in Personal Intelligence OS. Evaluate each child's explanation:
+ 1. Low score (0.2-0.4) for buzzword dropping without mechanism.
+@@ -375,58 +312,50 @@ Output STRICTLY JSON array:
+     "detectedMisconceptions": string[]
+   }
+ ]`;
+-
+-        let evaluations: any[] = [];
+-        if (aiBinding) {
+-          try {
+-            const prompt = `Evaluasi kasus-kasus berikut:\n${JSON.stringify(cases.map((c: any) => ({ caseId: c.id, concept: c.conceptName, utterance: c.childUtterance })))}`;
+-            const response: any = await aiBinding.run(model, {
+-              messages: [
+-                { role: 'system', content: systemInstruction },
+-                { role: 'user', content: prompt },
+-              ],
+-              temperature: 0.1,
+-            });
+-            const rawData = response?.response || response?.result?.response || response;
+-            const parsed = extractBenchmarkArray(rawData);
+-            if (Array.isArray(parsed) && parsed.length > 0) {
+-              evaluations = parsed.map((p: any) => ({
+-                caseId: p.caseId,
+-                aiScore: typeof p.aiScore === 'number' ? Math.min(1, Math.max(0, p.aiScore)) : 0.7,
+-                explanation: p.explanation || 'Evaluasi AI berhasil.',
+-                detectedMisconceptions: Array.isArray(p.detectedMisconceptions) ? p.detectedMisconceptions : [],
+-                usedFallback: false,
+-                source: `cloudflare-workers-ai (${model})`,
+-              }));
+-            }
+-          } catch (err: any) {
+-            console.warn('Gateway feynman suite error, fallback:', err?.message);
+-          }
+-        }
+-
+-        if (evaluations.length === 0) {
+-          evaluations = cases.map((c: any) => {
+-            const local = generateLocalFeynmanDiagnosis(c.conceptName, c.childUtterance);
+-            return {
+-              caseId: c.id,
+-              aiScore: local.conceptualUnderstanding,
+-              explanation: local.feedbackSummary,
+-              detectedMisconceptions: local.misconceptions,
+-              usedFallback: true,
+-              source: 'deterministic-local-heuristic',
+-              fallbackReason: 'AI model invocation unavailable, local heuristic applied',
+-            };
++        let parsed: any[] | null = null;
++        let failure: UnobservedReason = 'unparseable_output';
++        try {
++          const prompt = `Evaluasi kasus-kasus berikut:\n${JSON.stringify(cases.map((c: any) => ({ caseId: c.id, concept: c.conceptName, utterance: c.childUtterance })))}`;
++          const response: any = await aiBinding.run(model, {
++            messages: [
++              { role: 'system', content: systemInstruction },
++              { role: 'user', content: prompt },
++            ],
++            temperature: 0.1,
+           });
++          const arr = extractBenchmarkArray(replyText(response));
++          if (Array.isArray(arr) && arr.length > 0) parsed = arr;
++        } catch (err: any) {
++          console.warn('Gateway feynman suite error:', err?.message);
++          failure = 'inference_failed';
+         }
+ 
+-        const fallbackCount = evaluations.filter((e: any) => e.usedFallback).length;
+-        return json({
+-          evaluations,
+-          source: fallbackCount === 0 ? `cloudflare-workers-ai (${model})` : (fallbackCount === cases.length ? 'deterministic-local-heuristic' : 'hybrid'),
+-          usedFallback: fallbackCount > 0,
+-          fallbackCount,
+-          totalCases: cases.length,
++        let unobservedCount = 0;
++        const evaluations = cases.map((c: any) => {
++          if (!parsed) {
++            unobservedCount += 1;
++            return { caseId: c.id, ...unobservedItem(failure) };
++          }
++          const row = parsed.find((p: any) => p && p.caseId === c.id);
++          if (!row) {
++            unobservedCount += 1;
++            return { caseId: c.id, ...unobservedItem('model_omitted') };
++          }
++          const aiScore = score01(row.aiScore);
++          if (aiScore === undefined) {
++            unobservedCount += 1;
++            return { caseId: c.id, ...unobservedItem('invalid_score') };
++          }
++          return {
++            caseId: c.id,
++            aiScore,
++            explanation: row.explanation || 'Evaluasi AI berhasil.',
++            detectedMisconceptions: Array.isArray(row.detectedMisconceptions) ? row.detectedMisconceptions : [],
++            source,
++          };
+         });
++
++        return json({ evaluations, source, unobservedCount, totalCases: cases.length });
+       }
+ 
+       return json({ error: `Not found: ${pathname}` }, 404);
+diff --git a/worker/lib/fallback-heuristics.ts b/worker/lib/fallback-heuristics.ts
+deleted file mode 100644
+index 5dac3de..0000000
+--- a/worker/lib/fallback-heuristics.ts
++++ /dev/null
+@@ -1,150 +0,0 @@
+-// Fallback Pedagogical Heuristics for Cognitive Diagnosis
+-// Single Source of Truth for arya-ai-gateway and Personal Intelligence OS
+-
+-export function generateLocalProbeDiagnosis(probeId: string, prompt: string, studentUtterance: string) {
+-  const utt = (studentUtterance || '').toLowerCase();
+-  const id = probeId.split('::')[0] || '';
+-  const suffix = probeId.split('::')[1] || 'base';
+-
+-  let result: {
+-    hasMisconception: boolean;
+-    misconceptionName: string;
+-    structuralMasteryScore: number;
+-    explanation: string;
+-  };
+-
+-  // bench-frac-01 (1/4 vs 1/8 denominator magnitude)
+-  if (id === 'bench-frac-01') {
+-    result = {
+-      hasMisconception: true,
+-      misconceptionName: 'Transfer intuisi bilangan bulat: penyebut besar disangka nilai pecahan lebih besar',
+-      structuralMasteryScore: 0.16,
+-      explanation: `Evaluasi Fallback Lookup [${suffix}]: Terdeteksi overgeneralization sifat bilangan bulat (8 > 4) ke sistem pembagian pecahan.`,
+-    };
+-  } else if (id === 'bench-frac-02') {
+-    result = {
+-      hasMisconception: true,
+-      misconceptionName: 'Penjumlahan langsung pembilang dan penyebut terpisah (atas+atas, bawah+bawah)',
+-      structuralMasteryScore: 0.18,
+-      explanation: `Evaluasi Fallback Lookup [${suffix}]: Satuan ukuran penyebut diperlakukan sebagai bilangan aditif terpisah tanpa rekonsiliasi unit bersama.`,
+-    };
+-  } else if (id === 'bench-frac-03') {
+-    result = {
+-      hasMisconception: true,
+-      misconceptionName: 'Penghafalan istilah teknis (buzzwords) tanpa intuisi partisi konkret',
+-      structuralMasteryScore: 0.32,
+-      explanation: `Evaluasi Fallback Lookup [${suffix}]: Pengulangan istilah formal tanpa pemahaman relasi spasial atau representasi fisik nyata.`,
+-    };
+-  } else if (id === 'bench-frac-04-control') {
+-    result = {
+-      hasMisconception: false,
+-      misconceptionName: 'None',
+-      structuralMasteryScore: 0.95,
+-      explanation: `Evaluasi Fallback Lookup [${suffix}]: Anak memahami hubungan terbalik antara jumlah bagian dan ukuran partisi secara mendalam.`,
+-    };
+-  } else if (id === 'bench-frac-05') {
+-    result = {
+-      hasMisconception: true,
+-      misconceptionName: 'Mengabaikan syarat kesamaan ukuran partisi pada pecahan',
+-      structuralMasteryScore: 0.20,
+-      explanation: `Evaluasi Fallback Lookup [${suffix}]: Hanya menghitung jumlah potongan fisik tanpa memeriksa kesetaraan luas atau volume bagian.`,
+-    };
+-  } else if (id === 'bench-frac-06') {
+-    result = {
+-      hasMisconception: true,
+-      misconceptionName: 'Menganggap penambahan bilangan sama pada pembilang & penyebut mempertahankan nilai',
+-      structuralMasteryScore: 0.18,
+-      explanation: `Evaluasi Fallback Lookup [${suffix}]: Anak memperlakukan kesetaraan pecahan secara aditif (+1/+1) alih-alih skalasi multiplikatif.`,
+-    };
+-  } else if (id === 'bench-frac-07-control') {
+-    result = {
+-      hasMisconception: false,
+-      misconceptionName: 'None',
+-      structuralMasteryScore: 0.96,
+-      explanation: `Evaluasi Fallback Lookup [${suffix}]: Anak menyadari bahwa perkalian pembilang dan penyebut dengan angka sama setara mengalikan dengan identitas 1.`,
+-    };
+-  } else if (id === 'bench-alg-08-control' || id === 'bench-alg-04') {
+-    result = {
+-      hasMisconception: false,
+-      misconceptionName: 'None',
+-      structuralMasteryScore: 0.96,
+-      explanation: `Evaluasi Fallback Lookup [${suffix}]: Tanda sama dengan dipahami sebagai neraca timbangan relasional dua arah yang simetris.`,
+-    };
+-  } else if (id === 'bench-alg-09' || id === 'bench-alg-05') {
+-    result = {
+-      hasMisconception: true,
+-      misconceptionName: 'Pindah ruas mekanis tanpa operasi inversi tanda',
+-      structuralMasteryScore: 0.22,
+-      explanation: `Evaluasi Fallback Lookup [${suffix}]: Prosedur simbolik dijalankan sebagai aturan hafalan magis tanpa mempertahankan keseimbangan neraca.`,
+-    };
+-  } else if (id === 'bench-alg-10') {
+-    result = {
+-      hasMisconception: true,
+-      misconceptionName: 'Tanda sama dengan diartikan perintah kalkulator untuk melakukan operasi',
+-      structuralMasteryScore: 0.20,
+-      explanation: `Evaluasi Fallback Lookup [${suffix}]: Anak memperlakukan persamaan sebagai instruksi komputasi satu arah alih-alih relasi ekuivalensi.`,
+-    };
+-  } else if (id === 'bench-ratio-11' || id === 'bench-ratio-06') {
+-    result = {
+-      hasMisconception: true,
+-      misconceptionName: 'Berpikir aditif bukan multiplikatif pada rasio',
+-      structuralMasteryScore: 0.26,
+-      explanation: `Evaluasi Fallback Lookup [${suffix}]: Anak mengaplikasikan penambahan selisih konstan alih-alih faktor skala multiplikatif pada relasi intensif.`,
+-    };
+-  } else if (id === 'bench-ratio-12-control') {
+-    result = {
+-      hasMisconception: false,
+-      misconceptionName: 'None',
+-      structuralMasteryScore: 0.97,
+-      explanation: `Evaluasi Fallback Lookup [${suffix}]: Penalaran proporsional sempurna dengan mempertahankan invarian rasio melalui faktor pengali skala.`,
+-    };
+-  } else {
+-    const hasErrorSignals = utt.includes('tambah') || utt.includes('lebih besar') || utt.includes('pindah');
+-    result = {
+-      hasMisconception: hasErrorSignals,
+-      misconceptionName: hasErrorSignals ? 'Miskonsepsi heuristik terdeteksi' : 'None',
+-      structuralMasteryScore: hasErrorSignals ? 0.25 : 0.88,
+-      explanation: `Evaluasi Fallback Lookup [${suffix}]: Analisis penalaran ujaran anak melalui aturan heuristik lokal.`,
+-    };
+-  }
+-
+-  return {
+-    ...result,
+-    usedFallback: true,
+-    source: 'deterministic-local-lookup' as const,
+-    fallbackReason: 'Inferensi model AI tidak tersedia atau gagal diproses; dievaluasi melalui kalibrator fallback lokal.',
+-  };
+-}
+-
+-export function generateLocalFeynmanDiagnosis(conceptName: string, explanation: string) {
+-  const text = (explanation || '').toLowerCase();
+-  const hasCausal = text.includes('karena') || text.includes('sebab') || text.includes('mengakibatkan') || text.includes('sehingga');
+-  const hasAnalogy = text.includes('seperti') || text.includes('ibarat') || text.includes('mirip') || text.includes('misal');
+-  const mentionsWeightOnly = text.includes('berat') && !text.includes('massa jenis') && !text.includes('volume') && !text.includes('desak');
+-
+-  let misconceptions: string[] = [];
+-  if (mentionsWeightOnly && (conceptName.toLowerCase().includes('apung') || conceptName.toLowerCase().includes('buoyancy'))) {
+-    misconceptions.push('berat menentukan tenggelam/mengapung');
+-  }
+-
+-  const conceptual = mentionsWeightOnly ? 0.45 : (text.length > 50 ? 0.88 : 0.65);
+-  const causal = hasCausal ? 0.82 : 0.52;
+-  const transfer = hasAnalogy ? 0.74 : 0.48;
+-
+-  return {
+-    conceptualUnderstanding: conceptual,
+-    causalReasoning: causal,
+-    transferScore: transfer,
+-    analogyDetected: hasAnalogy,
+-    misconceptions,
+-    feedbackSummary: misconceptions.length > 0
+-      ? 'Terdeteksi hipotesis berat intuitif. Perlu dialihkan ke perbandingan massa jenis dan volume fluida yang dipindahkan.'
+-      : 'Penalaran sebab-akibat teridentifikasi dengan baik. Mampu menjelaskan mekanisme dasar secara logis.',
+-    nextBestProbe: misconceptions.length > 0
+-      ? 'Ajak menguji perbandingan massa jenis di Lab Simulasi Fluida.'
+-      : 'Uji kemampuan transfer ke skenario baru.',
+-    usedFallback: true,
+-    source: 'deterministic-local-heuristic' as const,
+-    fallbackReason: 'Model AI tidak mengembalikan output yang valid; dievaluasi oleh sensor heuristik lokal.',
+-  };
+-}
+-- 
+2.43.0
+

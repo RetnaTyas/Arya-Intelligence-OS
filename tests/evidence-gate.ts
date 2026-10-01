@@ -12,11 +12,11 @@ import 'fake-indexeddb/auto';
 
 import fs from 'fs';
 import { triangulateEvidence } from '../src/engine/evidenceTriangulation';
-import { calculateDeterministicEpistemicDebt, emptyLearnerState } from '../src/engine/deterministicCore';
+import { calculateDeterministicEpistemicDebt, emptyLearnerState, applyStealthRepairResolution } from '../src/engine/deterministicCore';
 import { INITIAL_KNOWLEDGE_GRAPH } from '../src/data/initialKnowledgeGraph';
 import { importOSDatasetJSON, persistLearnerNode, openOSDatabase } from '../src/storage/indexedDbStorage';
 import worker from '../worker/index';
-import { onRequestPost as pagesFeynman } from '../functions/api/diagnose/feynman';
+import { onRequest as pagesProxy } from '../functions/api/[[path]]';
 
 type Gate = { id: string; title: string; run: () => Promise<string | null> }; // null = lolos, string = alasan merah
 const gates: Gate[] = [];
@@ -89,10 +89,25 @@ gate('G6a', 'worker: field yang dihilangkan model tidak menjadi angka (0.70/0.65
 
 // ---------- G6b: proxy Pages: tanpa AI_GATEWAY binding, jawabannya HTTP 503 unobserved ----------
 gate('G6b', 'proxy Pages: tanpa AI_GATEWAY binding, jawabannya HTTP 503 unobserved', async () => {
-  const res = await pagesFeynman({ request: req(), env: {} as any });
+  // (a) tanpa AI_GATEWAY ⇒ 503 unobserved, BUKAN inferensi lokal
+  const res = await pagesProxy({ request: req(), env: {} as any } as any);
   if (res.status !== 503) return `status=${res.status} (diharapkan 503 Service Unavailable saat AI_GATEWAY tidak ada)`;
   const body: any = await res.json().catch(() => null);
   if (!body || body.unobserved !== true) return `respons bukan unobserved=true: ${JSON.stringify(body)}`;
+
+  // (b) dengan AI_GATEWAY ⇒ request diteruskan UTUH dan respons gateway dikembalikan apa adanya
+  let seen: Request | null = null;
+  const gw = { fetch: async (r: Request) => { seen = r; return new Response(JSON.stringify({ ok: 'dari-gateway' }), { status: 201 }); } };
+  const original = req();
+  const res2 = await pagesProxy({ request: original, env: { AI_GATEWAY: gw } } as any);
+  if (res2.status !== 201 || (await res2.json() as any).ok !== 'dari-gateway') return 'respons gateway tidak dikembalikan apa adanya';
+  if (!seen || (seen as Request).url !== original.url || (seen as Request).method !== 'POST') return 'request tidak diteruskan utuh ke gateway';
+
+  // (c) gateway melempar error ⇒ 503 unobserved (bukan 500 dan bukan angka)
+  const boom = { fetch: async () => { throw new Error('gateway down'); } };
+  const res3 = await pagesProxy({ request: req(), env: { AI_GATEWAY: boom } } as any);
+  const b3: any = await res3.json().catch(() => null);
+  if (res3.status !== 503 || !b3 || b3.unobserved !== true) return `gateway melempar error ⇒ status=${res3.status} body=${JSON.stringify(b3)}`;
   return null;
 });
 
@@ -239,7 +254,11 @@ gate('G10', 'table-driven: 4 endpoint x 3 mode kegagalan ⇒ unobserved tanpa fi
 
   for (const ep of endpoints) {
     for (const mode of failureModes) {
-      const res = await (worker as any).fetch(ep.req(), mode.env);
+      // Socratic menghasilkan teks bebas (bukan JSON): "tak terparse" tidak berlaku; padanannya adalah keluaran kosong.
+      const env = ep.name === '/tutor/socratic' && mode.name === 'keluaran tak terparse'
+        ? { AI: { run: async () => ({ response: '   ' }) } }
+        : mode.env;
+      const res = await (worker as any).fetch(ep.req(), env);
       const label = `${ep.name} [${mode.name}]`;
 
       if (ep.type === 'single') {
@@ -324,6 +343,31 @@ gate('G12', 'emptyLearnerState() helper tunggal & audit kepatuhan App.tsx (tanpa
   if (fallbackMatches && fallbackMatches.length > 0) {
     return `App.tsx masih menggunakan fallback (${fallbackMatches.join(', ')}) yang menelan angka 0 menjadi baseline default`;
   }
+
+  // 4. Tidak boleh ada penugasan literal yang mengklaim fakta (decay 0, mastery konstan, kenaikan flat)
+  const claimScans: Array<[RegExp, string]> = [
+    [/decayRate:\s*0(?:\.0+)?\s*[,}]/, 'penugasan decayRate: 0 (klaim "tanpa peluruhan")'],
+    [/\b(?:recognition|recall|understanding|application|transfer|explanation|creation):\s*0?\.\d+/, 'literal mastery numerik'],
+    [/mastery\??\.\w+\s*\+\s*0?\.\d+/, 'kenaikan mastery flat (mastery.x + konstanta)'],
+  ];
+  const engineSrc = fs.readFileSync('src/engine/deterministicCore.ts', 'utf-8');
+  for (const [src, label] of [[appSrc, 'src/App.tsx'], [engineSrc, 'src/engine/deterministicCore.ts']] as const) {
+    const noComments = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    for (const [re, name] of claimScans) {
+      if (re.test(noComments)) return `${label} memuat ${name}`;
+    }
+  }
+
+  // 5. emptyLearnerState dipakai di semua titik inisialisasi node baru (bukan satu kali saja)
+  const uses = (appSrc.match(/emptyLearnerState\(/g) || []).length;
+  if (uses < 3) return `emptyLearnerState( hanya dipakai ${uses}x di App.tsx (diharapkan ≥ 3 titik inisialisasi)`;
+
+  // 6. Perilaku: resolusi stealth tidak boleh mengarang pemulihan
+  const before = emptyLearnerState('n');
+  before.mastery.application = 0.4; before.decayRate = 0.16;
+  const after = applyStealthRepairResolution(before);
+  if (after.decayRate === 0) return 'applyStealthRepairResolution menyetel decayRate=0 (klaim pemulihan tanpa bukti)';
+  if (after.mastery.application !== 0.4 || after.mastery.transfer !== 0) return 'applyStealthRepairResolution mengubah mastery tanpa observasi';
 
   return null;
 });

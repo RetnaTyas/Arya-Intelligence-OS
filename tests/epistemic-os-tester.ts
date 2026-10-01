@@ -655,10 +655,16 @@ function runSuite4() {
   const resolvedState = applyStealthRepairResolution(decayedState);
   const resolvedDebt = calculateDeterministicEpistemicDebt(sampleNode, resolvedState, 0.5);
 
+  // Resolusi TIDAK boleh mengarang pemulihan: decay jadi "belum teramati", mastery tidak naik, dan loop tertutup
+  // karena dasar intervensi kini hanya asumsi (bukan karena angka dipalsukan).
+  const masteryUnchanged = (Object.keys(decayedState.mastery) as Array<keyof typeof decayedState.mastery>)
+    .every((k) => resolvedState.mastery[k] === decayedState.mastery[k]);
   assert(
-    resolvedState.decayRate === 0.0 && !resolvedDebt.isBottleneck && resolvedDebt.severity === 'LOW',
+    resolvedState.decayRate === undefined && masteryUnchanged && !resolvedDebt.isBottleneck &&
+      resolvedDebt.severity !== 'HIGH' && resolvedDebt.assumptions.includes('decayRate') &&
+      resolvedDebt.recommendedAction !== 'STEALTH_INSERTION' && resolvedDebt.recommendedAction !== 'IMMEDIATE_PREREQUISITE_REPAIR',
     suite,
-    'Resolusi Loop & Netralisasi Utang Epistemik',
+    'Resolusi Loop tanpa Fabrikasi (decay belum teramati, mastery tidak naik, loop tertutup)',
     `Decay Sebelum: ${decayedState.decayRate !== undefined ? `${(decayedState.decayRate * 100).toFixed(0)}%` : 'tidak teramati'} -> Sesudah: ${resolvedState.decayRate !== undefined ? `${(resolvedState.decayRate * 100).toFixed(0)}%` : 'tidak teramati'}, Debt Baru: ${resolvedDebt.debtRiskScore} (${resolvedDebt.severity})`
   );
 }
